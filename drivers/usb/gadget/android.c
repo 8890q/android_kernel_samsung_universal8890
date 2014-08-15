@@ -32,7 +32,7 @@
 
 #include "gadget_chips.h"
 
-#include "../function/f_fs.c"
+#include "../function/u_fs.h"
 #include "../function/f_audio_source.c"
 #include "../function/f_midi.c"
 #include "../function/f_mass_storage.c"
@@ -273,22 +273,43 @@ static void android_disable(struct android_dev *dev)
 struct functionfs_config {
 	bool opened;
 	bool enabled;
+	struct usb_function *func;
+	struct usb_function_instance *fi;
 	struct ffs_data *data;
 };
+
+static int functionfs_ready_callback(struct ffs_data *ffs);
+static void functionfs_closed_callback(struct ffs_data *ffs);
 
 static int ffs_function_init(struct android_usb_function *f,
 			     struct usb_composite_dev *cdev)
 {
+	struct functionfs_config *config;
+	struct f_fs_opts *opts;
 	f->config = kzalloc(sizeof(struct functionfs_config), GFP_KERNEL);
 	if (!f->config)
 		return -ENOMEM;
 
-	return functionfs_init();
+	config = f->config;
+
+	config->fi = usb_get_function_instance("ffs");
+	if (IS_ERR(config->fi))
+		return PTR_ERR(config->fi);
+
+	opts = to_f_fs_opts(config->fi);
+	opts->dev->ffs_ready_callback = functionfs_ready_callback;
+	opts->dev->ffs_closed_callback = functionfs_closed_callback;
+	opts->no_configfs = true;
+
+	return ffs_single_dev(opts->dev);
 }
 
 static void ffs_function_cleanup(struct android_usb_function *f)
 {
-	functionfs_cleanup();
+	struct functionfs_config *config = f->config;
+	if (config)
+		usb_put_function_instance(config->fi);
+
 	kfree(f->config);
 }
 
@@ -320,7 +341,11 @@ static int ffs_function_bind_config(struct android_usb_function *f,
 				    struct usb_configuration *c)
 {
 	struct functionfs_config *config = f->config;
-	return functionfs_bind_config(c->cdev, c, config->data);
+	config->func = usb_get_function(config->fi);
+	if (IS_ERR(config->func))
+		return PTR_ERR(config->func);
+
+	return usb_add_function(c, config->func);
 }
 
 static ssize_t
@@ -383,17 +408,12 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 
 	mutex_lock(&dev->mutex);
 
-	ret = functionfs_bind(ffs, dev->cdev);
-	if (ret)
-		goto err;
-
 	config->data = ffs;
 	config->opened = true;
 
 	if (config->enabled)
 		android_enable(dev);
 
-err:
 	mutex_unlock(&dev->mutex);
 	return ret;
 }
@@ -411,18 +431,9 @@ static void functionfs_closed_callback(struct ffs_data *ffs)
 	config->opened = false;
 	config->data = NULL;
 
-	functionfs_unbind(ffs);
+	usb_put_function(config->func);
 
 	mutex_unlock(&dev->mutex);
-}
-
-static void *functionfs_acquire_dev_callback(const char *dev_name)
-{
-	return 0;
-}
-
-static void functionfs_release_dev_callback(struct ffs_data *ffs_data)
-{
 }
 
 struct adb_data {
