@@ -104,8 +104,8 @@ static bool fanotify_should_send_event(struct fsnotify_mark *inode_mark,
 		return false;
 
 	/* sorry, fanotify only gives a damn about files and dirs */
-	if (!S_ISREG(path->dentry->d_inode->i_mode) &&
-	    !S_ISDIR(path->dentry->d_inode->i_mode))
+	if (!d_is_reg(path->dentry) &&
+	    !d_is_dir(path->dentry))
 		return false;
 
 	/*
@@ -124,7 +124,7 @@ static bool fanotify_should_send_event(struct fsnotify_mark *inode_mark,
 		marks_ignored_mask |= vfsmnt_mark->ignored_mask;
 	}
 
-	if (S_ISDIR(path->dentry->d_inode->i_mode) &&
+	if (d_is_dir(path->dentry) &&
 	    (marks_ignored_mask & FS_ISDIR))
 		return false;
 

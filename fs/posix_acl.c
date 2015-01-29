@@ -806,7 +806,7 @@ posix_acl_xattr_get(struct dentry *dentry, const char *name,
 
 	if (!IS_POSIXACL(dentry->d_inode))
 		return -EOPNOTSUPP;
-	if (S_ISLNK(dentry->d_inode->i_mode))
+	if (d_is_symlink(dentry))
 		return -EOPNOTSUPP;
 
 	acl = get_acl(dentry->d_inode, type);
@@ -870,7 +870,7 @@ posix_acl_xattr_list(struct dentry *dentry, char *list, size_t list_size,
 
 	if (!IS_POSIXACL(dentry->d_inode))
 		return -EOPNOTSUPP;
-	if (S_ISLNK(dentry->d_inode->i_mode))
+	if (d_is_symlink(dentry))
 		return -EOPNOTSUPP;
 
 	if (type == ACL_TYPE_ACCESS)
