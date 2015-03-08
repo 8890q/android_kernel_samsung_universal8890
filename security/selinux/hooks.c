@@ -1767,7 +1767,7 @@ static inline int dentry_has_perm(const struct cred *cred,
    the path to help the auditing code to more easily generate the
    pathname if needed. */
 static inline int path_has_perm(const struct cred *cred,
-				struct path *path,
+				const struct path *path,
 				u32 av)
 {
 	struct inode *inode = path->dentry->d_inode;
