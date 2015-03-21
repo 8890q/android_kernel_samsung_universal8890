@@ -51,7 +51,6 @@
 #include <linux/tty.h>
 #include <net/icmp.h>
 #include <net/ip.h>		/* for local_port_range[] */
-#include <net/sock.h>
 #include <net/tcp.h>		/* struct or_callable used in sock_rcv_skb */
 #include <net/inet_connection_sock.h>
 #include <net/net_namespace.h>
@@ -5468,17 +5467,6 @@ static void selinux_inet_conn_established(struct sock *sk, struct sk_buff *skb)
 		family = PF_INET;
 
 	selinux_skb_peerlbl_sid(skb, family, &sksec->peer_sid);
-}
-
-static void selinux_skb_owned_by(struct sk_buff *skb, struct sock *sk)
-{
-#ifdef CONFIG_RKP_KDP
-	int rc;
-
-	if ((rc = security_integrity_current()))
-		return;
-#endif  /* CONFIG_RKP_KDP */
-	skb_set_owner_w(skb, sk);
 }
 
 static int selinux_secmark_relabel_packet(u32 sid)
