@@ -3212,7 +3212,7 @@ static int selinux_inode_readlink(struct dentry *dentry)
 	return dentry_has_perm(cred, dentry, FILE__READ);
 }
 
-static int selinux_inode_follow_link(struct dentry *dentry, struct nameidata *nameidata)
+static int selinux_inode_follow_link(struct dentry *dentry)
 {
 	const struct cred *cred = current_cred();
 #ifdef CONFIG_RKP_KDP
