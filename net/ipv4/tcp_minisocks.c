@@ -485,7 +485,7 @@ struct sock *tcp_create_openreq_child(struct sock *sk, struct request_sock *req,
 
 		newtp->rcv_wup = newtp->copied_seq =
 		newtp->rcv_nxt = treq->rcv_isn + 1;
-		newtp->segs_in = 0;
+		newtp->segs_in = 1;
 
 		newtp->snd_sml = newtp->snd_una =
 		newtp->snd_nxt = newtp->snd_up = treq->snt_isn + 1;
@@ -893,7 +893,7 @@ int tcp_child_process(struct sock *parent, struct sock *child,
 #ifdef CONFIG_MPTCP
 	struct sock *meta_sk = mptcp(tcp_sk(child)) ? mptcp_meta_sk(child) : child;
 #endif
-
+    tcp_sk(child)->segs_in += max_t(u16, 1, skb_shinfo(skb)->gso_segs);
 #ifdef CONFIG_MPTCP
 	if (!sock_owned_by_user(meta_sk)) {
 #else
