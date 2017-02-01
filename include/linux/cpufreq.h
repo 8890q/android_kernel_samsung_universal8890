@@ -618,6 +618,10 @@ int cpufreq_generic_init(struct cpufreq_policy *policy,
 #ifdef CONFIG_CPU_FREQ_STAT
 
 void acct_update_power(struct task_struct *p, cputime_t cputime);
+void cpufreq_task_stats_init(struct task_struct *p);
+void cpufreq_task_stats_exit(struct task_struct *p);
+int  proc_time_in_state_show(struct seq_file *m, struct pid_namespace *ns,
+			     struct pid *pid, struct task_struct *p);
 
 #else
 
