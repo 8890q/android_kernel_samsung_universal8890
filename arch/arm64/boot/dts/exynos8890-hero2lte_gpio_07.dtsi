@@ -321,7 +321,7 @@
 		PIN_SLP(gpe4-0, INPUT, DOWN);	/* UB_SPI_CLK */
 		PIN_SLP(gpe4-1, INPUT, DOWN);	/* UB_SPI_CS_N */
 		PIN_SLP(gpe4-2, INPUT, DOWN);	/* UB_SPI_MISO */
-		PIN_SLP(gpe4-3, INPUT, DOWN);	/* UB_SPI_MOSI */
+		PIN_SLP(gpe4-3, PREV, NONE);	/* BTP_GPIO */
 		PIN_SLP(gpe4-4, INPUT, NONE);	/* HW_REV(0) */
 		PIN_SLP(gpe4-5, INPUT, NONE);	/* HW_REV(1) */
 		PIN_SLP(gpe4-6, INPUT, NONE);	/* HW_REV(2) */
