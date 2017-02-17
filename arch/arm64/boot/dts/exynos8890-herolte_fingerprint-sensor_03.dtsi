@@ -45,6 +45,12 @@
 			samsung,pin-pud = <0>;
 			samsung,pin-drv = <3>;
 		};
+		btp_gpio: btp-gpio {
+			samsung,pins = "gpe4-3";
+			samsung,pin-function = <1>;
+			samsung,pin-pud = <0>;
+			samsung,pin-drv = <3>;
+		};
 	};
 
 	pinctrl@10E60000 {
@@ -93,6 +99,7 @@
 			vfsspi-ldoPin = <&gpe3 0 0x00>;
 			vfsspi-orient = <0>;
 			vfsspi-vendorPin = <&gpe3 2 0x00>;
+			vfsspi-retainPin = <&gpe4 3 0x00>;
 			vfsspi-ldocontrol = <1>;
 			vfsspi-csgpio = <&gpf3 1 0>;
 			controller-data {
