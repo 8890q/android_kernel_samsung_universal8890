@@ -601,6 +601,10 @@ struct sec_ts_data {
 	int (*sec_ts_i2c_read)(struct sec_ts_data * ts, u8 reg, u8 * data, int len);
 	int (*sec_ts_i2c_read_bulk) (struct sec_ts_data * ts, u8 * data, int len);
 	int (*sec_ts_i2c_write_burst)(struct sec_ts_data *ts, u8 *data, int len);
+
+#ifdef CONFIG_FB
+	struct notifier_block fb_notif;
+#endif
 };
 
 struct sec_ts_plat_data {
