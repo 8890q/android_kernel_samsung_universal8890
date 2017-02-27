@@ -56,6 +56,11 @@
 #include <linux/sec_debug.h>
 #endif
 
+#ifdef CONFIG_FB
+#include <linux/notifier.h>
+#include <linux/fb.h>
+#endif
+
 #ifdef SEC_DEBUG_TK_LOG
 #define tk_debug_dbg(mode, dev, fmt, ...)	\
 ({								\
@@ -193,6 +198,9 @@ struct abov_tk_info {
 #ifdef LED_TWINKLE_BOOTING
 	struct delayed_work led_twinkle_work;
 	bool led_twinkle_check;
+#endif
+#ifdef CONFIG_FB
+	struct notifier_block fb_notif;
 #endif
 };
 
@@ -1744,6 +1752,11 @@ static int abov_parse_dt(struct device *dev,
 }
 #endif
 
+#ifdef CONFIG_FB
+static int fb_notifier_callback(struct notifier_block *self,
+	unsigned long event, void *data);
+#endif
+
 static int abov_tk_probe(struct i2c_client *client,
 				  const struct i2c_device_id *id)
 {
@@ -1941,6 +1954,12 @@ static int abov_tk_probe(struct i2c_client *client,
 	}
 #endif
 
+#ifdef CONFIG_FB
+	info->fb_notif.notifier_call = fb_notifier_callback;
+	if (fb_register_client(&info->fb_notif))
+		pr_err("%s: could not create fb notifier\n", __func__);
+#endif
+
 	tk_debug_err(true, &client->dev, "%s done\n", __func__);
 
 	return 0;
@@ -2004,6 +2023,9 @@ static int abov_tk_remove(struct i2c_client *client)
 		free_irq(info->irq, info);
 	input_unregister_device(info->input_dev);
 	input_free_device(info->input_dev);
+#ifdef CONFIG_FB
+	fb_unregister_client(&info->fb_notif);
+#endif	
 	kfree(info);
 
 	return 0;
@@ -2176,6 +2198,35 @@ static void abov_tk_input_close(struct input_dev *dev)
 	info->led_twinkle_check = 0;
 #endif
 
+}
+#endif
+
+#ifdef CONFIG_FB
+static int fb_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	struct abov_tk_info *tc_info = container_of(self, struct abov_tk_info, fb_notif);
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		int *blank = evdata->data;
+		switch (*blank) {
+		case FB_BLANK_UNBLANK:
+		case FB_BLANK_NORMAL:
+		case FB_BLANK_VSYNC_SUSPEND:
+		case FB_BLANK_HSYNC_SUSPEND:
+			abov_tk_resume(&tc_info->client->dev);
+			break;
+		case FB_BLANK_POWERDOWN:
+			abov_tk_suspend(&tc_info->client->dev);
+			break;
+		default:
+			/* Don't handle what we don't understand */
+			break;
+		}
+	}
+
+	return 0;
 }
 #endif
 
