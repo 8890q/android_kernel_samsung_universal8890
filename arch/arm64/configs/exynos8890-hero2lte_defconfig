@@ -4583,6 +4583,9 @@ CONFIG_SDFAT_DBG_MSG=y
 CONFIG_SDFAT_STATISTICS=y
 # CONFIG_NTFS_FS is not set
 
+# VDSO
+CONFIG_COMPAT_VDSO=y
+
 #
 # Pseudo filesystems
 #
