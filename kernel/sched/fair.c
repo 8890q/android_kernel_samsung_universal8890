@@ -676,6 +676,7 @@ void init_task_runnable_average(struct task_struct *p)
 {
 	u32 slice;
 
+	p->se.avg.decay_count = 0;
 	slice = sched_slice(task_cfs_rq(p), &p->se) >> 10;
 	p->se.avg.runnable_avg_sum = slice;
 	p->se.avg.runnable_avg_period = slice;
