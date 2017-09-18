@@ -1344,12 +1344,7 @@ select_task_rq_rt(struct task_struct *p, int cpu, int sd_flag, int flags)
 	     curr->prio <= p->prio)) {
 		int target = find_lowest_rq(p);
 
-		/*
-		 * Possible race. Don't bother moving it if the
-		 * destination CPU is not running a lower priority task.
-		 */
-                if (target != -1 &&
-                    p->prio < cpu_rq(target)->rt.highest_prio.curr)
+		if (target != -1)
 			cpu = target;
 	}
 	rcu_read_unlock();
