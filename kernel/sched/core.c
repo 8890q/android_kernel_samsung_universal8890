@@ -2830,7 +2830,7 @@ static unsigned long sum_capacity_reqs(unsigned long cfs_cap,
 static void sched_freq_tick(int cpu)
 {
 	struct sched_capacity_reqs *scr;
-	unsigned long capacity_orig, capacity_curr, capacity_sum;
+	unsigned long capacity_orig, capacity_curr;
 
 	if (!sched_freq())
 		return;
@@ -2843,15 +2843,12 @@ static void sched_freq_tick(int cpu)
 	/*
 	 * To make free room for a task that is building up its "real"
 	 * utilization and to harm its performance the least, request
-	 * a jump to a higher OPP as soon as the margin of free capacity
-	 * is impacted (specified by capacity_margin).
+	 * a jump to max OPP as soon as the margin of free capacity is
+	 * impacted (specified by capacity_margin).
 	 */
-
 	scr = &per_cpu(cpu_sched_capacity_reqs, cpu);
-	capacity_sum = sum_capacity_reqs(cpu_util(cpu), scr);
-	if (capacity_curr < capacity_sum) {
-		set_cfs_cpu_capacity(cpu, true, capacity_sum);
-	}
+	if (capacity_curr < sum_capacity_reqs(cpu_util(cpu), scr))
+		set_cfs_cpu_capacity(cpu, true, capacity_max);
 }
 #else
 static inline void sched_freq_tick(int cpu) { }
