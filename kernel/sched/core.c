@@ -2321,7 +2321,7 @@ void wake_up_new_task(struct task_struct *p)
 #endif
 
 	/* Initialize new task's runnable average */
-	init_entity_runnable_average(&p->se);
+	init_task_runnable_average(p);
 	rq = __task_rq_lock(p);
 	activate_task(rq, p, 0);
 	p->on_rq = TASK_ON_RQ_QUEUED;
