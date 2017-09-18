@@ -963,5 +963,5 @@ nodata:
 	rcu_read_unlock();
 	return -EINVAL;
 }
-postcore_initcall(schedtune_init);
+late_initcall(schedtune_init);
 
