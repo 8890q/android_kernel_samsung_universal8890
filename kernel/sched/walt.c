@@ -185,14 +185,7 @@ update_window_start(struct rq *rq, u64 wallclock)
 	int nr_windows;
 
 	delta = wallclock - rq->window_start;
-	/* If the MPM global timer is cleared, set delta as 0 to avoid kernel BUG happening */
-	if (delta < 0) {
-		if (arch_timer_read_counter() == 0)
-			delta = 0;
-		else
-			BUG_ON(1);
-	}
-
+	BUG_ON(delta < 0);
 	if (delta < walt_ravg_window)
 		return;
 
