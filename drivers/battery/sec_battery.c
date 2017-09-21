@@ -5217,24 +5217,14 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case STORE_MODE:
 		if (sscanf(buf, "%d\n", &x) == 1) {
-#if !defined(CONFIG_SEC_FACTORY)
-			if (x) {
-				if (!battery->store_mode) {
-					battery->pdata->wpc_high_temp -= 30;
-					battery->pdata->wpc_high_temp_recovery -= 30;
-				}	
-				battery->store_mode |= STORE_MODE_LDU_RDU;
-				if(battery->capacity <= 5) {
-					battery->ignore_store_mode = true;
-				} else {
-					if(battery->cable_type == POWER_SUPPLY_TYPE_HV_MAINS || \
-						battery->cable_type == POWER_SUPPLY_TYPE_HV_MAINS_12V ||
-						battery->cable_type == POWER_SUPPLY_TYPE_HV_ERR)
-						sec_bat_set_charging_current(battery);
-				}
-			}
-#endif
+			battery->store_mode = x ? true : false;
 			ret = count;
+			if (battery->store_mode) {
+				union power_supply_propval value;
+				value.intval = battery->store_mode;
+				psy_do_property(battery->pdata->charger_name, set,
+						POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX, value);
+			}
 		}
 		break;
 	case UPDATE:
@@ -6181,13 +6171,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 					return 0;
 				}
 			}
-#if defined(CONFIG_STORE_MODE)
-			if (battery->store_mode && !lpcharge &&
-					battery->cable_type != POWER_SUPPLY_TYPE_BATTERY &&
-					battery->status == POWER_SUPPLY_STATUS_DISCHARGING) {
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			} else
-#endif
+
 				val->intval = battery->status;
 		}
 		break;
@@ -8212,8 +8196,14 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->cable_type = POWER_SUPPLY_TYPE_BATTERY;
 	battery->test_mode = 0;
 	battery->factory_mode = false;
+#if defined(CONFIG_STORE_MODE)
+	battery->store_mode = false;
+	value.intval = battery->store_mode;
+	psy_do_property(battery->pdata->charger_name, set,
+			POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX, value);
+#else
 	battery->store_mode = STORE_MODE_NONE;
-	battery->ignore_store_mode = false;
+#endif
 	battery->slate_mode = false;
 	battery->is_hc_usb = false;
 
@@ -8414,15 +8404,6 @@ static int sec_battery_probe(struct platform_device *pdev)
 	value.intval = 0;
 	psy_do_property(battery->pdata->wireless_charger_name, set,
 					POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-
-#if defined(CONFIG_STORE_MODE) && !defined(CONFIG_SEC_FACTORY)
-	battery->store_mode |= STORE_MODE_LDU_RDU;
-	if (battery->capacity <= 5)
-		battery->ignore_store_mode = true;
-
-	battery->pdata->wpc_high_temp -= 30;
-	battery->pdata->wpc_high_temp_recovery -= 30;
-#endif
 
 #if defined(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_register(&battery->batt_nb,
