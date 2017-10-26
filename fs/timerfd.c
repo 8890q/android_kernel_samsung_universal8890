@@ -44,6 +44,8 @@ struct timerfd_ctx {
 	bool might_cancel;
 };
 
+static atomic_t instance_count = ATOMIC_INIT(0);
+
 static LIST_HEAD(cancel_list);
 static DEFINE_SPINLOCK(cancel_lock);
 
@@ -254,13 +256,8 @@ static ssize_t timerfd_read(struct file *file, char __user *buf, size_t count,
 	spin_lock_irq(&ctx->wqh.lock);
 	if (file->f_flags & O_NONBLOCK)
 		res = -EAGAIN;
-	else {
-		printk("timerfd blocking read by tid %d\n",
-			pid_nr(get_task_pid(current, PIDTYPE_PID)));
+	else
 		res = wait_event_interruptible_locked_irq(ctx->wqh, ctx->ticks);
-		printk("timerfd blocking read released by tid %d\n",
-			pid_nr(get_task_pid(current, PIDTYPE_PID)));
-	}
 
 	/*
 	 * If clock has changed, we do not care about the
@@ -391,6 +388,9 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 {
 	int ufd;
 	struct timerfd_ctx *ctx;
+	char task_comm_buf[TASK_COMM_LEN];
+	char file_name_buf[32];
+	int instance;
 
 	/* Check the TFD_* constants for consistency.  */
 	BUILD_BUG_ON(TFD_CLOEXEC != O_CLOEXEC);
@@ -422,7 +422,12 @@ SYSCALL_DEFINE2(timerfd_create, int, clockid, int, flags)
 
 	ctx->moffs = ktime_mono_to_real((ktime_t){ .tv64 = 0 });
 
-	ufd = anon_inode_getfd("[timerfd]", &timerfd_fops, ctx,
+	instance = atomic_inc_return(&instance_count);
+	get_task_comm(task_comm_buf, current);
+	snprintf(file_name_buf, sizeof(file_name_buf), "[timerfd%d_%.*s]",
+		 instance, (int)sizeof(task_comm_buf), task_comm_buf);
+
+	ufd = anon_inode_getfd(file_name_buf, &timerfd_fops, ctx,
 			       O_RDWR | (flags & TFD_SHARED_FCNTL_FLAGS));
 	if (ufd < 0)
 		kfree(ctx);
