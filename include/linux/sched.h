@@ -1772,6 +1772,7 @@ struct task_struct {
 #ifdef CONFIG_SDP
 	unsigned int sensitive;
 #endif
+	atomic64_t *concurrent_active_time;
 };
 
 /* Future-safe accessor for struct task_struct's cpus_allowed. */
