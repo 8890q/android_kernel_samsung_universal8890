@@ -605,6 +605,8 @@ struct sec_ts_data {
 #ifdef CONFIG_FB
 	struct notifier_block fb_notif;
 #endif
+
+    bool dt2w_enable;
 };
 
 struct sec_ts_plat_data {

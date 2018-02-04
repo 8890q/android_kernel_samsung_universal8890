@@ -139,11 +139,71 @@ static inline ssize_t sec_ts_show_error(struct device *dev,
 	struct device_attribute *attr, char *buf);
 
 
+static ssize_t dt2w_enable_show(struct device *dev, 
+					struct device_attribute *devattr, char *buf)
+{
+	struct sec_ts_data *ts = dev_get_drvdata(dev);
+	char buffer[256]= { 0 };
+
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, ts->dt2w_enable);
+	snprintf(buffer, sizeof(buffer), "%d", ts->dt2w_enable);
+
+	return snprintf(buf, PAGE_SIZE, "%s\n", buffer);
+}
+
+static ssize_t dt2w_enable_store(struct device *dev, struct device_attribute *attr,
+					const char *buf, size_t size)
+{
+	struct sec_ts_data *ts = dev_get_drvdata(dev);
+
+	bool enable;
+
+	if (strncmp(buf, "1", 1) == 0)
+		enable = true;
+	else if (strncmp(buf, "0", 1) == 0)
+		enable = false;
+	else
+		return 0;
+
+	input_info(true, &ts->client->dev, "%s: %d\n", __func__, enable);
+	
+	mutex_lock(&ts->cmd_lock);
+	ts->cmd_is_running = true;
+	mutex_unlock(&ts->cmd_lock);
+
+	ts->dt2w_enable = enable ? 1 : 0;
+
+    /* this might be really wrong, and we need to set the dt2w area */
+	if (enable) {
+		if (ts->use_sponge)
+			ts->lowpower_flag |= SEC_TS_MODE_SPONGE_AOD;
+		else
+			ts->lowpower_flag |= SEC_TS_LOWP_FLAG_AOD;
+			
+		ts->dt2w_enable = 1;
+		
+	} else {
+		if (ts->use_sponge)
+			ts->lowpower_flag &= ~SEC_TS_MODE_SPONGE_AOD;
+		else
+			ts->lowpower_flag &= ~SEC_TS_LOWP_FLAG_AOD;
+			
+		ts->dt2w_enable = 0;
+	}
+
+	mutex_lock(&ts->cmd_lock);
+	ts->cmd_is_running = false;
+	mutex_unlock(&ts->cmd_lock);
+
+	return size;
+}
+
 static DEVICE_ATTR(sec_ts_reg, 0660, NULL, sec_ts_reg_store);
 static DEVICE_ATTR(sec_ts_regreadsize, 0660, NULL, sec_ts_regreadsize_store);
 static DEVICE_ATTR(sec_ts_enter_recovery, 0660, NULL, sec_ts_enter_recovery_store);
 static DEVICE_ATTR(sec_ts_regread, 0660, sec_ts_regread_show, NULL);
 static DEVICE_ATTR(sec_ts_gesture_status, 0660, sec_ts_gesture_status_show, NULL);
+static DEVICE_ATTR(dt2w_enable, 0660, dt2w_enable_show, dt2w_enable_store);
 
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_sec_ts_reg.attr,
@@ -151,6 +211,7 @@ static struct attribute *cmd_attributes[] = {
 	&dev_attr_sec_ts_enter_recovery.attr,
 	&dev_attr_sec_ts_regread.attr,
 	&dev_attr_sec_ts_gesture_status.attr,
+	&dev_attr_dt2w_enable.attr,
 	NULL,
 };
 
@@ -544,6 +605,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 	int t_id;
 	int event_id;
 	int read_event_count;
+	unsigned int aod_keycode;
 	u8 read_event_buff[SEC_TS_Event_Buff_Size];
 	struct sec_ts_event_coordinate * p_event_coord;
 	struct sec_ts_event_status * p_event_status;
@@ -897,9 +959,10 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 					else if (p_gesture_status->gesture== SEC_TS_GESTURE_CODE_AOD)
 						ts->scrub_id = 0x08;
 
-					input_report_key(ts->input_dev, KEY_BLACK_UI_GESTURE, 1);
+					aod_keycode = ts->dt2w_enable ? KEY_POWER : KEY_BLACK_UI_GESTURE;
+					input_report_key(ts->input_dev, aod_keycode, 1);
 					input_sync(ts->input_dev);
-					input_report_key(ts->input_dev, KEY_BLACK_UI_GESTURE, 0);
+					input_report_key(ts->input_dev, aod_keycode, 0);
 				}
 			}
 			input_info(true, &ts->client->dev, "%s: GESTURE  %x %x %x %x %x %x\n", __func__,
@@ -1959,6 +2022,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	set_bit(BTN_TOUCH, ts->input_dev->keybit);
 	set_bit(BTN_TOOL_FINGER, ts->input_dev->keybit);
 	set_bit(KEY_BLACK_UI_GESTURE, ts->input_dev->keybit);
+	set_bit(KEY_POWER, ts->input_dev->keybit);
 
 #ifdef SEC_TS_SUPPORT_TOUCH_KEY
 	if (ts->plat_data->support_mskey) {
