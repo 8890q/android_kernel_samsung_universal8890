@@ -1912,7 +1912,7 @@ static int exynos_ufs_pwr_change_notify(struct ufs_hba *hba, bool notify,
 }
 
 static void exynos_ufs_hibern8_notify(struct ufs_hba *hba,
-				u8 enter, bool notify)
+				u8 enter, int notify)
 {
 	switch (notify) {
 	case PRE_CHANGE:
