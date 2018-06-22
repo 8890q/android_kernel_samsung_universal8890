@@ -153,7 +153,7 @@ static unsigned long drop_inode_pagecache(struct inode *inode) {
 		printk("%s() cleaning [%s] pages: %lu\n", __func__,
 				inode->i_sb->s_type->name,inode->i_mapping->nrpages);
 
-	if ((inode->i_mapping->nrpages == 0)) {
+	if (inode->i_mapping->nrpages == 0) {
 		spin_unlock(&inode->i_lock);
 		printk("%s inode having zero nrpages\n", __func__);
 		return 0;
