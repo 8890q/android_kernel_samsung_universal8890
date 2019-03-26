@@ -8,6 +8,11 @@ obj-$(CONFIG_MPTCP) += mptcp.o
 mptcp-y := mptcp_ctrl.o mptcp_ipv4.o mptcp_ofo_queue.o mptcp_pm.o \
 	   mptcp_output.o mptcp_input.o mptcp_sched.o mptcp_fullmesh.o
 
+# you wouldnt believe how fucked this code are, just look at mptcp repo
+CFLAGS_mptcp_ctrl.o += $(call cc-disable-warning, incompatible-pointer-types)
+CFLAGS_mptcp_ofo_queue.o += $(call cc-disable-warning, incompatible-pointer-types)
+CFLAGS_mptcp_input.o += $(call cc-disable-warning, incompatible-pointer-types)
+
 obj-$(CONFIG_TCP_CONG_LIA) += mptcp_coupled.o
 obj-$(CONFIG_TCP_CONG_OLIA) += mptcp_olia.o
 obj-$(CONFIG_TCP_CONG_WVEGAS) += mptcp_wvegas.o
