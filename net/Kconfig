@@ -243,7 +243,6 @@ source "net/vmw_vsock/Kconfig"
 source "net/netlink/Kconfig"
 source "net/mpls/Kconfig"
 source "net/hsr/Kconfig"
-source "net/ncm/Kconfig"
 
 config RPS
 	boolean "RPS"
