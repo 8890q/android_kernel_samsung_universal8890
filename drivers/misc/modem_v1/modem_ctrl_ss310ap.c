@@ -132,7 +132,7 @@ static int __init console_setup(char *str)
 	
 	return 0;
 }
-__setup("androidboot.revision=", console_setup);
+__setup("androidboot.hw_rev=", console_setup);
 #else
 static int get_system_rev(struct device_node *np)
 {
