@@ -84,11 +84,11 @@ static int cfg80211_conn_scan(struct wireless_dev *wdev)
 		request->channels[0] = wdev->conn->params.channel;
 	else {
 		int i = 0, j;
-		enum ieee80211_band band;
+		enum nl80211_band band;
 		struct ieee80211_supported_band *bands;
 		struct ieee80211_channel *channel;
 
-		for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		for (band = 0; band < NUM_NL80211_BANDS; band++) {
 			bands = wdev->wiphy->bands[band];
 			if (!bands)
 				continue;

@@ -538,10 +538,10 @@ wl_adps_enabled(struct bcm_cfg80211 *cfg, struct net_device *ndev)
 		data = (wl_adps_params_v1_t *)resp->data;
 
 		if (data->mode) {
-			if (data->band == IEEE80211_BAND_2GHZ) {
+			if (data->band == NL80211_BAND_2GHZ) {
 				band += WLC_BAND_2G;
 			}
-			else if (data->band == IEEE80211_BAND_5GHZ) {
+			else if (data->band == NL80211_BAND_5GHZ) {
 				band += WLC_BAND_5G;
 			}
 		}

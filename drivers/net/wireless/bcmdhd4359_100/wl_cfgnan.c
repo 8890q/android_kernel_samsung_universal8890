@@ -2174,7 +2174,7 @@ wl_cfgnan_start_handler(struct net_device *ndev, struct bcm_cfg80211 *cfg,
 	 */
 	/* For Debug purpose, using clust id compulsion */
 	if (!ETHER_ISNULLADDR(&cmd_data->clus_id.octet)) {
-		if ((cmd_data->clus_id.octet[4] == cmd_data->clus_id.octet[5])) {
+		if (cmd_data->clus_id.octet[4] == cmd_data->clus_id.octet[5]) {
 			/* device will merge to configured CID only */
 			ret = wl_cfgnan_config_control_flag(ndev, cfg,
 					WL_NAN_CTRL_MERGE_CONF_CID_ONLY, &(cmd_data->status), true);
