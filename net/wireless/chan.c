@@ -750,7 +750,7 @@ static bool cfg80211_go_permissive_chan(struct cfg80211_registered_device *rdev,
 		if (chan == other_chan)
 			return true;
 
-		if (chan->band != IEEE80211_BAND_5GHZ)
+		if (chan->band != NL80211_BAND_5GHZ)
 			continue;
 
 		r1 = cfg80211_get_unii(chan->center_freq);

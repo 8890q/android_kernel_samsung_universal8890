@@ -2703,16 +2703,16 @@ dhd_rtt_avail_channel(dhd_pub_t *dhd, wifi_channel_info *channel_info)
 		if (CHSPEC_IS2G(c) && (channel >= CH_MIN_2G_CHANNEL) &&
 			(channel <= CH_MAX_2G_CHANNEL)) {
 			channel_info->center_freq =
-				ieee80211_channel_to_frequency(channel, IEEE80211_BAND_2GHZ);
+				ieee80211_channel_to_frequency(channel, NL80211_BAND_2GHZ);
 		} else if (CHSPEC_IS5G(c) && channel >= CH_MIN_5G_CHANNEL) {
 			channel_info->center_freq =
-				ieee80211_channel_to_frequency(channel, IEEE80211_BAND_5GHZ);
+				ieee80211_channel_to_frequency(channel, NL80211_BAND_5GHZ);
 		}
 		if ((channel_info->width == WIFI_CHAN_WIDTH_80) ||
 			(channel_info->width == WIFI_CHAN_WIDTH_40)) {
 			channel = CHSPEC_CHANNEL(c);
 			channel_info->center_freq0 =
-				ieee80211_channel_to_frequency(channel, IEEE80211_BAND_5GHZ);
+				ieee80211_channel_to_frequency(channel, NL80211_BAND_5GHZ);
 		}
 	} else {
 		DHD_ERROR(("Failed to get the chanspec \n"));

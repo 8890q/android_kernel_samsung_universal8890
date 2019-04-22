@@ -1242,7 +1242,7 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *rdev,
 	struct nlattr *nl_bands, *nl_band;
 	struct nlattr *nl_freqs, *nl_freq;
 	struct nlattr *nl_cmds;
-	enum ieee80211_band band;
+	enum nl80211_band band;
 	struct ieee80211_channel *chan;
 	int i;
 	const struct ieee80211_txrx_stypes *mgmt_stypes =
@@ -1369,7 +1369,7 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *rdev,
 			goto nla_put_failure;
 
 		for (band = state->band_start;
-		     band < IEEE80211_NUM_BANDS; band++) {
+		     band < NUM_NL80211_BANDS; band++) {
 			struct ieee80211_supported_band *sband;
 
 			sband = rdev->wiphy.bands[band];
@@ -1431,7 +1431,7 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *rdev,
 		}
 		nla_nest_end(msg, nl_bands);
 
-		if (band < IEEE80211_NUM_BANDS)
+		if (band < NUM_NL80211_BANDS)
 			state->band_start = band + 1;
 		else
 			state->band_start = 0;
@@ -5464,10 +5464,10 @@ static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 			i++;
 		}
 	} else {
-		enum ieee80211_band band;
+		enum nl80211_band band;
 
 		/* all channels */
-		for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		for (band = 0; band < NUM_NL80211_BANDS; band++) {
 			int j;
 			if (!wiphy->bands[band])
 				continue;
@@ -5512,7 +5512,7 @@ static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 		       request->ie_len);
 	}
 
-	for (i = 0; i < IEEE80211_NUM_BANDS; i++)
+	for (i = 0; i < NUM_NL80211_BANDS; i++)
 		if (wiphy->bands[i])
 			request->rates[i] =
 				(1 << wiphy->bands[i]->n_bitrates) - 1;
@@ -5521,9 +5521,9 @@ static int nl80211_trigger_scan(struct sk_buff *skb, struct genl_info *info)
 		nla_for_each_nested(attr,
 				    info->attrs[NL80211_ATTR_SCAN_SUPP_RATES],
 				    tmp) {
-			enum ieee80211_band band = nla_type(attr);
+			enum nl80211_band band = nla_type(attr);
 
-			if (band < 0 || band >= IEEE80211_NUM_BANDS) {
+			if (band < 0 || band >= NUM_NL80211_BANDS) {
 				err = -EINVAL;
 				goto out_free;
 			}
@@ -5729,7 +5729,7 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 		}
 	} else {
 		/* all channels */
-		for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+		for (band = 0; band < NUM_NL80211_BANDS; band++) {
 			int j;
 			if (!wiphy->bands[band])
 				continue;
@@ -6765,14 +6765,14 @@ static int nl80211_disassociate(struct sk_buff *skb, struct genl_info *info)
 
 static bool
 nl80211_parse_mcast_rate(struct cfg80211_registered_device *rdev,
-			 int mcast_rate[IEEE80211_NUM_BANDS],
+			 int mcast_rate[NUM_NL80211_BANDS],
 			 int rateval)
 {
 	struct wiphy *wiphy = &rdev->wiphy;
 	bool found = false;
 	int band, i;
 
-	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
+	for (band = 0; band < NUM_NL80211_BANDS; band++) {
 		struct ieee80211_supported_band *sband;
 
 		sband = wiphy->bands[band];
@@ -6942,7 +6942,7 @@ static int nl80211_set_mcast_rate(struct sk_buff *skb, struct genl_info *info)
 {
 	struct cfg80211_registered_device *rdev = info->user_ptr[0];
 	struct net_device *dev = info->user_ptr[1];
-	int mcast_rate[IEEE80211_NUM_BANDS];
+	int mcast_rate[NUM_NL80211_BANDS];
 	u32 nla_rate;
 	int err;
 
@@ -7720,7 +7720,7 @@ static int nl80211_set_tx_bitrate_mask(struct sk_buff *skb,
 
 	memset(&mask, 0, sizeof(mask));
 	/* Default to all rates enabled */
-	for (i = 0; i < IEEE80211_NUM_BANDS; i++) {
+	for (i = 0; i < NUM_NL80211_BANDS; i++) {
 		sband = rdev->wiphy.bands[i];
 
 		if (!sband)
@@ -7748,10 +7748,10 @@ static int nl80211_set_tx_bitrate_mask(struct sk_buff *skb,
 	 */
 	BUILD_BUG_ON(NL80211_MAX_SUPP_HT_RATES > IEEE80211_HT_MCS_MASK_LEN * 8);
 	nla_for_each_nested(tx_rates, info->attrs[NL80211_ATTR_TX_RATES], rem) {
-		enum ieee80211_band band = nla_type(tx_rates);
+		enum nl80211_band band = nla_type(tx_rates);
 		int err;
 
-		if (band < 0 || band >= IEEE80211_NUM_BANDS)
+		if (band < 0 || band >= NUM_NL80211_BANDS)
 			return -EINVAL;
 		sband = rdev->wiphy.bands[band];
 		if (sband == NULL)
