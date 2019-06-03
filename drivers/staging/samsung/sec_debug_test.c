@@ -157,7 +157,7 @@ static void pull_down_other_cpus(void)
 static void simulate_KP(char *arg)
 {
 	pr_crit("%s()\n", __func__);
-	*(unsigned int *)0x0 = 0x0; /* SVACE: intended */
+	*(volatile unsigned int *)0x0 = 0x0; /* SVACE: intended */
 }
 
 static void simulate_DP(char *arg)
@@ -206,8 +206,10 @@ static void simulate_WARN(char *arg)
 
 static void simulate_DABRT(char *arg)
 {
+#if 0
 	pr_crit("%s()\n", __func__);
-	*((int *) 0) = 0; /* SVACE: intended */
+	*((int *)0) = 0; /* SVACE: intended */
+#endif
 }
 
 static void simulate_PABRT(char *arg)
