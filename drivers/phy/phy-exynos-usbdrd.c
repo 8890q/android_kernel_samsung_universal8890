@@ -452,7 +452,7 @@ static int exynos_usbdrd_get_phyinfo(struct exynos_usbdrd_phy *phy_drd)
 			phy_drd->usbphy_info.common_block_enable = false;
 		} else {
 			phy_drd->usbphy_info.version = EXYNOS_USBCON_VER_02_1_1;
-			phy_drd->usbphy_info.refsel =
+			phy_drd->usbphy_info.refclk =
 						USBPHY_REFCLK_EXT_12MHZ;
 			phy_drd->usbphy_info.use_io_for_ovc = false;
 			phy_drd->usbphy_info.common_block_enable = false;
