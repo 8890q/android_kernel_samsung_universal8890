@@ -62,7 +62,7 @@ void print_req_ack(struct mem_link_device *mld, struct mem_snapshot *mst,
 #ifdef DEBUG_MODEM_IF_FLOW_CTRL
 	struct link_device *ld = &mld->link_dev;
 	struct modem_ctl *mc = ld->mc;
-	enum dev_format id = dev->id;
+	enum legacy_ipc_map id = dev->id;
 	unsigned int qsize = get_size(cq(dev, dir));
 	unsigned int in = mst->head[id][dir];
 	unsigned int out = mst->tail[id][dir];
@@ -81,7 +81,7 @@ void print_res_ack(struct mem_link_device *mld, struct mem_snapshot *mst,
 #ifdef DEBUG_MODEM_IF_FLOW_CTRL
 	struct link_device *ld = &mld->link_dev;
 	struct modem_ctl *mc = ld->mc;
-	enum dev_format id = dev->id;
+	enum legacy_ipc_map id = dev->id;
 	enum direction opp_dir = opposite(dir);	/* opposite direction */
 	unsigned int qsize = get_size(cq(dev, opp_dir));
 	unsigned int in = mst->head[id][opp_dir];
@@ -116,7 +116,7 @@ void print_dev_snapshot(struct mem_link_device *mld, struct mem_snapshot *mst,
 {
 #ifdef DEBUG_MODEM_IF
 	struct link_device *ld = &mld->link_dev;
-	enum dev_format id = dev->id;
+	enum legacy_ipc_map id = dev->id;
 
 	if (id > IPC_RAW)
 		return;

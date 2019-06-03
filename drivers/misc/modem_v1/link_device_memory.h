@@ -153,7 +153,7 @@ struct __packed shmem_4mb_phys_map {
 #ifdef GROUP_MEM_IPC_DEVICE
 
 struct mem_ipc_device {
-	enum dev_format id;
+	enum legacy_ipc_map id;
 	char name[16];
 
 	struct circ_queue txq;
@@ -630,17 +630,16 @@ static inline enum dev_format dev_id(enum sipc_ch_id ch)
 	return sipc5_fmt_ch(ch) ? IPC_FMT : IPC_RAW;
 }
 
-static inline enum dev_format get_mmap_idx(enum sipc_ch_id ch,
+static inline enum legacy_ipc_map get_mmap_idx(enum sipc_ch_id ch,
 		struct sk_buff *skb)
 {
 	if (sipc5_fmt_ch(ch))
 		return IPC_MAP_FMT;
-	else
 #ifdef CONFIG_MODEM_IF_LEGACY_QOS
-		return (skb->queue_mapping == 1) ?
-			IPC_MAP_HPRIO_RAW : IPC_MAP_NORM_RAW;
+	return (skb->queue_mapping == 1) ?
+		IPC_MAP_HPRIO_RAW : IPC_MAP_NORM_RAW;
 #else
-		return IPC_MAP_NORM_RAW;
+	return IPC_MAP_NORM_RAW;
 #endif
 }
 
