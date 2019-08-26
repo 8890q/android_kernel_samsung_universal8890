@@ -154,9 +154,10 @@ extern int proc_pid_status(struct seq_file *, struct pid_namespace *,
 			   struct pid *, struct task_struct *);
 extern int proc_pid_statm(struct seq_file *, struct pid_namespace *,
 			  struct pid *, struct task_struct *);
+#ifdef CONFIG_ZSWAP			  
 extern int proc_pid_statlmkd(struct seq_file *, struct pid_namespace *,
 			  struct pid *, struct task_struct *);
-
+#endif
 /*
  * base.c
  */
@@ -298,6 +299,8 @@ extern unsigned long task_vsize(struct mm_struct *);
 extern unsigned long task_statm(struct mm_struct *,
 				unsigned long *, unsigned long *,
 				unsigned long *, unsigned long *);
+#ifdef CONFIG_ZSWAP
 extern void task_statlmkd(struct mm_struct *, unsigned long *,
 				unsigned long *, unsigned long *);
+#endif
 extern void task_mem(struct seq_file *, struct mm_struct *);
