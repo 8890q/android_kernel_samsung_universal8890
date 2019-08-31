@@ -6071,7 +6071,7 @@ static int sec_bat_set_property(struct power_supply *psy,
 	int current_cable_type = SEC_BATTERY_CABLE_NONE;
 	int full_check_type = SEC_BATTERY_FULLCHARGED_NONE;
 	union power_supply_propval value = {0, };
-	enum power_supply_ext_property ext_psp = psp;
+	enum power_supply_ext_property ext_psp =  (enum power_supply_ext_property) psp;
 
 	dev_dbg(battery->dev,
 		"%s: (%d,%d)\n", __func__, psp, val->intval);
