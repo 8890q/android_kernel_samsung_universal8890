@@ -137,4 +137,8 @@ struct bpf_security_struct {
 
 extern unsigned int selinux_checkreqprot;
 
+struct perf_event_security_struct {
+	u32 sid; /* SID of perf_event object creator */
+};
+
 #endif /* _SELINUX_OBJSEC_H_ */
