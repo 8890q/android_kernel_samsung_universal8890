@@ -15,5 +15,6 @@ obj-y				+= S5E8890/S5E8890-cmu.o S5E8890/S5E8890-pmu.o \
 				S5E8890/S5E8890-syspwr.o S5E8890/S5E8890-vclk.o \
 				S5E8890/S5E8890-drampara.o S5E8890/S5E8890-pll.o \
 				S5E8890/S5E8890-rae.o
+CFLAGS_S5E8890-cmu.o := $(call cc-disable-warning, sizeof-pointer-div)
 endif
 ccflags-y							+= $(call cc-disable-warning, sizeof-pointer-div)
