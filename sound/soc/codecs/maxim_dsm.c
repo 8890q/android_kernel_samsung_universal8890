@@ -1582,9 +1582,10 @@ int maxdsm_update_feature_en_adc(int apply)
 		reg = data.addr;
 		if (maxdsm.version == VERSION_4_0_A_S) {
 			reg_r = reg + DSM_4_0_LSI_STEREO_OFFSET;
-			} else if (maxdsm.version == VERSION_4_0_A_3CH)
+		} else if (maxdsm.version == VERSION_4_0_A_3CH) {
 			reg_r = reg + DSM_4_0_LSI_STEREO_OFFSET;
 			reg_t = reg + DSM_4_0_LSI_3CH_OFFSET;
+		}
 		break;
 	case PLATFORM_TYPE_B:
 		reg = data.name;
