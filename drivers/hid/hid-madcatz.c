@@ -77,9 +77,9 @@ static int madcatz_universal_kbd_input_mapping(struct hid_device *hdev,
 
 	if (HID_UP_KEYBOARD == (usage->hid & HID_USAGE_PAGE)) {
 		set_bit(EV_REP, hi->input->evbit);
+		set_bit(EV_REP, hi->input->evbit);
 
 		switch (usage->hid & HID_USAGE) {
-		set_bit(EV_REP, hi->input->evbit);
 		/* Only for UK keyboard */
 #ifdef CONFIG_HID_KK_UPGRADE
 		case 0x32: madcatz_gamepad_map_key_clear(KEY_KBDILLUMTOGGLE); break;
