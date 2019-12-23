@@ -1056,7 +1056,7 @@ static int csi_stream_on(struct v4l2_subdev *subdev,
 		csi->sw_checker = EXPECT_FRAME_START;
 		csi->overflow_cnt = 0;
 		csi_s_config_dma(csi, csi->vci[index].config);
-		memset(csi->pre_dma_enable, -1, ARRAY_SIZE(csi->pre_dma_enable));
+		memset(csi->pre_dma_enable, -1, sizeof(csi->pre_dma_enable));
 
 		/* DMA enabled for all virtual ch before stream-on */
 		csis_s_all_vc_dma_buf(csi);
