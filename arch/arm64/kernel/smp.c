@@ -35,6 +35,7 @@
 #include <linux/clockchips.h>
 #include <linux/completion.h>
 #include <linux/of.h>
+#include <linux/cpufreq.h>
 #include <linux/irq_work.h>
 #include <linux/exynos-ss.h>
 
@@ -53,6 +54,7 @@
 #include <asm/tlbflush.h>
 #include <asm/ptrace.h>
 
+#include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
 #include <trace/events/ipi.h>
 
@@ -120,7 +122,6 @@ int __cpu_up(unsigned int cpu, struct task_struct *idle)
 	}
 
 	secondary_data.stack = NULL;
-	restore_pcpu_tick(cpu);
 
 	return ret;
 }
@@ -280,8 +281,6 @@ void __cpu_die(unsigned int cpu)
 	 */
 	if (!op_cpu_kill(cpu))
 		pr_warn("CPU%d may not have shut down cleanly\n", cpu);
-
-	save_pcpu_tick(cpu);
 }
 
 /*
@@ -686,6 +685,88 @@ int setup_profiling_timer(unsigned int multiplier)
 {
 	return -EINVAL;
 }
+
+#ifdef CONFIG_CPU_FREQ
+
+static DEFINE_PER_CPU(atomic_long_t, cpu_max_freq);
+DEFINE_PER_CPU(atomic_long_t, cpu_freq_capacity);
+
+/*
+ * Scheduler load-tracking scale-invariance
+ *
+ * Provides the scheduler with a scale-invariance correction factor that
+ * compensates for frequency scaling through arch_scale_freq_capacity()
+ * (implemented in topology.c).
+ */
+static inline
+void scale_freq_capacity(int cpu, unsigned long curr, unsigned long max)
+{
+	unsigned long capacity;
+
+	if (!max)
+		return;
+
+	capacity = (curr << SCHED_CAPACITY_SHIFT) / max;
+	atomic_long_set(&per_cpu(cpu_freq_capacity, cpu), capacity);
+}
+
+static int cpufreq_callback(struct notifier_block *nb,
+					unsigned long val, void *data)
+{
+	struct cpufreq_freqs *freq = data;
+	int cpu = freq->cpu;
+	unsigned long max = atomic_long_read(&per_cpu(cpu_max_freq, cpu));
+
+	if (freq->flags & CPUFREQ_CONST_LOOPS)
+		return NOTIFY_OK;
+
+	if (val == CPUFREQ_PRECHANGE) {
+		scale_freq_capacity(cpu, freq->new, max);
+		trace_cpu_capacity(capacity_curr_of(cpu), cpu);
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpufreq_notifier = {
+	.notifier_call  = cpufreq_callback,
+};
+
+static int cpufreq_policy_callback(struct notifier_block *nb,
+						unsigned long val, void *data)
+{
+	struct cpufreq_policy *policy = data;
+	int i;
+
+	if (val != CPUFREQ_NOTIFY)
+		return NOTIFY_OK;
+
+	for_each_cpu(i, policy->cpus) {
+		scale_freq_capacity(i, policy->cur, policy->max);
+		atomic_long_set(&per_cpu(cpu_max_freq, i), policy->max);
+	}
+
+	return NOTIFY_OK;
+}
+
+static struct notifier_block cpufreq_policy_notifier = {
+	.notifier_call	= cpufreq_policy_callback,
+};
+
+static int __init register_cpufreq_notifier(void)
+{
+	int ret;
+
+	ret = cpufreq_register_notifier(&cpufreq_notifier,
+						CPUFREQ_TRANSITION_NOTIFIER);
+	if (ret)
+		return ret;
+
+	return cpufreq_register_notifier(&cpufreq_policy_notifier,
+						CPUFREQ_POLICY_NOTIFIER);
+}
+core_initcall(register_cpufreq_notifier);
+#endif
 
 static void flush_all_cpu_cache(void *info)
 {

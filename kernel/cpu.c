@@ -432,7 +432,7 @@ static int __ref _cpu_down(unsigned int cpu, int tasks_frozen)
 	__cpu_die(cpu);
 
 #if defined(CONFIG_EXYNOS_BIG_FREQ_BOOST)
-	if (cpumask_test_cpu(cpu, &hmp_fast_cpu_mask))
+	if (cpumask_test_cpu(cpu, cpu_coregroup_mask(4)))
 		cpus_notify_nofail(CPUS_DOWN_COMPLETE, (void *)cpu_online_mask);
 #endif
 
@@ -693,7 +693,7 @@ int cpu_up(unsigned int cpu)
 	}
 
 #if defined(CONFIG_EXYNOS_BIG_FREQ_BOOST)
-	if (cpumask_test_cpu(cpu, &hmp_fast_cpu_mask)) {
+	if (cpumask_test_cpu(cpu, cpu_coregroup_mask(4))) {
 		cpumask_or(&dest_cpus, cpumask_of(cpu), cpu_online_mask);
 
 		err = cpus_notify(CPUS_UP_PREPARE, (void *)&dest_cpus);

@@ -106,6 +106,14 @@ extern nodemask_t _unused_nodemask_arg_;
  */
 #define nodemask_pr_args(maskp)		MAX_NUMNODES, (maskp)->bits
 
+/**
+ * nodemask_pr_args - printf args to output a nodemask
+ * @maskp: nodemask to be printed
+ *
+ * Can be used to provide arguments for '%*pb[l]' when printing a nodemask.
+ */
+#define nodemask_pr_args(maskp)		MAX_NUMNODES, (maskp)->bits
+
 /*
  * The inline keyword gives the compiler room to decide to inline, or
  * not inline a function as it sees best.  However, as these functions
