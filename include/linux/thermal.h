@@ -234,9 +234,7 @@ struct thermal_zone_device {
 #if defined(CONFIG_EXYNOS_BIG_FREQ_BOOST)
 	int device_enable;
 #endif
-#ifdef CONFIG_SCHED_HMP
 	unsigned int poll_queue_cpu;
-#endif
 };
 
 /**

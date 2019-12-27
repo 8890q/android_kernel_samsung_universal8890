@@ -709,7 +709,6 @@ void exynos_tmu_core_control(bool on, int id)
 
 #if defined(CONFIG_EXYNOS_BIG_FREQ_BOOST)
 static DEFINE_MUTEX(boost_lock);
-extern struct cpumask hmp_fast_cpu_mask;
 static int big_cpu_cnt;
 
 void core_boost_lock(void)
@@ -736,7 +735,7 @@ static int exynos_tmu_cpus_notifier(struct notifier_block *nb,
 	switch (event) {
 	case CPUS_DOWN_COMPLETE:
 		cpumask_copy(&mask, data);
-		cpumask_and(&mask, &mask, &hmp_fast_cpu_mask);
+		cpumask_and(&mask, &mask, cpu_coregroup_mask(4));
 		big_cpu_cnt = cpumask_weight(&mask);
 
 		list_for_each_entry(devnode, &dtm_dev_list, node) {

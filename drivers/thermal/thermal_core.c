@@ -61,14 +61,12 @@ static LIST_HEAD(thermal_governor_list);
 static DEFINE_MUTEX(thermal_list_lock);
 static DEFINE_MUTEX(thermal_governor_lock);
 
-#ifdef CONFIG_SCHED_HMP
 #define BOUNDED_CPU		1
 static void start_poll_queue(struct thermal_zone_device *tz, int delay)
 {
 	mod_delayed_work_on(tz->poll_queue_cpu, system_freezable_wq, &tz->poll_queue,
 			msecs_to_jiffies(delay));
 }
-#endif
 
 static atomic_t in_suspend;
 
