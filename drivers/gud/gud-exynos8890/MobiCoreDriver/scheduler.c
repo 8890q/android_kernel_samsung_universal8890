@@ -215,7 +215,7 @@ int mc_scheduler_start(void)
 	}
 
 	/* ExySp: set affinity to little */
-	set_cpus_allowed_ptr(sched_ctx.thread, &hmp_slow_cpu_mask);
+	set_cpus_allowed_ptr(sched_ctx.thread, cpu_coregroup_mask(0));
 
 	mcp_register_scheduler(mc_dev_command);
 	complete(&sched_ctx.idle_complete);
