@@ -89,7 +89,6 @@ static unsigned int default_above_hispeed_delay[] = {
 #define PERF_MODE 2
 #define SLOW_MODE 1
 #define NORMAL_MODE 0
-static bool hmp_boost;
 #endif
 
 struct cpufreq_interactive_tunables {
@@ -448,28 +447,12 @@ static void enter_mode(struct cpufreq_interactive_tunables * tunables)
 {
 	pr_info("Governor: enter mode 0x%x\n", tunables->mode);
 	set_new_param_set(tunables->mode, tunables);
-
-	if(!hmp_boost && (tunables->mode & PERF_MODE)) {
-		pr_debug("%s mp boost on", __func__);
-		(void)set_hmp_boost(1);
-		hmp_boost = true;
-	}else if(hmp_boost && (tunables->mode & SLOW_MODE)){
-		pr_debug("%s mp boost off", __func__);
-		(void)set_hmp_boost(0);
-		hmp_boost = false;
-	}
 }
 
 static void exit_mode(struct cpufreq_interactive_tunables * tunables)
 {
 	pr_info("Governor: exit mode 0x%x\n", tunables->mode);
 	set_new_param_set(0, tunables);
-
-	if(hmp_boost) {
-		pr_debug("%s mp boost off", __func__);
-		(void)set_hmp_boost(0);
-		hmp_boost = false;
-	}
 }
 #endif
 
