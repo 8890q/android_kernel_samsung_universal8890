@@ -44,9 +44,6 @@
 #define set_hmp(enable)	 { \
 	if(enable != current_hmp_boost) { \
 		pr_debug("[Input Booster2] ******      set_hmp : %d ( %s )\n", enable, __FUNCTION__); \
-		if (set_hmp_boost(enable) < 0) {\
-			pr_debug("[Input Booster2] ******            !!! fail to HMP !!!\n"); \
-		} \
 		current_hmp_boost = enable; \
 	} \
 }
