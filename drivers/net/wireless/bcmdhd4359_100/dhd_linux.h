@@ -310,8 +310,10 @@ extern uint32 report_hang_privcmd_err;
 	!defined(CONFIG_SOC_EXYNOS7870)
 extern int argos_task_affinity_setup_label(struct task_struct *p, const char *label,
 	struct cpumask * affinity_cpu_mask, struct cpumask * default_cpu_mask);
+#ifdef CONFIG_SCHED_HMP
 extern struct cpumask hmp_slow_cpu_mask;
 extern struct cpumask hmp_fast_cpu_mask;
+#endif
 extern void set_irq_cpucore(unsigned int irq, cpumask_var_t default_cpu_mask,
 	cpumask_var_t affinity_cpu_mask);
 #endif /* ARGOS_CPU_SCHEDULER && !DHD_LB_IRQSET && !CONFIG_SOC_EXYNOS7870 */
