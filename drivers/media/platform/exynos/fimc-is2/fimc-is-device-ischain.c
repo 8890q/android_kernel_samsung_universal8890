@@ -2290,8 +2290,6 @@ int fimc_is_ischain_runtime_suspend(struct device *dev)
                 pm_qos_remove_request(&exynos_isp_qos_cam);
 	if (hpg_qos > 0)
                 pm_qos_remove_request(&exynos_isp_qos_hpg);
-	if (core->resourcemgr.dvfs_ctrl.cur_hmp_bst)
-                set_hmp_boost(0);
 #endif
 
 	info("FIMC_IS runtime suspend out\n");

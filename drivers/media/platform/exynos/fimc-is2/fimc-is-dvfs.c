@@ -451,12 +451,10 @@ int fimc_is_set_dvfs(struct fimc_is_core *core, struct fimc_is_device_ischain *d
 		/* for migration to big core */
 		if (hpg_qos >= 6) {
 			if (!dvfs_ctrl->cur_hmp_bst) {
-				set_hmp_boost(1);
 				dvfs_ctrl->cur_hmp_bst = 1;
 			}
 		} else {
 			if (dvfs_ctrl->cur_hmp_bst) {
-				set_hmp_boost(0);
 				dvfs_ctrl->cur_hmp_bst = 0;
 			}
 		}
