@@ -2849,7 +2849,6 @@ static void exynos_update_gov_param(
 	spin_unlock_irqrestore(&exynos_fb_lock, flags);
 }
 
-extern struct cpumask hmp_fast_cpu_mask;
 static int exynos_tuned_param_update_notifier(struct notifier_block *nb,
 						    unsigned long event, void *data)
 {
@@ -2861,7 +2860,7 @@ static int exynos_tuned_param_update_notifier(struct notifier_block *nb,
 	case CPU_DEAD:
 	case CPU_ONLINE:
 		cpumask_copy(&mask, cpu_online_mask);
-		cpumask_and(&mask, &mask, &hmp_fast_cpu_mask);
+		cpumask_and(&mask, &mask, cpu_coregroup_mask(4));
 		fast_online_cpu = cpumask_weight(&mask);
 		if (!fast_online_cpu) {
 			pr_debug("%s: Do not update param on slow_cpu.\n", __func__);

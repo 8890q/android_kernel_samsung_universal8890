@@ -1961,7 +1961,6 @@ static struct notifier_block exynos_cluster0_max_qos_notifier = {
 };
 
 #if defined(CONFIG_EXYNOS_BIG_FREQ_BOOST)
-extern struct cpumask hmp_fast_cpu_mask;
 static int big_cpu_cnt;
 
 static int cpufreq_policy_notifier(struct notifier_block *nb,
@@ -1997,7 +1996,7 @@ static int exynos_cpufreq_cpus_notifier(struct notifier_block *nb,
 	case CPUS_DOWN_COMPLETE:
 	case CPUS_UP_PREPARE:
 		cpumask_copy(&mask, data);
-		cpumask_and(&mask, &mask, &hmp_fast_cpu_mask);
+		cpumask_and(&mask, &mask, cpu_coregroup_mask(4));
 		big_cpu_cnt = cpumask_weight(&mask);
 
 		/*
@@ -2005,7 +2004,7 @@ static int exynos_cpufreq_cpus_notifier(struct notifier_block *nb,
 		 * of fast_cpu domain
 		 */
 		cpumask_clear(&policy_update_mask);
-		cpumask_and(&policy_update_mask, &hmp_fast_cpu_mask, cpu_online_mask);
+		cpumask_and(&policy_update_mask, cpu_coregroup_mask(4), cpu_online_mask);
 		if (!cpumask_weight(&policy_update_mask))
 			return NOTIFY_OK;
 

@@ -51,7 +51,7 @@ config ARM_EXYNOS_MP_CPUFREQ
 config EXYNOS_BIG_FREQ_BOOST
 	bool "Big cluster boost frequency support"
 	default n
-	depends on ARM_EXYNOS_MP_CPUFREQ && SCHED_HMP
+	depends on ARM_EXYNOS_MP_CPUFREQ
 
 config EXYNOS_DUAL_GOV_PARAMS_SUPPORT
 	bool "Dual governor parameter support on interactive governor"
