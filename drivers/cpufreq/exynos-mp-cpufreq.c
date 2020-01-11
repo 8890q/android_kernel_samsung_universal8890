@@ -2728,11 +2728,7 @@ static int __init exynos_mp_cpufreq_init(void)
 
 	return platform_driver_register(&exynos_mp_cpufreq_driver);
 }
-#ifdef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 device_initcall(exynos_mp_cpufreq_init);
-#else
-late_initcall(exynos_mp_cpufreq_init);
-#endif
 
 #if defined(CONFIG_SEC_PM) && defined(CONFIG_MUIC_NOTIFIER)
 
