@@ -29,6 +29,7 @@
 #include <linux/exynos_ion.h>
 #include <linux/delay.h>
 #include <linux/smc.h>
+#include <linux/pm_qos.h>
 #include <soc/samsung/bts.h>
 #include <soc/samsung/devfreq.h>
 #include <asm/cacheflush.h>
@@ -54,6 +55,8 @@
 #define S5P_MFC_ENC_NAME	"s5p-mfc-enc"
 #define S5P_MFC_DEC_DRM_NAME	"s5p-mfc-dec-secure"
 #define S5P_MFC_ENC_DRM_NAME	"s5p-mfc-enc-secure"
+
+static struct pm_qos_request s5p_mfc_pm_qos_request;
 
 int debug;
 module_param(debug, int, S_IRUGO | S_IWUSR);
@@ -1909,6 +1912,15 @@ static int s5p_mfc_open(struct file *file)
 
 	dev->num_inst++;	/* It is guarded by mfc_mutex in vfd */
 
+	if (node == MFCNODE_DECODER ||
+	 node == MFCNODE_DECODER_DRM) {
+		dev->num_dec++;
+		if (dev->num_dec == 1) {
+			pm_qos_add_request(&s5p_mfc_pm_qos_request,
+				PM_QOS_CPU_DMA_LATENCY, 1000);
+		}
+	}
+
 	/* Allocate memory for context */
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (!ctx) {
@@ -2163,6 +2175,15 @@ err_vdev:
 
 err_ctx_alloc:
 	dev->num_inst--;
+	if (node == MFCNODE_DECODER ||
+	    node == MFCNODE_DECODER_DRM) {
+		dev->num_dec--;
+		if (dev->num_dec == 0) {
+			pm_qos_update_request(&s5p_mfc_pm_qos_request,
+				PM_QOS_DEFAULT_VALUE);
+			pm_qos_remove_request(&s5p_mfc_pm_qos_request);
+		}
+	}
 
 err_node_type:
 	mfc_info_dev("MFC driver open is failed [%d:%d]\n",
@@ -2180,6 +2201,7 @@ static int s5p_mfc_release(struct file *file)
 	struct s5p_mfc_ctx *ctx = fh_to_mfc_ctx(file->private_data);
 	struct s5p_mfc_dev *dev = NULL;
 	struct s5p_mfc_enc *enc = NULL;
+	enum s5p_mfc_node_type node;
 	int ret = 0;
 
 	dev = ctx->dev;
@@ -2189,6 +2211,8 @@ static int s5p_mfc_release(struct file *file)
 	}
 
 	mutex_lock(&dev->mfc_mutex);
+
+	node = s5p_mfc_get_node_type(file);
 
 	mfc_info_ctx("MFC driver release is called [%d:%d], is_drm(%d)\n",
 			dev->num_drm_inst, dev->num_inst, ctx->is_drm);
@@ -2337,6 +2361,15 @@ static int s5p_mfc_release(struct file *file)
 	if (ctx->is_drm)
 		dev->num_drm_inst--;
 	dev->num_inst--;
+
+	if (ctx->type == MFCINST_DECODER && !ctx->is_drm) {
+		dev->num_dec--;
+		if (dev->num_dec == 0) {
+			pm_qos_update_request(&s5p_mfc_pm_qos_request,
+				PM_QOS_DEFAULT_VALUE);
+			pm_qos_remove_request(&s5p_mfc_pm_qos_request);
+		}
+	}
 
 	if (dev->num_inst == 0) {
 		s5p_mfc_deinit_hw(dev);

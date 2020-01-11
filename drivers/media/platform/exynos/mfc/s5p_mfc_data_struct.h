@@ -266,6 +266,7 @@ struct s5p_mfc_dev {
 	struct s5p_mfc_platdata	*pdata;
 
 	int num_inst;
+	int num_dec;
 	spinlock_t irqlock;
 	spinlock_t condlock;
 
