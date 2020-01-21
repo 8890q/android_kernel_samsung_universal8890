@@ -1407,10 +1407,7 @@ static inline void exynos_ss_hook_logbuf(const char buf)
 #ifdef CONFIG_SEC_PM_DEBUG
 			sec_log_full = true;
 #endif
-
-#ifdef CONFIG_SEC_DEBUG_LAST_KMSG
 			*((unsigned long long *)(item->head_ptr + item->entry.size - (size_t)0x08)) = SEC_LKMSG_MAGICKEY;
-#endif
 		}
 
 		item->curr_ptr[0] = buf;
@@ -1435,10 +1432,7 @@ static inline void exynos_ss_hook_logbuf(const char *buf, size_t size)
 #ifdef CONFIG_SEC_PM_DEBUG
 			sec_log_full = true;
 #endif
-
-#ifdef CONFIG_SEC_DEBUG_LAST_KMSG
 			*((unsigned long long *)(item->head_ptr + item->entry.size - (size_t)0x08)) = SEC_LKMSG_MAGICKEY;
-#endif
 		}
 
 		memcpy(item->curr_ptr, buf, size);
@@ -2303,11 +2297,9 @@ static int __init exynos_ss_fixmap(void)
 	/* output the information of exynos-snapshot */
 	exynos_ss_output();
 
-#ifdef CONFIG_SEC_DEBUG
 	sec_debug_save_last_kmsg(ess_items[ess_desc.log_kernel_num].head_ptr,
 			ess_items[ess_desc.log_kernel_num].curr_ptr,
 			ess_items[ess_desc.log_kernel_num].entry.size);
-#endif
 
 	return 0;
 }

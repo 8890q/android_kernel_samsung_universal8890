@@ -77,13 +77,6 @@ config SEC_DEBUG_AUTO_SUMMARY
 	  This option enables kernel fault auto summary feature
 	  This option also requires bootloader change that enables auto summary extraction along with ramdump
 
-config SEC_DEBUG_LAST_KMSG
-	bool "Write last_kmsg at /proc/last_kmsg"
-	depends on SEC_DEBUG
-	default y
-	help
-	  This option enables /proc/last_kmsg support.
-
 config SEC_DEBUG_FILE_LEAK
 	bool "Panic when file leak detected"
 	depends on !SAMSUNG_PRODUCT_SHIP
