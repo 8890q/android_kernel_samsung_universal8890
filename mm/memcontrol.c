@@ -1512,15 +1512,6 @@ static unsigned long mem_cgroup_margin(struct mem_cgroup *memcg)
 	return margin >> PAGE_SHIFT;
 }
 
-int mem_cgroup_swappiness(struct mem_cgroup *memcg)
-{
-	/* root ? */
-	if (mem_cgroup_disabled() || !memcg->css.parent)
-		return vm_swappiness;
-
-	return memcg->swappiness;
-}
-
 /*
  * memcg->moving_account is used for checking possibility that some thread is
  * calling move_account(). When a thread on CPU-A starts moving pages under
@@ -4469,7 +4460,17 @@ static int memcg_stat_show(struct seq_file *m, void *v)
 
 	return 0;
 }
+static u64 mem_cgroup_vmpressure_read(struct cgroup_subsys_state *css,
+				      struct cftype *cft)
+{
+	struct mem_cgroup *memcg = mem_cgroup_from_css(css);
+	struct vmpressure *vmpr = memcg_to_vmpressure(memcg);
+	unsigned long vmpressure;
 
+	vmpressure = vmpr->pressure;
+
+	return vmpressure;
+}
 static u64 mem_cgroup_swappiness_read(struct cgroup_subsys_state *css,
 				      struct cftype *cft)
 {
@@ -5195,6 +5196,10 @@ static struct cftype mem_cgroup_files[] = {
 	},
 	{
 		.name = "pressure_level",
+	},
+	{
+		.name = "vmpressure",
+		.read_u64 = mem_cgroup_vmpressure_read,
 	},
 #ifdef CONFIG_NUMA
 	{

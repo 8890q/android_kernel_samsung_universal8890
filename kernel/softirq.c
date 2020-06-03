@@ -26,9 +26,12 @@
 #include <linux/smpboot.h>
 #include <linux/tick.h>
 #include <linux/irq.h>
+#include <linux/exynos-ss.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
+
+#include <linux/nmi.h>
 
 /*
    - No shared variables, all the data are CPU local.
@@ -266,7 +269,11 @@ restart:
 		kstat_incr_softirqs_this_cpu(vec_nr);
 
 		trace_softirq_entry(vec_nr);
+		exynos_ss_irq(ESS_FLAG_SOFTIRQ, h->action, vec_nr, ESS_FLAG_IN);
+		sl_softirq_entry(softirq_to_name[vec_nr], h->action);
 		h->action(h);
+		sl_softirq_exit();
+		exynos_ss_irq(ESS_FLAG_SOFTIRQ, h->action, local_softirq_pending(), ESS_FLAG_OUT);
 		trace_softirq_exit(vec_nr);
 		if (unlikely(prev_count != preempt_count())) {
 			pr_err("huh, entered softirq %u %s %p with preempt_count %08x, exited with %08x?\n",
@@ -498,7 +505,13 @@ static void tasklet_action(struct softirq_action *a)
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED,
 							&t->state))
 					BUG();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_TASKLET,
+						t->func, t->state, ESS_FLAG_IN);
+				sl_softirq_entry(softirq_to_name[TASKLET_SOFTIRQ], t->func);
 				t->func(t->data);
+				sl_softirq_exit();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_TASKLET,
+						t->func, local_softirq_pending(), ESS_FLAG_OUT);
 				tasklet_unlock(t);
 				continue;
 			}
@@ -534,7 +547,13 @@ static void tasklet_hi_action(struct softirq_action *a)
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED,
 							&t->state))
 					BUG();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_HI_TASKLET,
+						t->func, t->state, ESS_FLAG_IN);
+				sl_softirq_entry(softirq_to_name[HI_SOFTIRQ], t->func);
 				t->func(t->data);
+				sl_softirq_exit();
+				exynos_ss_irq(ESS_FLAG_SOFTIRQ_HI_TASKLET,
+						t->func, local_softirq_pending(), ESS_FLAG_OUT);
 				tasklet_unlock(t);
 				continue;
 			}

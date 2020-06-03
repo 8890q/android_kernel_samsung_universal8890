@@ -1,0 +1,66 @@
+#
+# optics drivers configuration
+#
+
+config SENSORS_HRMSENSOR
+	tristate "HRM Sensor Driver Common"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for the HRM sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called hrmsensor.
+
+config SENSORS_HRM_ADPD143
+	tristate "HRM Sensor Driver ADPD143"
+	default n
+	depends on SENSORS_HRMSENSOR
+	help
+	  If you say yes here you get support for the HRM sensor.
+	  This driver should be set with SENSORS_HRMSENSOR.
+
+config SENSORS_MAX86900
+	tristate "MAXIM MAX86900 HRM Sensor"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for the MAX86900
+	  HRM sensor.
+	  This driver can also be built as a module.  If so, the module
+	  will be called max86900.
+
+config SENSORS_MAX86902
+	tristate "MAXIM MAX86902 HRM & UV Sensor"
+	default n
+	depends on I2C
+	help
+	  If you say yes here you get support for the MAX86902
+	  HRM & UV sensor.
+	  This driver can also be built as a module.	If so, the module
+	  will be called max86902.
+
+config SENSORS_MAX86902_LED_5V
+	tristate "MAXIM MAX86902 LED 5V"
+	default n
+	depends on SENSORS_MAX86902
+	help
+	  If you say yes here you get support for the MAX86902
+	  LED power as 5V.
+	  This driver can also be built as a module.	  If so, the module
+	  will be called max86902.
+
+config SENSORS_ADPD142
+	depends on I2C
+	tristate "ADI hrm sensor driver"
+	default n
+	help
+	  This option enables hrm sensors using adpd142 driver.
+
+config SENSORS_ADPD143
+	depends on I2C
+	tristate "ADI hrm sensor driver"
+	default n
+	help
+	  This option enables hrm sensors using adpd143 driver.
+
+source "drivers/optics/max_notchfilter/Kconfig"

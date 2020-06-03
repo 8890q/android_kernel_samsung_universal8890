@@ -130,7 +130,7 @@ static int __init cma_activate_area(struct cma *cma)
 			if (page_zone(pfn_to_page(pfn)) != zone)
 				goto err;
 		}
-		init_cma_reserved_pageblock(pfn_to_page(base_pfn));
+		init_cma_reserved_pageblock(pfn_to_page(base_pfn), 0);
 	} while (--i);
 
 	mutex_init(&cma->lock);
