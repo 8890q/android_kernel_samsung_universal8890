@@ -1712,33 +1712,6 @@ static ssize_t front_camera_hw_param_store(struct device *dev,
 	return count;
 }
 
-static ssize_t iris_camera_hw_param_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct cam_hw_param *ec_param = NULL;
-
-	fimc_is_sec_get_iris_hw_param(&ec_param);
-
-	return sprintf(buf, "\"I2CI_AF\":\"%d\",\"I2CI_COM\":\"%d\",\"I2CI_OIS\":\"%d\","
-		"\"I2CI_SEN\":\"%d\",\"MIPII_COM\":\"%d\",\"MIPII_SEN\":\"%d\"\n",
-		ec_param->i2c_af_err_cnt, ec_param->i2c_comp_err_cnt, ec_param->i2c_ois_err_cnt,
-		ec_param->i2c_sensor_err_cnt, ec_param->mipi_comp_err_cnt, ec_param->mipi_sensor_err_cnt);
-}
-
-static ssize_t iris_camera_hw_param_store(struct device *dev,
-				    struct device_attribute *attr, const char *buf, size_t count)
-{
-	struct cam_hw_param *ec_param = NULL;
-
-	if (!strncmp(buf, "c", 1)) {
-		fimc_is_sec_get_iris_hw_param(&ec_param);
-
-		if (ec_param)
-			fimc_is_sec_init_err_cnt_file(ec_param);
-	}
-
-	return count;
-}
 #endif
 
 #ifdef CAMERA_MODULE_DUALIZE
@@ -1827,8 +1800,6 @@ static DEVICE_ATTR(rear_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				rear_camera_hw_param_show, rear_camera_hw_param_store);
 static DEVICE_ATTR(front_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				front_camera_hw_param_show, front_camera_hw_param_store);
-static DEVICE_ATTR(iris_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
-				iris_camera_hw_param_show, iris_camera_hw_param_store);
 #endif
 
 int svc_cheating_prevent_device_file_create(struct kobject **obj)
