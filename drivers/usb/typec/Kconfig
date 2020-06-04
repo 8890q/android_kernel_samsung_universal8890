@@ -3,7 +3,7 @@ menu "USB Power Delivery and Type-C drivers"
 
 config TYPEC
 	tristate
-	default y
+	default n
 	depends on ANDROID_MAJOR_VERSION != "n"
 	depends on ANDROID_MAJOR_VERSION != "o"
 
