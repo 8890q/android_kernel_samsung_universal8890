@@ -3,7 +3,7 @@ menu "USB Power Delivery and Type-C drivers"
 
 config TYPEC
 	tristate
-	default n
+	default y if MODEL_GRACELTE && !MODEL_HEROLTE && !MODEL_HERO2LTE
 	depends on ANDROID_MAJOR_VERSION != "n"
 	depends on ANDROID_MAJOR_VERSION != "o"
 
