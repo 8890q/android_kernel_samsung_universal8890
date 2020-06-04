@@ -964,7 +964,7 @@ static ssize_t camera_rear_info_show(struct device *dev,
 }
 #endif
 
-#ifdef CAMERA_SYSFS_V2
+#ifdef SSRM_CAMERA_INFO
 static ssize_t ssrm_camera_info_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1712,6 +1712,7 @@ static ssize_t front_camera_hw_param_store(struct device *dev,
 	return count;
 }
 
+#ifdef CONFIG_MODEL_GRACELTE
 static ssize_t iris_camera_hw_param_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1739,6 +1740,7 @@ static ssize_t iris_camera_hw_param_store(struct device *dev,
 
 	return count;
 }
+#endif
 #endif
 
 #ifdef CAMERA_MODULE_DUALIZE
@@ -1827,8 +1829,10 @@ static DEVICE_ATTR(rear_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				rear_camera_hw_param_show, rear_camera_hw_param_store);
 static DEVICE_ATTR(front_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				front_camera_hw_param_show, front_camera_hw_param_store);
+#ifdef CONFIG_MODEL_GRACELTE
 static DEVICE_ATTR(iris_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				iris_camera_hw_param_show, iris_camera_hw_param_store);
+#endif
 #endif
 
 int svc_cheating_prevent_device_file_create(struct kobject **obj)
