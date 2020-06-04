@@ -3,4 +3,5 @@
 *.bin
 *.csp
 *.dsp
+apm_8890_evt1.h
 ihex2fw
