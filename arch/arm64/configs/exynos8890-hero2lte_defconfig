@@ -3493,6 +3493,7 @@ CONFIG_USB_SERIAL_PL2303=y
 # CONFIG_USB_PHY is not set
 # CONFIG_USB_OTG_WAKELOCK is not set
 # CONFIG_NOP_USB_XCEIV is not set
+# CONFIG_DUAL_ROLE_USB_INTF is not set
 # CONFIG_USB_GPIO_VBUS is not set
 # CONFIG_USB_ISP1301 is not set
 # CONFIG_USB_ULPI is not set
@@ -3553,7 +3554,7 @@ CONFIG_USB_RNDIS_MULTIPACKET=y
 #
 # USB Power Delivery and Type-C drivers
 #
-CONFIG_TYPEC=y
+# CONFIG_TYPEC is not set
 # CONFIG_UWB is not set
 CONFIG_MMC=y
 # CONFIG_MMC_DEBUG is not set
