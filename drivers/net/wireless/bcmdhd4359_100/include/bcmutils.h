@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmutils.h 813756 2019-04-08 05:18:14Z $
+ * $Id: bcmutils.h 784503 2018-10-12 06:07:30Z $
  */
 
 #ifndef	_bcmutils_h_
@@ -163,20 +163,12 @@ extern void *pktoffset(osl_t *osh, void *p,  uint offset);
 #define DSCP_AF21	0x12
 #define DSCP_AF22	0x14
 #define DSCP_AF23	0x16
-/* CS2: OAM (RFC2474) */
-#define DSCP_CS2	0x10
 /* AF3x: Multimedia Streaming (RFC2597) */
 #define DSCP_AF31	0x1A
 #define DSCP_AF32	0x1C
 #define DSCP_AF33	0x1E
-/* CS3: Broadcast Video (RFC2474) */
-#define DSCP_CS3	0x18
-/* VA: VOCIE-ADMIT (RFC5865) */
-#define DSCP_VA		0x2C
 /* EF: Telephony (RFC3246) */
 #define DSCP_EF		0x2E
-/* CS6: Network Control (RFC2474) */
-#define DSCP_CS6	0x30
 
 extern uint pktsetprio(void *pkt, bool update_vtag);
 extern uint pktsetprio_qms(void *pkt, uint8* up_table, bool update_vtag);

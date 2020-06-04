@@ -484,12 +484,10 @@ asm-generic:
 	$(Q)$(MAKE) -f $(srctree)/scripts/Makefile.asm-generic \
 	            src=uapi/asm obj=arch/$(SRCARCH)/include/generated/uapi/asm
 
-# Set android version to p as thats where kernel source originated from
+export ANDROID_VERSION=90000
+KBUILD_CFLAGS += -DANDROID_VERSION=90000
 export ANDROID_MAJOR_VERSION=p
-export ANDROID_VERSION=990000
-KBUILD_CFLAGS += -DANDROID_VERSION=990000
-
-SELINUX_DIR=$(shell $(CONFIG_SHELL) $(srctree)/scripts/find_matching_major.sh "$(srctree)" "security/selinux" "$(ANDROID_MAJOR_VERSION)")
+KBUILD_CFLAGS += -DANDROID_MAJOR_VERSION=p
 
 PHONY += replace_dirs
 replace_dirs:

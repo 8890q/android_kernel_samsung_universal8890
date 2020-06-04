@@ -2570,34 +2570,6 @@ static int parse_strtoull(const char *buf,
 	return ret;
 }
 
-static ssize_t sec_defrag_stat_show(struct ext4_attr *a,
-				struct ext4_sb_info *sbi, char *buf)
-{
-	return snprintf(buf, PAGE_SIZE,
-		"\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\",\"%s\":\"%u\"\n",
-		"BESTEXT", 	sbi->s_sec_part_best_extents,
-		"CUREXT", 	sbi->s_sec_part_current_extents,
-		"DEFSCORE", sbi->s_sec_part_score,
-		"DEFWRITE", sbi->s_sec_defrag_writes_kb,
-		"NUMAPP", 	sbi->s_sec_num_apps,
-		"CAPAPP", 	sbi->s_sec_capacity_apps_kb);
-}
-
-static ssize_t sec_defrag_stat_store(struct ext4_attr *a,
-					  struct ext4_sb_info *sbi,
-					  const char *buf, size_t count)
-{
-	if (buf[0] == 'c' || buf[0] == 'C') {
-		sbi->s_sec_part_best_extents = 0;
-		sbi->s_sec_part_current_extents = 0;
-		sbi->s_sec_part_score = 0;
-		sbi->s_sec_defrag_writes_kb = 0;
-		sbi->s_sec_num_apps = 0;
-		sbi->s_sec_capacity_apps_kb = 0;
-	}
-	return count;
-}
-
 static ssize_t sec_fs_stat_show(struct ext4_attr *a,
 				struct ext4_sb_info *sbi, char *buf)
 {
@@ -2816,14 +2788,6 @@ static struct ext4_attr ext4_attr_##_name = {			\
 	},							\
 }
 
-EXT4_RW_ATTR_SBI_UI(sec_part_best_extents, s_sec_part_best_extents);
-EXT4_RW_ATTR_SBI_UI(sec_part_current_extents, s_sec_part_current_extents);
-EXT4_RW_ATTR_SBI_UI(sec_part_score, s_sec_part_score);
-EXT4_RW_ATTR_SBI_UI(sec_defrag_writes_kb, s_sec_defrag_writes_kb);
-EXT4_RW_ATTR_SBI_UI(sec_num_apps, s_sec_num_apps);
-EXT4_RW_ATTR_SBI_UI(sec_capacity_apps_kb, s_sec_capacity_apps_kb);
-
-EXT4_RW_ATTR(sec_defrag_stat);
 EXT4_RO_ATTR(sec_fs_stat);
 EXT4_RO_ATTR(sec_fs_freefrag);
 EXT4_RO_ATTR(delayed_allocation_blocks);
@@ -2854,13 +2818,6 @@ EXT4_RO_ATTR_ES_UI(first_error_time, s_first_error_time);
 EXT4_RO_ATTR_ES_UI(last_error_time, s_last_error_time);
 
 static struct attribute *ext4_attrs[] = {
-	ATTR_LIST(sec_part_best_extents),
-	ATTR_LIST(sec_part_current_extents),
-	ATTR_LIST(sec_part_score),
-	ATTR_LIST(sec_defrag_writes_kb),
-	ATTR_LIST(sec_num_apps),
-	ATTR_LIST(sec_capacity_apps_kb),
-	ATTR_LIST(sec_defrag_stat),
 	ATTR_LIST(sec_fs_stat),
 	ATTR_LIST(sec_fs_freefrag),
 	ATTR_LIST(delayed_allocation_blocks),

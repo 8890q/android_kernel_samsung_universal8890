@@ -490,16 +490,6 @@ ENDPROC(el1_error_invalid)
  */
 	.align	6
 el1_sync:
-	stp	x0, x1, [sp, #16 * 0]
-	mrs	x0, esr_el1
-	mov	x1, #0x30
-	movk	x1, #0x9600, lsl #0x10
-	cmp	x0, x1
-	b.eq	el1_da_tlb_conflict
-	movk	x1, #0x8600, lsl #0x10
-	cmp	x0, x1
-	b.eq	el1_da_tlb_conflict
-	ldp	x0, x1, [sp, #16 * 0]
 	kernel_entry 1
 	mrs	x1, esr_el1			// read the syndrome register
 	lsr	x24, x1, #ESR_ELx_EC_SHIFT	// exception class
@@ -533,9 +523,9 @@ el1_da:
 	/*
 	 * tlb conflict handling
 	*/
-	//and 	x24, x1, #ESR_EL1_ISS_DFSC_MASK
-	//cmp     x24, #ESR_EL1_ISS_DFSC_TLB_CONFLICT
-	//b.eq	el1_da_tlb_conflict
+	and 	x24, x1, #ESR_EL1_ISS_DFSC_MASK
+	cmp     x24, #ESR_EL1_ISS_DFSC_TLB_CONFLICT
+	b.eq	el1_da_tlb_conflict
 
 	// re-enable interrupts if they were enabled in the aborted context
 	tbnz	x23, #7, 1f			// PSR_I_BIT
@@ -551,9 +541,7 @@ el1_da:
 el1_da_tlb_conflict:
 	tlbi vmalle1
 	dsb nsh
-	ldp	x0, x1, [sp, #16 * 0]
-	add	sp, sp, #S_FRAME_SIZE	// restore sp
-	eret
+	kernel_exit 1
 el1_sp_pc:
 	/*
 	 * Stack or PC alignment exception handling

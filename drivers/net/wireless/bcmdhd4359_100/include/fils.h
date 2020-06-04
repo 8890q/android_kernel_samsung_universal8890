@@ -136,17 +136,6 @@ typedef BWL_PRE_PACKED_STRUCT struct fils_nonce_element {
 	uint8		fils_nonce[FILS_NONCE_LENGTH];
 } BWL_POST_PACKED_STRUCT fils_nonce_element_t;
 
-/* 11ai 9.4.2.186 FILS Key Delivery element */
-#define FILS_KEY_RSC_LENGTH 8u
-
-typedef BWL_PRE_PACKED_STRUCT struct fils_key_delivery_element {
-	uint8		elementid;
-	uint8		length;
-	uint8		element_id_ext;
-	uint8		key_rsc[FILS_KEY_RSC_LENGTH];
-	uint8		kde_list[];	/* Key Data Elements */
-} BWL_POST_PACKED_STRUCT fils_key_delivery_element_t;
-
 /* 8.4.2.175 FILS Session element */
 #define FILS_SESSION_LENGTH 8u
 

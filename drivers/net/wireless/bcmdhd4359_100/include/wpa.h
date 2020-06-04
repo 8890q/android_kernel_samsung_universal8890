@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wpa.h 761317 2018-05-07 21:33:58Z $
+ * $Id: wpa.h 758863 2018-04-21 00:29:12Z $
  */
 
 #ifndef _proto_wpa_h_
@@ -180,12 +180,10 @@ typedef BWL_PRE_PACKED_STRUCT struct
 			(akm) == RSN_AKM_SHA256_PSK || \
 			(akm) == RSN_AKM_TPK || \
 			(akm) == RSN_AKM_SAE_PSK || \
-			(akm) == RSN_AKM_SAE_FBT || \
+			(akm) == RSN_AKM_SAE_PSK || \
 			(akm) == RSN_AKM_FILS_SHA256 || \
 			(akm) == RSN_AKM_FILS_SHA384 || \
-			(akm) == RSN_AKM_OWE || \
-			(akm) == RSN_AKM_SUITEB_SHA256_1X || \
-			(akm) == RSN_AKM_SUITEB_SHA384_1X)
+			(akm) == RSN_AKM_OWE)
 
 #define IS_VALID_BIP_CIPHER(cipher) ((cipher) == WPA_CIPHER_BIP || \
 					(cipher) == WPA_CIPHER_BIP_GMAC_128 || \

@@ -237,18 +237,6 @@ config SPLIT_ARGOS_SET
 	---help---
 	To support SPLIT_ARGOS_SET
 
-config WLAN_GRACE
-	bool "Model code for GRACE"
-	depends on BROADCOM_WIFI
-	---help---
-	  This is configuration for Grace feature
-
-config WLAN_GREAT
-	bool "model code for GREAT"
-	depends on BROADCOM_WIFI
-	---help---
-	  This is configuration for Great feature
-
 config BCM_DETECT_CONSECUTIVE_HANG
 	bool "Detect consecutive hang event"
 	depends on BROADCOM_WIFI

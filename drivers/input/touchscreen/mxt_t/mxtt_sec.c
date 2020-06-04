@@ -468,16 +468,6 @@ static void fw_update(void *device_data)
 	fw_info.data = data;
 
 	set_default_result(fdata);
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	if (fdata->cmd_param[0] == 1) {
-		snprintf(buff, sizeof(buff), "OK");
-		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-		fdata->cmd_state = CMD_STATUS_OK;
-		input_info(true, dev, "%s: user_ship, success \n", __func__);
-		return;
-	}
-#endif
-
 	switch (fdata->cmd_param[0]) {
 
 	case MXT_FW_FROM_UMS:

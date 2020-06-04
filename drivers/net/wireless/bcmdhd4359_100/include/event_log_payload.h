@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: event_log_payload.h 768232 2018-06-19 05:28:22Z $
+ * $Id: event_log_payload.h 738285 2017-12-28 01:28:18Z $
  */
 
 #ifndef _EVENT_LOG_PAYLOAD_H_
@@ -681,119 +681,5 @@ typedef struct msch_register_params	{
 	uint32 chanspec_cnt;
 	uint16 chanspec_list[WL_MSCH_NUMCHANNELS];
 } msch_register_params_t;
-
-typedef struct {
-	uint32	txallfrm;	/**< total number of frames sent, incl. Data, ACK, RTS, CTS,
-				* Control Management (includes retransmissions)
-				*/
-	uint32	rxrsptmout;	/**< number of response timeouts for transmitted frames
-				* expecting a response
-				*/
-	uint32	rxstrt;		/**< number of received frames with a good PLCP */
-	uint32  rxbadplcp;	/**< number of parity check of the PLCP header failed */
-	uint32  rxcrsglitch;	/**< PHY was able to correlate the preamble but not the header */
-	uint32  rxnodelim;	/**< number of no valid delimiter detected by ampdu parser */
-	uint32  bphy_badplcp;	/**< number of bad PLCP reception on BPHY rate */
-	uint32  bphy_rxcrsglitch;	/**< PHY count of bphy glitches */
-	uint32  rxbadfcs;	/**< number of frames for which the CRC check failed in the MAC */
-	uint32	rxanyerr;	/**< Any RX error that is not counted by other counters. */
-	uint32	rxbeaconmbss;	/**< beacons received from member of BSS */
-	uint32	rxdtucastmbss;	/**< number of received DATA frames with good FCS and matching RA */
-	uint32	rxdtocast;	/**< number of received DATA frames (good FCS and no matching RA) */
-	uint32  rxtoolate;	/**< receive too late */
-	uint32  goodfcs;        /**< Good fcs counters  */
-	uint32  rxf0ovfl;	/** < Rx FIFO0 overflow counters information */
-	uint32  rxf1ovfl;	/** < Rx FIFO1 overflow counters information */
-} phy_periodic_counters_v1_t;
-
-typedef struct phycal_log_cmn {
-	uint16 chanspec; /* Current phy chanspec */
-	uint8  last_cal_reason;  /* Last Cal Reason */
-	uint8  pad1;  /* Padding byte to align with word */
-	uint   last_cal_time; /* Last cal time in sec */
-} phycal_log_cmn_t;
-
-typedef struct phycal_log_core {
-	uint16 ofdm_txa; /* OFDM Tx IQ Cal a coeff */
-	uint16 ofdm_txb; /* OFDM Tx IQ Cal b coeff */
-	uint16 ofdm_txd; /* contain di & dq */
-	uint16 bphy_txa; /* BPHY Tx IQ Cal a coeff */
-	uint16 bphy_txb; /* BPHY Tx IQ Cal b coeff */
-	uint16 bphy_txd; /* contain di & dq */
-
-	uint16 rxa; /* Rx IQ Cal A coeffecient */
-	uint16 rxb; /* Rx IQ Cal B coeffecient */
-	int32 rxs;  /* FDIQ Slope coeffecient */
-
-	uint8 baseidx; /* TPC Base index */
-	uint8 adc_coeff_cap0_adcI; /* ADC CAP Cal Cap0 I */
-	uint8 adc_coeff_cap1_adcI; /* ADC CAP Cal Cap1 I */
-	uint8 adc_coeff_cap2_adcI; /* ADC CAP Cal Cap2 I */
-	uint8 adc_coeff_cap0_adcQ; /* ADC CAP Cal Cap0 Q */
-	uint8 adc_coeff_cap1_adcQ; /* ADC CAP Cal Cap1 Q */
-	uint8 adc_coeff_cap2_adcQ; /* ADC CAP Cal Cap2 Q */
-	uint8 pad; /* Padding byte to align with word */
-} phycal_log_core_t;
-
-#define PHYCAL_LOG_VER1         (1u)
-
-typedef struct phycal_log_v1 {
-	uint8  version; /* Logging structure version */
-	uint8  numcores; /* Numbe of cores for which core specific data present */
-	uint16 length;  /* Length of the entire structure */
-	phycal_log_cmn_t phycal_log_cmn; /* Logging common structure */
-	/* This will be a variable length based on the numcores field defined above */
-	phycal_log_core_t phycal_log_core[1];
-} phycal_log_v1_t;
-
-typedef struct phy_periodic_log_cmn {
-	uint16  chanspec; /* Current phy chanspec */
-	uint16  vbatmeas; /* Measured VBAT sense value */
-	uint16  featureflag; /* Currently active feature flags */
-	int8    chiptemp; /* Chip temparature */
-	int8    femtemp;  /* Fem temparature */
-
-	uint32  nrate; /* Current Tx nrate */
-
-	uint8   cal_phase_id; /* Current Multi phase cal ID */
-	uint8   rxchain; /* Rx Chain */
-	uint8   txchain; /* Tx Chain */
-	uint8   ofdm_desense; /* OFDM desense */
-
-	uint8   bphy_desense; /* BPHY desense */
-	uint8   pll_lockstatus; /* PLL Lock status */
-	uint8   pad1; /* Padding byte to align with word */
-	uint8   pad2; /* Padding byte to align with word */
-
-	uint32 duration;	/**< millisecs spent sampling this channel */
-	uint32 congest_ibss;	/**< millisecs in our bss (presumably this traffic will */
-				/**<  move if cur bss moves channels) */
-	uint32 congest_obss;	/**< traffic not in our bss */
-	uint32 interference;	/**< millisecs detecting a non 802.11 interferer. */
-
-} phy_periodic_log_cmn_t;
-
-typedef struct phy_periodic_log_core {
-	uint8	baseindxval; /* TPC Base index */
-	int8	tgt_pwr; /* Programmed Target power */
-	int8	estpwradj; /* Current Est Power Adjust value */
-	int8	crsmin_pwr; /* CRS Min/Noise power */
-	int8	rssi_per_ant; /* RSSI Per antenna */
-	int8	snr_per_ant; /* SNR Per antenna */
-	int8	pad1; /* Padding byte to align with word */
-	int8	pad2; /* Padding byte to align with word */
-} phy_periodic_log_core_t;
-
-#define PHY_PERIODIC_LOG_VER1         (1u)
-
-typedef struct phy_periodic_log_v1 {
-	uint8  version; /* Logging structure version */
-	uint8  numcores; /* Numbe of cores for which core specific data present */
-	uint16 length;  /* Length of the entire structure */
-	phy_periodic_log_cmn_t phy_perilog_cmn;
-	phy_periodic_counters_v1_t counters_peri_log;
-	/* This will be a variable length based on the numcores field defined above */
-	phy_periodic_log_core_t phy_perilog_core[1];
-} phy_periodic_log_v1_t;
 
 #endif /* _EVENT_LOG_PAYLOAD_H_ */

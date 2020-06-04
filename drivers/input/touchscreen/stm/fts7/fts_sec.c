@@ -670,16 +670,6 @@ static void fw_update(void *device_data)
 	int retval = 0;
 
 	set_default_result(info);
-#if defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
-	if (info->cmd_param[0] == 1) {
-		sprintf(buff, "%s", "OK");
-		set_cmd_result(info, buff, strnlen(buff, sizeof(buff)));
-		info->cmd_state = CMD_STATUS_OK;
-		tsp_debug_info(true, &info->client->dev, "%s: user_ship, success\n", __func__);
-		return;
-	}
-#endif
-
 	if (info->touch_stopped) {
 		tsp_debug_info(true, &info->client->dev, "%s: [ERROR] Touch is stopped\n",
 			__func__);

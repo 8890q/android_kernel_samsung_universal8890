@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: event_log_tag.h 779150 2018-08-31 10:04:22Z $
+ * $Id: event_log_tag.h 759112 2018-04-24 01:34:08Z $
  */
 
 #ifndef _EVENT_LOG_TAG_H_
@@ -52,11 +52,9 @@
 #define EVENT_LOG_TAG_SRSCAN		22
 #define EVENT_LOG_TAG_PWRSTATS_INFO	23
 
-/* Timestamp logging for plotting. */
-#define EVENT_LOG_TAG_TSLOG		26
-
 /* Possible candidates for reuse */
-#define EVENT_LOG_TAG_UCODE_FIFO	27
+#define EVENT_LOG_TAG_UCODE_WATCHDOG 	26
+#define EVENT_LOG_TAG_UCODE_FIFO 	27
 
 #define EVENT_LOG_TAG_SCAN_TRACE_LOW	28
 #define EVENT_LOG_TAG_SCAN_TRACE_HIGH	29
@@ -244,14 +242,6 @@
 #define EVENT_LOG_TAG_FILS_ERROR		221
 #define EVENT_LOG_TAG_HWA_TXPOST		222
 #define EVENT_LOG_TAG_HWA_TXDMA			223
-/* Arbitrator callback log tags */
-#define EVENT_LOG_TAG_STF_ARB_CB_TRACE		224
-#define EVENT_LOG_TAG_STF_ARB_CB_ERROR		225
-#define EVENT_LOG_TAG_PHY_PERIODIC_SEC		226
-#define EVENT_LOG_TAG_RTE_ERROR			227
-#define EVENT_LOG_TAG_CPLT_ERROR		228
-#define EVENT_LOG_TAG_DNGL_ERROR		229
-#define EVENT_LOG_TAG_NVRAM_ERROR		230
 
 /* Debug tags for making debug builds */
 #define EVENT_LOG_TAG_DBG1			251
@@ -317,39 +307,10 @@
 #define EVENT_LOG_TAG_WL_HEB_ERROR              300
 #define EVENT_LOG_TAG_WL_HEB_TRACE              301
 
-/* RRM EVENT_LOG_TAG */
-#define EVENT_LOG_TAG_RRM_DBG                   302
-#define EVENT_LOG_TAG_RRM_INFO                  303
-#define EVENT_LOG_TAG_RRM_ERR                   304
-
-/* scan core */
-#define EVENT_LOG_TAG_SC			305
-
-#define EVENT_LOG_TAG_ESP_DBG			306
-#define EVENT_LOG_TAG_ESP_INFO			307
-#define EVENT_LOG_TAG_ESP_ERR			308
-
-/* SDC */
-#define EVENT_LOG_TAG_SDC_DBG			309
-#define EVENT_LOG_TAG_SDC_INFO			310
-#define EVENT_LOG_TAG_SDC_ERR			311
-
-/* RTE */
-#define EVENT_LOG_TAG_RTE_ERR			312
-
-/* TX FIFO */
-#define EVENT_LOG_TAG_FIFO_INFO			313
-
-/* PKTTS */
-#define EVENT_LOG_TAG_LATENCY_INFO		314
-
-/* TDLS */
-#define EVENT_LOG_TAG_WL_TDLS_INFO              315
-#define EVENT_LOG_TAG_WL_TDLS_DBG               316
-#define EVENT_LOG_TAG_WL_TDLS_ERR               317
-
 /* EVENT_LOG_TAG_MAX	= Set to the same value of last tag, not last tag + 1 */
-#define EVENT_LOG_TAG_MAX			317
+#define EVENT_LOG_TAG_MAX			301
+#define EVENT_LOG_TAG_MAX_LEGACY_FORMAT		255
+/* Note: New event should be added/reserved in trunk before adding it to branches */
 
 typedef enum wl_el_set_type_def {
 	EVENT_LOG_SET_TYPE_DEFAULT = 0, /* flush the log buffer when it is full - Default option */
@@ -401,9 +362,6 @@ typedef union event_log_hdr {
 	};
 	uint32 t;			/* Type cheat */
 } event_log_hdr_t;
-
-/* for internal use - legacy max. tag */
-#define EVENT_LOG_TAG_MAX_LEGACY_FORMAT		255
 
 /*
  * The position of the extended header in the event log stream will be as follows:

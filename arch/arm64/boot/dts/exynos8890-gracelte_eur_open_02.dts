@@ -8,11 +8,11 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
 */
-/* Rev 0.2 + CCIC 0005 */
+
 /dts-v1/;
 #include "exynos8890-gracelte_common.dtsi"
-#include "exynos8890-gracelte_kor_gpio_01.dtsi"
-#include "exynos8890-gracelte_battery_kor_02.dtsi"
+#include "exynos8890-grace_gpio_00.dtsi"
+#include "exynos8890-gracelte_battery_eur_02.dtsi"
 #include "exynos8890-sound-cs47l91.dtsi"
 #include "exynos8890-gracelte-sound-cs47l91.dtsi"
 #include "exynos8890-luckylte_mst.dtsi"
@@ -20,16 +20,15 @@
 #include "exynos8890-grace_display_01.dtsi"
 #include "exynos8890-gracelte_motor.dtsi"
 #include "exynos8890-gracelte_svcled.dtsi"
-#include "exynos8890-gracelte-ccic-s2mm005_00.dtsi"
-#include "exynos8890-gracelte_kor-tdmb-01.dtsi"
+#include "exynos8890-ccic-s2mm003_00.dtsi"
 
 / {
 	model = "Samsung UNIVERSAL8890 board based on EXYNOS8890";
 	model_info-chip = <8890>;
 	model_info-platform = "android";
 	model_info-subtype = "samsung";
-	model_info-hw_rev = <5>;
-	model_info-hw_rev_end = <6>;
+	model_info-hw_rev = <2>;
+	model_info-hw_rev_end = <2>;
 	compatible = "samsung,exynos8890", "samsung,UNIVERSAL8890";
 
 	audio_pdata {
@@ -245,6 +244,12 @@
 			};
 	};
 
+	hsi2c@14E10000 {
+		touchscreen@48{
+			sec,project_name = "HERO2", "G935";
+		};
+	};
+
 	gps {
 		compatible = "samsung,exynos54xx-bcm4753";
 
@@ -290,16 +295,9 @@
 		};
 	};
 
-	hsi2c@14E10000 {
-		touchscreen@48{
-			sec,firmware_name = "tsp_sec/y661_grace.fw";
-			sec,mis_cal_check = <1>;
-			sec,grip_concept = <2>;  	// 01: set_tunning_data, 10:set_grip_dtaa, 11:all
+	hsi2c@14E00000 {
+		fimc-is-secure@10 {
+			/delete-property/ gpio_iris_led_en;
 		};
-	};
-
-	cpufreq {
-		/* CC IC JIG_ON GPIO - for detecting jig on cpufreq */
-		cpufreq,jig_on = <&gpi2 4 0>;
 	};
 };

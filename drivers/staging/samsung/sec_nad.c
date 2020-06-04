@@ -250,29 +250,22 @@ static ssize_t store_nad_acat(struct device *dev,
     int ret = -1;
     int idx = 0;
     char temp[NAD_BUFF_SIZE*3];
-	char nad_cmd[NAD_CMD_LIST][NAD_BUFF_SIZE];
-	char *nad_ptr, *string;
-	unsigned int len = 0;
+    char nad_cmd[NAD_CMD_LIST][NAD_BUFF_SIZE];
+    char *nad_ptr, *string;
 
-	NAD_PRINT("buf : %s count : %d\n", buf, (int)count);
+    NAD_PRINT("buf : %s count : %d\n", buf, (int)count);
 
-	if ((int)count < NAD_BUFF_SIZE)
-		return -EINVAL;
+    if((int)count < NAD_BUFF_SIZE)
+        return -EINVAL;
 
-	/* Copy buf to nad temp */
-	len = (unsigned int)min(count, sizeof(temp) - 1);
-	strncpy(temp, buf, len);
-	temp[len] = '\0';
-	string = temp;
+    /* Copy buf to nad temp */
+    strncpy(temp, buf, NAD_BUFF_SIZE*3);
+    string = temp;
 
-	while (idx < NAD_CMD_LIST) {
-		nad_ptr = strsep(&string, ",");
-		if (nad_ptr ==  NULL || strlen(nad_ptr) >= NAD_BUFF_SIZE) {
-				NAD_PRINT(" %s: invalid input\n",__func__);
-				return -EINVAL;	
-		}
-		strcpy(nad_cmd[idx++], nad_ptr);
-	}
+    while(idx < NAD_CMD_LIST) {
+        nad_ptr = strsep(&string,",");
+        strcpy(nad_cmd[idx++], nad_ptr);
+    }
 
     /*
      * ACAT NAD Write Data format

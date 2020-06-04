@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmutils.c 813756 2019-04-08 05:18:14Z $
+ * $Id: bcmutils.c 759570 2018-04-26 00:14:59Z $
  */
 
 #include <bcm_cfg.h>
@@ -316,28 +316,20 @@ pktsetprio(void *pkt, bool update_vtag)
 		uint8 dscp = tos_tc >> IPV4_TOS_DSCP_SHIFT;
 		switch (dscp) {
 		case DSCP_EF:
-		case DSCP_VA:
 			priority = PRIO_8021D_VO;
 			break;
 		case DSCP_AF31:
 		case DSCP_AF32:
 		case DSCP_AF33:
-		case DSCP_CS3:
 			priority = PRIO_8021D_CL;
 			break;
 		case DSCP_AF21:
 		case DSCP_AF22:
 		case DSCP_AF23:
-			priority = PRIO_8021D_EE;
-			break;
 		case DSCP_AF11:
 		case DSCP_AF12:
 		case DSCP_AF13:
-		case DSCP_CS2:
-			priority = PRIO_8021D_BE;
-			break;
-		case DSCP_CS6:
-			priority = PRIO_8021D_NC;
+			priority = PRIO_8021D_EE;
 			break;
 		default:
 			priority = (int)(tos_tc >> IPV4_TOS_PREC_SHIFT);

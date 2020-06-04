@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_sdio.c 814373 2019-04-11 02:01:55Z $
+ * $Id: dhd_sdio.c 801673 2019-01-29 04:29:43Z $
  */
 
 #include <typedefs.h>
@@ -251,8 +251,6 @@ typedef struct dhd_console {
 #define BTFW_HEX_LINE_TYPE_ABSOLUTE_32BIT_ADDRESS	5
 
 #endif /* defined (BT_OVER_SDIO) */
-
-#define SBSDIO_CIS_TINY_SIZE_LIMIT 26
 
 /* Private data for SDIO bus interaction */
 typedef struct dhd_bus {
@@ -7761,7 +7759,7 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 	uint8 clkctl = 0;
 #endif /* !BCMSPI */
 	uint fn, numfn;
-	uint8 *cis = NULL;
+	uint8 *cis[SDIOD_MAX_IOFUNCS];
 	int32 value;
 	int err = 0;
 
@@ -7811,56 +7809,47 @@ dhdsdio_probe_attach(struct dhd_bus *bus, osl_t *osh, void *sdh, void *regsva,
 		numfn = 0; /* internally func is hardcoded to 1 as gSPI has cis on F1 only */
 #endif /* !BCMSPI */
 #ifndef BCMSDIOLITE
-		if (!(cis = MALLOC(osh, SBSDIO_CIS_SIZE_LIMIT))) {
-			DHD_INFO(("dhdsdio_probe: cis malloc failed\n"));
-			goto fail;
-		}
-		bzero(cis, SBSDIO_CIS_SIZE_LIMIT);
-
 		for (fn = 0; fn <= numfn; fn++) {
-			if (DHD_INFO_ON()) {
-				if ((err = bcmsdh_cis_read(sdh, fn, cis,
-						SBSDIO_CIS_SIZE_LIMIT))) {
-					DHD_INFO(("dhdsdio_probe: fn %d cis read err %d\n",
-						fn, err));
-					break;
-				}
-#ifdef DHD_DEBUG
-				dhd_dump_cis(fn, cis);
-#endif /* DHD_DEBUG */
+			if (!(cis[fn] = MALLOC(osh, SBSDIO_CIS_SIZE_LIMIT))) {
+				DHD_INFO(("dhdsdio_probe: fn %d cis malloc failed\n", fn));
+				break;
 			}
-			else
-			{
-				if (fn > 0) {
-					if ((err = bcmsdh_cis_read(sdh, fn, cis,
-							SBSDIO_CIS_TINY_SIZE_LIMIT))) {
-						DHD_INFO(("dhdsdio_probe: fn %d cis read err %d\n",
-							fn, err));
-						break;
-					}
-				}
+			bzero(cis[fn], SBSDIO_CIS_SIZE_LIMIT);
+
+			if ((err = bcmsdh_cis_read(sdh, fn, cis[fn],
+			                                 SBSDIO_CIS_SIZE_LIMIT))) {
+				DHD_INFO(("dhdsdio_probe: fn %d cis read err %d\n", fn, err));
+				MFREE(osh, cis[fn], SBSDIO_CIS_SIZE_LIMIT);
+				break;
 			}
 
-			/* Reading the F1, F2 and F3 max blocksize values from CIS
-			 * and writing into the F1, F2 and F3	block size registers.
-			 * There is no max block size register value available for F0 in CIS
-			 * register.
-			 * So, setting default value for F0 block size as 32 (which was set earlier
-			 * in iovar). IOVAR takes only one arguement.
-			 * So, we are passing the function number alongwith the value (fn<<16)
-			 */
+		/* Reading the F1, F2 and F3 max blocksize values from CIS
+		  * and writing into the F1, F2 and F3	block size registers.
+		  * There is no max block size register value available for F0 in CIS register.
+		  * So, setting default value for F0 block size as 32 (which was set earlier
+		  * in iovar). IOVAR takes only one arguement.
+		  * So, we are passing the function number alongwith the value (fn<<16)
+		*/
 			if (!fn)
 				value = F0_BLOCK_SIZE;
 			else
-				value = (cis[25]<<8) | cis[24] | (fn<<16);
+				value = (cis[fn][25]<<8) | cis[fn][24] | (fn<<16);
 			if (bcmsdh_iovar_op(sdh, "sd_blocksize", NULL, 0, &value,
-					sizeof(value), TRUE) != BCME_OK) {
+				sizeof(value), TRUE) != BCME_OK) {
 				bus->blocksize = 0;
 				DHD_ERROR(("%s: fail on %s get\n", __FUNCTION__,
 					"sd_blocksize"));
 			}
+#ifdef DHD_DEBUG
+			if (DHD_INFO_ON()) {
+				dhd_dump_cis(fn, cis[fn]);
+			}
+#endif /* DHD_DEBUG */
 		}
-		MFREE(osh, cis, SBSDIO_CIS_SIZE_LIMIT);
+	while (fn-- > 0) {
+		ASSERT(cis[fn]);
+		MFREE(osh, cis[fn], SBSDIO_CIS_SIZE_LIMIT);
+	}
 #else
 	BCM_REFERENCE(cis);
 	BCM_REFERENCE(fn);
@@ -8376,14 +8365,10 @@ dhdsdio_suspend(void *context)
 	}
 
 	DHD_LINUX_GENERAL_LOCK(bus->dhd, flags);
-	/* stop all interface network queue. */
-	dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, ON);
 	bus->dhd->busstate = DHD_BUS_SUSPEND;
 	if (DHD_BUS_BUSY_CHECK_IN_TX(bus->dhd)) {
 		DHD_ERROR(("Tx Request is not ended\n"));
 		bus->dhd->busstate = DHD_BUS_DATA;
-		/* resume all interface network queue. */
-		dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
 		DHD_LINUX_GENERAL_UNLOCK(bus->dhd, flags);
 		return -EBUSY;
 	}
@@ -8409,8 +8394,6 @@ dhdsdio_suspend(void *context)
 	DHD_LINUX_GENERAL_LOCK(bus->dhd, flags);
 	if (ret) {
 		bus->dhd->busstate = DHD_BUS_DATA;
-		/* resume all interface network queue. */
-		dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
 	}
 	DHD_BUS_BUSY_CLEAR_SUSPEND_IN_PROGRESS(bus->dhd);
 	dhd_os_busbusy_wake(bus->dhd);
@@ -8443,8 +8426,6 @@ dhdsdio_resume(void *context)
 	DHD_BUS_BUSY_CLEAR_RESUME_IN_PROGRESS(bus->dhd);
 	bus->dhd->busstate = DHD_BUS_DATA;
 	dhd_os_busbusy_wake(bus->dhd);
-	/* resume all interface network queue. */
-	dhd_txflowcontrol(bus->dhd, ALL_INTERFACES, OFF);
 	DHD_LINUX_GENERAL_UNLOCK(bus->dhd, flags);
 
 	return 0;

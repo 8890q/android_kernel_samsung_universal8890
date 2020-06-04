@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfgp2p.c 819437 2019-05-13 12:34:56Z $
+ * $Id: wl_cfgp2p.c 801830 2019-01-30 01:35:34Z $
  *
  */
 #include <typedefs.h>
@@ -2586,16 +2586,11 @@ wl_cfgp2p_del_p2p_disc_if(struct wireless_dev *wdev, struct bcm_cfg80211 *cfg)
 	bool rollback_lock = false;
 
 	if (!wdev || !cfg) {
-		WL_ERR(("wdev or cfg is NULL\n"));
+		WL_ERR(("null ptr. wdev:%p cfg:%p\n", wdev, cfg));
 		return -EINVAL;
 	}
 
 	WL_INFORM(("Enter\n"));
-
-	if (!cfg->p2p_wdev) {
-		WL_ERR(("Already deleted p2p_wdev\n"));
-		return -EINVAL;
-	}
 
 	if (!rtnl_is_locked()) {
 		rtnl_lock();

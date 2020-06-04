@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_android.c 818247 2019-05-07 04:15:13Z $
+ * $Id: wl_android.c 804544 2019-02-13 11:43:54Z $
  */
 
 #include <linux/module.h>
@@ -70,10 +70,7 @@
 #ifdef WL_STATIC_IF
 #define WL_BSSIDX_MAX	16
 #endif /* WL_STATIC_IF */
-#ifdef WL_BCNRECV
-#include <wl_cfgvendor.h>
-#include <brcm_nl80211.h>
-#endif /* WL_BCNRECV */
+
 /*
  * Android private command strings, PLEASE define new private commands here
  * so they can be updated easily in the future (if needed)
@@ -96,7 +93,6 @@
 #define CMD_SETSUSPENDMODE      "SETSUSPENDMODE"
 #define CMD_SETDTIM_IN_SUSPEND  "SET_DTIM_IN_SUSPEND"
 #define CMD_MAXDTIM_IN_SUSPEND  "MAX_DTIM_IN_SUSPEND"
-#define CMD_DISDTIM_IN_SUSPEND  "DISABLE_DTIM_IN_SUSPEND"
 #define CMD_P2P_DEV_ADDR	"P2P_DEV_ADDR"
 #define CMD_SETFWPATH		"SETFWPATH"
 #define CMD_SETBAND		"SETBAND"
@@ -536,10 +532,6 @@ static const wl_natoe_sub_cmd_t natoe_cmd_list[] = {
 #ifdef DHD_EVENT_LOG_FILTER
 #define CMD_EWP_FILTER		"EWP_FILTER"
 #endif /* DHD_EVENT_LOG_FILTER */
-
-#ifdef WL_BCNRECV
-#define CMD_BEACON_RECV "BEACON_RECV"
-#endif /* WL_BCNRECV */
 
 #ifdef WL_GENL
 static s32 wl_genl_handle_msg(struct sk_buff *skb, struct genl_info *info);
@@ -1229,24 +1221,6 @@ wl_android_set_max_dtim(struct net_device *dev, char *command)
 
 	if (!(ret = net_os_set_max_dtim_enable(dev, dtim_flag))) {
 		DHD_TRACE(("%s: use Max bcn_li_dtim in suspend %s\n",
-			__FUNCTION__, (dtim_flag ? "Enable" : "Disable")));
-	} else {
-		DHD_ERROR(("%s: failed %d\n", __FUNCTION__, ret));
-	}
-
-	return ret;
-}
-
-static int
-wl_android_set_disable_dtim_in_suspend(struct net_device *dev, char *command)
-{
-	int ret = 0;
-	int dtim_flag;
-
-	dtim_flag = *(command + strlen(CMD_DISDTIM_IN_SUSPEND) + 1) - '0';
-
-	if (!(ret = net_os_set_disable_dtim_in_suspend(dev, dtim_flag))) {
-		DHD_TRACE(("%s: use Disable bcn_li_dtim in suspend %s\n",
 			__FUNCTION__, (dtim_flag ? "Enable" : "Disable")));
 	} else {
 		DHD_ERROR(("%s: failed %d\n", __FUNCTION__, ret));
@@ -5976,35 +5950,6 @@ wl_cfg80211_p2plo_offload(struct net_device *dev, char *cmd, char* buf, int len)
 	}
 	return ret;
 }
-void
-wl_cfg80211_cancel_p2plo(struct bcm_cfg80211 *cfg)
-{
-	struct wireless_dev *wdev;
-	if (!cfg) {
-		return;
-	}
-
-	wdev = bcmcfg_to_p2p_wdev(cfg);
-
-	if (wl_get_p2p_status(cfg, DISC_IN_PROGRESS)) {
-		WL_INFORM_MEM(("P2P_FIND: Discovery offload is already in progress."
-				"it aborted\n"));
-		wl_clr_p2p_status(cfg, DISC_IN_PROGRESS);
-		if (wdev != NULL) {
-#if defined(WL_CFG80211_P2P_DEV_IF)
-			cfg80211_remain_on_channel_expired(wdev,
-					cfg->last_roc_id,
-					&cfg->remain_on_chan, GFP_KERNEL);
-#else
-			cfg80211_remain_on_channel_expired(wdev,
-					cfg->last_roc_id,
-					&cfg->remain_on_chan,
-					cfg->remain_on_chan_type, GFP_KERNEL);
-#endif /* WL_CFG80211_P2P_DEV_IF */
-		}
-		wl_cfg80211_p2plo_deinit(cfg);
-	}
-}
 #endif /* P2P_LISTEN_OFFLOADING */
 
 #ifdef DYNAMIC_MUMIMO_CONTROL
@@ -6281,7 +6226,7 @@ wl_android_get_lqcm_report(struct net_device *dev, char *command, int total_len)
 	tx_lqcm_idx = (lqcm_report & LQCM_TX_INDEX_MASK) >> LQCM_TX_INDEX_SHIFT;
 	rx_lqcm_idx = (lqcm_report & LQCM_RX_INDEX_MASK) >> LQCM_RX_INDEX_SHIFT;
 
-	WL_DBG(("lqcm report EN:%d, TX:%d, RX:%d\n", lqcm_enable, tx_lqcm_idx, rx_lqcm_idx));
+	WL_ERR(("lqcm report EN:%d, TX:%d, RX:%d\n", lqcm_enable, tx_lqcm_idx, rx_lqcm_idx));
 
 	bytes_written = snprintf(command, total_len, "%s %d",
 			CMD_GET_LQCM_REPORT, lqcm_report);
@@ -7164,263 +7109,6 @@ wl_android_get_adps_mode(
 }
 #endif /* WLADPS_PRIVATE_CMD */
 
-#ifdef WL_BCNRECV
-#define BCNRECV_ATTR_HDR_LEN 30
-int
-wl_android_bcnrecv_event(struct net_device *ndev, uint attr_type,
-		uint status, uint reason, uint8 *data, uint data_len)
-{
-	s32 err = BCME_OK;
-	struct sk_buff *skb;
-	gfp_t kflags;
-	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
-	struct wiphy *wiphy = bcmcfg_to_wiphy(cfg);
-	uint len;
-
-	len = BCNRECV_ATTR_HDR_LEN + data_len;
-
-	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
-	skb = CFG80211_VENDOR_EVENT_ALLOC(wiphy, ndev_to_wdev(ndev), len,
-		BRCM_VENDOR_EVENT_BEACON_RECV, kflags);
-	if (!skb) {
-		WL_ERR(("skb alloc failed"));
-		return -ENOMEM;
-	}
-	if ((attr_type == BCNRECV_ATTR_BCNINFO) && (data)) {
-		/* send bcn info to upper layer */
-		nla_put(skb, BCNRECV_ATTR_BCNINFO, data_len, data);
-	} else if (attr_type == BCNRECV_ATTR_STATUS) {
-		nla_put_u32(skb, BCNRECV_ATTR_STATUS, status);
-		if (reason) {
-			nla_put_u32(skb, BCNRECV_ATTR_REASON, reason);
-		}
-	} else {
-		WL_ERR(("UNKNOWN ATTR_TYPE. attr_type:%d\n", attr_type));
-		kfree_skb(skb);
-		return -EINVAL;
-	}
-	cfg80211_vendor_event(skb, kflags);
-	return err;
-}
-
-static int
-_wl_android_bcnrecv_start(struct bcm_cfg80211 *cfg, struct net_device *ndev, bool user_trigger)
-{
-	s32 err = BCME_OK;
-
-	/* check any scan is in progress before beacon recv scan trigger IOVAR */
-	if (wl_get_drv_status_all(cfg, SCANNING)) {
-		err = BCME_UNSUPPORTED;
-		WL_ERR(("Scan in progress, Aborting beacon recv start, "
-			"error:%d\n", err));
-		goto exit;
-	}
-
-	if (wl_get_p2p_status(cfg, SCANNING)) {
-		err = BCME_UNSUPPORTED;
-		WL_ERR(("P2P Scan in progress, Aborting beacon recv start, "
-			"error:%d\n", err));
-		goto exit;
-	}
-
-	if (wl_get_drv_status(cfg, REMAINING_ON_CHANNEL, ndev)) {
-		err = BCME_UNSUPPORTED;
-		WL_ERR(("P2P remain on channel, Aborting beacon recv start, "
-			"error:%d\n", err));
-		goto exit;
-	}
-
-	/* check STA is in connected state, Beacon recv required connected state
-	 * else exit from beacon recv scan
-	 */
-	if (!wl_get_drv_status(cfg, CONNECTED, ndev)) {
-		err = BCME_UNSUPPORTED;
-		WL_ERR(("STA is in not associated state error:%d\n", err));
-		goto exit;
-	}
-
-#ifdef WL_NAN
-	/* Check NAN is enabled, if enabled exit else continue */
-	if (wl_cfgnan_check_state(cfg)) {
-		err = BCME_UNSUPPORTED;
-		WL_ERR(("Nan is enabled, NAN+STA+FAKEAP concurrency is not supported\n"));
-		goto exit;
-	}
-#endif /* WL_NAN */
-
-	/* Triggering an sendup_bcn iovar */
-	err = wldev_iovar_setint(ndev, "sendup_bcn", 1);
-	if (unlikely(err)) {
-		WL_ERR(("sendup_bcn failed to set, error:%d\n", err));
-	} else {
-		cfg->bcnrecv_info.bcnrecv_state = BEACON_RECV_STARTED;
-		WL_INFORM_MEM(("bcnrecv started\n"));
-		if (user_trigger) {
-			WL_INFORM_MEM(("BCN-RECV-STARTED"));
-			if ((err = wl_android_bcnrecv_event(ndev, BCNRECV_ATTR_STATUS,
-					WL_BCNRECV_STARTED, 0, NULL, 0)) != BCME_OK) {
-				WL_ERR(("failed to send bcnrecv event, error:%d\n", err));
-			}
-		}
-	}
-exit:
-	/*
-	 * BCNRECV start request can be rejected from dongle
-	 * in various conditions.
-	 * Error code need to be overridden to BCME_UNSUPPORTED
-	 * to avoid hang event from continous private
-	 * command error
-	 */
-	if (err) {
-		err = BCME_UNSUPPORTED;
-	}
-	return err;
-}
-
-int
-_wl_android_bcnrecv_stop(struct bcm_cfg80211 *cfg, struct net_device *ndev, uint reason)
-{
-	s32 err = BCME_OK;
-	u32 status;
-
-	/* Send sendup_bcn iovar for all cases except W_BCNRECV_ROAMABORT reason -
-	 * fw generates roam abort event after aborting the bcnrecv.
-	 */
-	if (reason != WL_BCNRECV_ROAMABORT) {
-		/* Triggering an sendup_bcn iovar */
-		err = wldev_iovar_setint(ndev, "sendup_bcn", 0);
-		if (unlikely(err)) {
-			WL_ERR(("sendup_bcn failed to set error:%d\n", err));
-			goto exit;
-		}
-	}
-
-	/* Send notification for all cases */
-	if (reason == WL_BCNRECV_SUSPEND) {
-		cfg->bcnrecv_info.bcnrecv_state = BEACON_RECV_SUSPENDED;
-		status = WL_BCNRECV_SUSPENDED;
-	} else {
-		cfg->bcnrecv_info.bcnrecv_state = BEACON_RECV_STOPPED;
-		WL_INFORM_MEM(("bcnrecv stopped\n"));
-		if (reason == WL_BCNRECV_USER_TRIGGER) {
-			status = WL_BCNRECV_STOPPED;
-		} else {
-			status = WL_BCNRECV_ABORTED;
-		}
-	}
-	if ((err = wl_android_bcnrecv_event(ndev, BCNRECV_ATTR_STATUS, status,
-		reason, NULL, 0)) != BCME_OK) {
-		WL_ERR(("failed to send bcnrecv event, error:%d\n", err));
-	}
-exit:
-	return err;
-}
-
-static int
-wl_android_bcnrecv_start(struct bcm_cfg80211 *cfg, struct net_device *ndev)
-{
-	s32 err = BCME_OK;
-
-	/* Adding scan_sync mutex to avoid race condition in b/w scan_req and bcn recv */
-	mutex_lock(&cfg->scan_sync);
-	mutex_lock(&cfg->bcn_sync);
-	err = _wl_android_bcnrecv_start(cfg, ndev, true);
-	mutex_unlock(&cfg->bcn_sync);
-	mutex_unlock(&cfg->scan_sync);
-	return err;
-}
-
-int
-wl_android_bcnrecv_stop(struct net_device *ndev, uint reason)
-{
-	s32 err = BCME_OK;
-	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
-
-	mutex_lock(&cfg->bcn_sync);
-	if ((cfg->bcnrecv_info.bcnrecv_state == BEACON_RECV_STARTED) ||
-	   (cfg->bcnrecv_info.bcnrecv_state == BEACON_RECV_SUSPENDED)) {
-		err = _wl_android_bcnrecv_stop(cfg, ndev, reason);
-	}
-	mutex_unlock(&cfg->bcn_sync);
-	return err;
-}
-
-int
-wl_android_bcnrecv_suspend(struct net_device *ndev)
-{
-	s32 ret = BCME_OK;
-	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
-
-	mutex_lock(&cfg->bcn_sync);
-	if (cfg->bcnrecv_info.bcnrecv_state == BEACON_RECV_STARTED) {
-		WL_INFORM_MEM(("bcnrecv suspend\n"));
-		ret = _wl_android_bcnrecv_stop(cfg, ndev, WL_BCNRECV_SUSPEND);
-	}
-	mutex_unlock(&cfg->bcn_sync);
-	return ret;
-}
-
-int
-wl_android_bcnrecv_resume(struct net_device *ndev)
-{
-	s32 ret = BCME_OK;
-	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
-
-	/* Adding scan_sync mutex to avoid race condition in b/w scan_req and bcn recv */
-	mutex_lock(&cfg->scan_sync);
-	mutex_lock(&cfg->bcn_sync);
-	if (cfg->bcnrecv_info.bcnrecv_state == BEACON_RECV_SUSPENDED) {
-		WL_INFORM_MEM(("bcnrecv resume\n"));
-		ret = _wl_android_bcnrecv_start(cfg, ndev, false);
-	}
-	mutex_unlock(&cfg->bcn_sync);
-	mutex_unlock(&cfg->scan_sync);
-	return ret;
-}
-
-/* Beacon recv functionality code implementation */
-int
-wl_android_bcnrecv_config(struct net_device *ndev, char *cmd_argv, int total_len)
-{
-	struct bcm_cfg80211 *cfg = NULL;
-	uint err = BCME_OK;
-
-	if (!ndev) {
-		WL_ERR(("ndev is NULL\n"));
-		return -EINVAL;
-	}
-
-	cfg = wl_get_cfg(ndev);
-	if (!cfg) {
-		WL_ERR(("cfg is NULL\n"));
-		return -EINVAL;
-	}
-
-	/* sync commands from user space */
-	mutex_lock(&cfg->usr_sync);
-	if (strncmp(cmd_argv, "start", strlen("start")) == 0) {
-		WL_INFORM(("BCNRECV start\n"));
-		err = wl_android_bcnrecv_start(cfg, ndev);
-		if (err != BCME_OK) {
-			WL_ERR(("Failed to process the start command, error:%d\n", err));
-			goto exit;
-		}
-	} else if (strncmp(cmd_argv, "stop", strlen("stop")) == 0) {
-		WL_INFORM(("BCNRECV stop\n"));
-		err = wl_android_bcnrecv_stop(ndev, WL_BCNRECV_USER_TRIGGER);
-		if (err != BCME_OK) {
-			WL_ERR(("Failed to stop the bcn recv, error:%d\n", err));
-			goto exit;
-		}
-	} else {
-		err = BCME_ERROR;
-	}
-exit:
-	mutex_unlock(&cfg->usr_sync);
-	return err;
-}
-#endif /* WL_BCNRECV */
-
 int
 wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 {
@@ -7523,9 +7211,6 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 	}
 	else if (strnicmp(command, CMD_MAXDTIM_IN_SUSPEND, strlen(CMD_MAXDTIM_IN_SUSPEND)) == 0) {
 		bytes_written = wl_android_set_max_dtim(net, command);
-	}
-	else if (strnicmp(command, CMD_DISDTIM_IN_SUSPEND, strlen(CMD_DISDTIM_IN_SUSPEND)) == 0) {
-		bytes_written = wl_android_set_disable_dtim_in_suspend(net, command);
 	}
 	else if (strnicmp(command, CMD_SETBAND, strlen(CMD_SETBAND)) == 0) {
 		bytes_written = wl_android_set_band(net, command);
@@ -8305,14 +7990,6 @@ wl_handle_private_cmd(struct net_device *net, char *command, u32 cmd_len)
 		bytes_written = wl_cfg80211_enable_cac(net, enable);
 	}
 #endif	/* SUPPORT_SET_CAC */
-#ifdef WL_BCNRECV
-	else if (strnicmp(command, CMD_BEACON_RECV,
-		strlen(CMD_BEACON_RECV)) == 0) {
-		char *data = (command + strlen(CMD_BEACON_RECV) + 1);
-		bytes_written = wl_android_bcnrecv_config(net,
-				data, priv_cmd.total_len);
-	}
-#endif /* WL_BCNRECV */
 	else {
 		DHD_ERROR(("Unknown PRIVATE command %s - ignored\n", command));
 		bytes_written = scnprintf(command, sizeof("FAIL"), "FAIL");

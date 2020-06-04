@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: 802.11.h 778668 2018-08-29 01:12:46Z $
+ * $Id: 802.11.h 759325 2018-04-25 00:30:00Z $
  */
 
 #ifndef _802_11_H_
@@ -257,7 +257,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_bcn_prb {
 	uint16			capability;
 } BWL_POST_PACKED_STRUCT;
 #define	DOT11_BCN_PRB_LEN	12		/* 802.11 beacon/probe frame fixed length */
-#define	DOT11_BCN_PRB_FIXED_LEN	12u		/* 802.11 beacon/probe frame fixed length */
+#define	DOT11_BCN_PRB_FIXED_LEN	12		/* 802.11 beacon/probe frame fixed length */
 
 BWL_PRE_PACKED_STRUCT struct dot11_auth {
 	uint16			alg;		/* algorithm */
@@ -355,7 +355,6 @@ BWL_PRE_PACKED_STRUCT struct dot11_tpc_rep {
 	uint8 margin;
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_tpc_rep dot11_tpc_rep_t;
-#define DOT11_MNG_IE_TPC_REPORT_SIZE	(sizeof(dot11_tpc_rep_t))
 #define DOT11_MNG_IE_TPC_REPORT_LEN	2 	/* length of IE data, not including 2 byte header */
 
 BWL_PRE_PACKED_STRUCT struct dot11_supp_channels {
@@ -1553,9 +1552,6 @@ typedef struct ccx_qfl_ie ccx_qfl_ie_t;
 #define FILS_EXTID_MNG_HLP_CONTAINER_ID		5u	/* FILS HLP Container element */
 #define DOT11_MNG_FILS_HLP_CONTAINER		(DOT11_MNG_ID_EXT_ID +\
 							FILS_EXTID_MNG_HLP_CONTAINER_ID)
-#define FILS_EXTID_MNG_KEY_DELIVERY_ID		7u	/* FILS Key Delivery element */
-#define DOT11_MNG_FILS_KEY_DELIVERY		(DOT11_MNG_ID_EXT_ID +\
-								FILS_EXTID_MNG_KEY_DELIVERY_ID)
 #define FILS_EXTID_MNG_WRAPPED_DATA_ID		8u	/* FILS Wrapped Data element */
 #define DOT11_MNG_FILS_WRAPPED_DATA		(DOT11_MNG_ID_EXT_ID +\
 							FILS_EXTID_MNG_WRAPPED_DATA_ID)
@@ -1997,7 +1993,6 @@ BWL_PRE_PACKED_STRUCT struct dot11_bsstrans_req {
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_bsstrans_req dot11_bsstrans_req_t;
 #define DOT11_BSSTRANS_REQ_LEN 7	/* Fixed length */
-#define DOT11_BSSTRANS_REQ_FIXED_LEN 7u	/* Fixed length */
 
 /* BSS Mgmt Transition Request Mode Field - 802.11v */
 #define DOT11_BSSTRANS_REQMODE_PREF_LIST_INCL		0x01
@@ -2891,7 +2886,7 @@ BWL_PRE_PACKED_STRUCT struct dot11_rmreq_bcn {
 	struct ether_addr	bssid;
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_rmreq_bcn dot11_rmreq_bcn_t;
-#define DOT11_RMREQ_BCN_LEN	18u
+#define DOT11_RMREQ_BCN_LEN	18
 
 BWL_PRE_PACKED_STRUCT struct dot11_rmrep_bcn {
 	uint8 reg;
@@ -4331,8 +4326,6 @@ typedef enum vht_op_chan_width {
 	VHT_OP_CHAN_WIDTH_80_80	= 3  /* deprecated - IEEE 802.11 REVmc D8.0 Table 11-25 */
 } vht_op_chan_width_t;
 
-#define VHT_OP_INFO_LEN		3
-
 /* AID length */
 #define AID_IE_LEN		2
 /**
@@ -4407,7 +4400,7 @@ typedef struct vht_features_ie_hdr vht_features_ie_hdr_t;
 #ifdef WL_LEGACY_P2P
 #define APPLE_OUI           "\x00\x17\xF2"	/* MACOSX OUI */
 #define APPLE_OUI_LEN		3
-#define APPLE_OUI_TYPE_P2P	5
+#define APPLE_OUI_TYPE_P2P	9
 #endif /* WL_LEGACY_P2P */
 
 #ifndef WL_LEGACY_P2P
@@ -4980,17 +4973,6 @@ BWL_PRE_PACKED_STRUCT struct dot11_ftm_vs_ie {
 	ftm_vs_tlv_t	tlvs[1];
 } BWL_POST_PACKED_STRUCT;
 typedef struct dot11_ftm_vs_ie dot11_ftm_vs_ie_t;
-
-/* same as payload of dot11_ftm_vs_ie.
-* This definition helps in having struct access
-* of pay load while building FTM VS IE from other modules(NAN)
-*/
-BWL_PRE_PACKED_STRUCT struct dot11_ftm_vs_ie_pyld {
-	uint8 sub_type;					/* BRCM_FTM_IE_TYPE (or Customer) */
-	uint8 version;
-	ftm_vs_tlv_t	tlvs[1];
-} BWL_POST_PACKED_STRUCT;
-typedef struct dot11_ftm_vs_ie_pyld dot11_ftm_vs_ie_pyld_t;
 
 /* ftm vs api version */
 #define BCM_FTM_VS_PARAMS_VERSION 0x01

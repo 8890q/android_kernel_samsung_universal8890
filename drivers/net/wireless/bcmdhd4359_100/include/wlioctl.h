@@ -29,7 +29,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wlioctl.h 816311 2019-04-24 07:19:37Z $
+ * $Id: wlioctl.h 787944 2018-11-07 13:13:27Z $
  */
 
 #ifndef _wlioctl_h_
@@ -467,58 +467,6 @@ typedef struct wl_bss_info_v109_1 {
 	uint32		he_rxmcsmap;	/**< HE rx mcs map (802.11ax IE, HE_CAP_MCS_MAP_*) */
 	uint32		he_txmcsmap;	/**< HE tx mcs map (802.11ax IE, HE_CAP_MCS_MAP_*) */
 } wl_bss_info_v109_1_t;
-
-/**
- * BSS info structure
- * Applications MUST CHECK ie_offset field and length field to access IEs and
- * next bss_info structure in a vector (in wl_scan_results_t)
- */
-typedef struct wl_bss_info_v109_2 {
-	uint32		version;		/**< version field */
-	uint32		length;			/**< byte length of data in this record,
-						 * starting at version and including IEs
-						 */
-	struct ether_addr BSSID;
-	uint16		beacon_period;		/**< units are Kusec */
-	uint16		capability;		/**< Capability information */
-	uint8		SSID_len;
-	uint8		SSID[32];
-	uint8		bcnflags;		/* additional flags w.r.t. beacon */
-	struct {
-		uint32	count;			/**< # rates in this set */
-		uint8	rates[16];		/**< rates in 500kbps units w/hi bit set if basic */
-	} rateset;				/**< supported rates */
-	chanspec_t	chanspec;		/**< chanspec for bss */
-	uint16		atim_window;		/**< units are Kusec */
-	uint8		dtim_period;		/**< DTIM period */
-	uint8		accessnet;		/* from beacon interwork IE (if bcnflags) */
-	int16		RSSI;			/**< receive signal strength (in dBm) */
-	int8		phy_noise;		/**< noise (in dBm) */
-	uint8		n_cap;			/**< BSS is 802.11N Capable */
-	uint8		he_cap;			/**< BSS is he capable */
-	uint8		freespace1;		/* make implicit padding explicit */
-	uint32		nbss_cap;		/**< 802.11N+AC BSS Capabilities */
-	uint8		ctl_ch;			/**< 802.11N BSS control channel number */
-	uint8		padding1[3];		/**< explicit struct alignment padding */
-	uint16		vht_rxmcsmap;	/**< VHT rx mcs map (802.11ac IE, VHT_CAP_MCS_MAP_*) */
-	uint16		vht_txmcsmap;	/**< VHT tx mcs map (802.11ac IE, VHT_CAP_MCS_MAP_*) */
-	uint8		flags;			/**< flags */
-	uint8		vht_cap;		/**< BSS is vht capable */
-	uint8		reserved[2];		/**< Reserved for expansion of BSS properties */
-	uint8		basic_mcs[MCSSET_LEN];	/**< 802.11N BSS required MCS set */
-
-	uint16		ie_offset;		/**< offset at which IEs start, from beginning */
-	uint16		freespace2;		/* making implicit padding explicit */
-	uint32		ie_length;		/**< byte length of Information Elements */
-	int16		SNR;			/**< average SNR of during frame reception */
-	uint16		vht_mcsmap;		/**< STA's Associated vhtmcsmap */
-	uint16		vht_mcsmap_prop;	/**< STA's Associated prop vhtmcsmap */
-	uint16		vht_txmcsmap_prop;	/**< prop VHT tx mcs prop */
-	uint32		he_mcsmap;	/**< STA's Associated hemcsmap */
-	uint32		he_rxmcsmap;	/**< HE rx mcs map (802.11ax IE, HE_CAP_MCS_MAP_*) */
-	uint32		he_txmcsmap;	/**< HE tx mcs map (802.11ax IE, HE_CAP_MCS_MAP_*) */
-	uint32		timestamp[2];  /* Beacon Timestamp for FAKEAP req */
-} wl_bss_info_v109_2_t;
 
 #ifndef WL_BSS_INFO_TYPEDEF_HAS_ALIAS
 typedef wl_bss_info_v109_t wl_bss_info_t;

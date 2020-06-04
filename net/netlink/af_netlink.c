@@ -1972,7 +1972,6 @@ static int netlink_dump(struct sock *sk)
 	struct nlmsghdr *nlh;
 	struct module *module;
 	int err = -ENOBUFS;
-	int alloc_min_size;
 	int alloc_size;
 
 	mutex_lock(nlk->cb_mutex);
@@ -1980,6 +1979,9 @@ static int netlink_dump(struct sock *sk)
 		err = -EINVAL;
 		goto errout_skb;
 	}
+
+	cb = &nlk->cb;
+	alloc_size = max_t(int, cb->min_dump_alloc, NLMSG_GOODSIZE);
 
 	if (atomic_read(&sk->sk_rmem_alloc) >= sk->sk_rcvbuf)
 		goto errout_skb;
@@ -1989,34 +1991,22 @@ static int netlink_dump(struct sock *sk)
 	 * to reduce number of system calls on dump operations, if user
 	 * ever provided a big enough buffer.
 	 */
-	cb = &nlk->cb;
-	alloc_min_size = max_t(int, cb->min_dump_alloc, NLMSG_GOODSIZE);
-
-	if (alloc_min_size < nlk->max_recvmsg_len) {
-		alloc_size = nlk->max_recvmsg_len;
-		skb = netlink_alloc_skb(sk, alloc_size, nlk->portid,
+	if (alloc_size < nlk->max_recvmsg_len) {
+		skb = netlink_alloc_skb(sk,
+					nlk->max_recvmsg_len,
+					nlk->portid,
 					(GFP_KERNEL & ~__GFP_WAIT) |
 					__GFP_NOWARN | __GFP_NORETRY);
-	}
-	if (!skb) {
-		alloc_size = alloc_min_size;
-		skb = netlink_alloc_skb(sk, alloc_size, nlk->portid,
-					(GFP_KERNEL & ~__GFP_WAIT));
+		/* available room should be exact amount to avoid MSG_TRUNC */
+		if (skb)
+			skb_reserve(skb, skb_tailroom(skb) -
+					 nlk->max_recvmsg_len);
 	}
 	if (!skb)
+		skb = netlink_alloc_skb(sk, alloc_size, nlk->portid,
+					(GFP_KERNEL & ~__GFP_WAIT));
+	if (!skb)
 		goto errout_skb;
-
-	/* Trim skb to allocated size. User is expected to provide buffer as
-	 * large as max(min_dump_alloc, 16KiB (mac_recvmsg_len capped at
-	 * netlink_recvmsg())). dump will pack as many smaller messages as
-	 * could fit within the allocated skb. skb is typically allocated
-	 * with larger space than required (could be as much as near 2x the
-	 * requested size with align to next power of 2 approach). Allowing
-	 * dump to use the excess space makes it difficult for a user to have a
-	 * reasonable static buffer based on the expected largest dump of a
-	 * single netdev. The outcome is MSG_TRUNC error.
-	 */
-	skb_reserve(skb, skb_tailroom(skb) - alloc_size);
 	netlink_skb_set_owner_r(skb, sk);
 
 	if (nlk->dump_done_errno > 0)

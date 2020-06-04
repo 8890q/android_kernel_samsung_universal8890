@@ -13,7 +13,6 @@
 / {
 	battery {
 		battery,cisd_chg_limit_enable;
-		battery,cisd_check_max_capacity = <1>;
 	};
 
 	max77854-fuelgauge {

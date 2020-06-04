@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd.h 815855 2019-04-22 05:16:49Z $
+ * $Id: dhd.h 800554 2019-01-22 12:04:01Z $
  */
 
 /****************
@@ -1239,7 +1239,6 @@ typedef struct dhd_pub {
 #ifdef DHD_USE_CLMINFO_PARSER
 	bool is_clm_mult_regrev;	/* Checking for CLM single/multiple regrev */
 #endif /* DHD_USE_CLMINFO_PARSER */
-	bool disable_dtim_in_suspend;	/* Disable set bcn_li_dtim in suspend */
 } dhd_pub_t;
 
 typedef struct {
@@ -1889,7 +1888,6 @@ extern int net_os_rxfilter_add_remove(struct net_device *dev, int val, int num);
 #define MAX_PKTFLT_FIXED_PATTERN_SIZE	32
 #define MAX_PKTFLT_FIXED_BUF_SIZE	\
 	(WL_PKT_FILTER_FIXED_LEN + MAX_PKTFLT_FIXED_PATTERN_SIZE * 2)
-#define MAXPKT_ARG	16
 #endif /* PKT_FILTER_SUPPORT */
 
 #if defined(BCMPCIE)

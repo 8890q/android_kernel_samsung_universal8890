@@ -25,7 +25,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: nan.h 773122 2018-07-20 08:27:36Z $
+ * $Id: nan.h 758133 2018-04-17 19:07:15Z $
  */
 #ifndef _NAN_H_
 #define _NAN_H_
@@ -1142,15 +1142,6 @@ typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_ndp_attr_s {
 #define NAN_NDP_SETUP_STATUS_OK		1
 #define NAN_NDP_SETUP_STATUS_FAIL	0
 #define NAN_NDP_SETUP_STATUS_REJECT	2
-
-/* NDPE TLV list */
-#define NDPE_TLV_TYPE_IPV6		0x00
-#define NDPE_TLV_TYPE_SVC_INFO		0x01
-typedef BWL_PRE_PACKED_STRUCT struct wifi_nan_ndpe_tlv_s {
-	uint8 type;		/* Operating Class */
-	uint16 length;		/* Channel Bitmap */
-	uint8 data[];
-} BWL_POST_PACKED_STRUCT wifi_nan_ndpe_tlv_t;
 
 /* Rng setup attribute type and status macros */
 #define NAN_RNG_TYPE_MASK	0x0F

@@ -2089,12 +2089,10 @@ static ssize_t set_touchkey_update_store(struct device *dev,
 	case 'S':
 		fw_path = FW_BUILT_IN;
 		break;
-#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 	case 'i':
 	case 'I':
 		fw_path = FW_IN_SDCARD;
 		break;
-#endif
 	case 'f':
 	case 'F':
 		fw_path = FW_FFU;

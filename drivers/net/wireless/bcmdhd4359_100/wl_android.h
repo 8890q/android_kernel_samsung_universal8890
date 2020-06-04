@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_android.h 818247 2019-05-07 04:15:13Z $
+ * $Id: wl_android.h 695651 2017-04-21 10:48:20Z $
  */
 
 #include <linux/module.h>
@@ -137,12 +137,3 @@ s32 wl_netlink_send_msg(int pid, int type, int seq, const void *data, size_t siz
 #define MAX_NUM_MAC_FILT        10
 
 int wl_android_set_ap_mac_list(struct net_device *dev, int macmode, struct maclist *maclist);
-#ifdef WL_BCNRECV
-extern int wl_android_bcnrecv_config(struct net_device *ndev, char *data,
-		int total_len);
-extern int wl_android_bcnrecv_stop(struct net_device *ndev, uint reason);
-extern int wl_android_bcnrecv_resume(struct net_device *ndev);
-extern int wl_android_bcnrecv_suspend(struct net_device *ndev);
-extern int wl_android_bcnrecv_event(struct net_device *ndev,
-		uint attr_type, uint status, uint reason, uint8 *data, uint data_len);
-#endif /* WL_BCNRECV */

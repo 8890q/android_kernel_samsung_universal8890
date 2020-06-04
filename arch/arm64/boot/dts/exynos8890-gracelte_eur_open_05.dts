@@ -11,25 +11,24 @@
 
 /dts-v1/;
 #include "exynos8890-gracelte_common.dtsi"
-#include "exynos8890-gracelte_kor_gpio_03.dtsi"
-#include "exynos8890-gracelte_battery_kor_02.dtsi"
+#include "exynos8890-grace_gpio_01.dtsi"
+#include "exynos8890-gracelte_battery_eur_02.dtsi"
 #include "exynos8890-sound-cs47l91.dtsi"
 #include "exynos8890-gracelte-sound-cs47l91.dtsi"
 #include "exynos8890-luckylte_mst.dtsi"
-#include "exynos8890-gracelte_fingerprint-sensor_08.dtsi"
+#include "exynos8890-gracelte_fingerprint-sensor_00.dtsi"
 #include "exynos8890-grace_display_01.dtsi"
 #include "exynos8890-gracelte_motor.dtsi"
 #include "exynos8890-gracelte_svcled.dtsi"
-#include "exynos8890-gracelte-ccic-s2mm005_00.dtsi"
-#include "exynos8890-gracelte_kor-tdmb-02.dtsi"
+#include "exynos8890-ccic-s2mm003_00.dtsi"
 
 / {
 	model = "Samsung UNIVERSAL8890 board based on EXYNOS8890";
 	model_info-chip = <8890>;
 	model_info-platform = "android";
 	model_info-subtype = "samsung";
-	model_info-hw_rev = <9>;
-	model_info-hw_rev_end = <10>;
+	model_info-hw_rev = <5>;
+	model_info-hw_rev_end = <6>;
 	compatible = "samsung,exynos8890", "samsung,UNIVERSAL8890";
 
 	audio_pdata {
@@ -232,14 +231,11 @@
 			ssp-mcu-resp = <&gpg0 2 0x00>;
 			ssp-batch-wake-irq = <&gpa3 1 0x00>;
 			ssp-acc-position = <5>;
-			ssp-mag-position = <3>;
+			ssp-mag-position = <1>;
 			ssp-sns-combination = <0>;
 			ssp-ap-rev = <1>;
-			ssp-mag-array = /bits/ 8 <190 85 243 174 49 153 253 103 205 55
-						250 81 204 149 255 93 253 89 188 154
-						185 255 194 57 10 85 126>;
+			ssp-mag-array = <10700 440 130 440 8730 380 130 380 10570>;
 			ssp-glass-type = <0>;
-			ssp-mag-type = <1>;
 
 			controller-data {
 				cs-gpio = <&gpe2 5 0>;
@@ -314,10 +310,5 @@
 		wacom@56 {
 			wacom,fwe-gpio = <&gpe7 2 0>;
 		};
-	};
-
-	cpufreq {
-		/* CC IC JIG_ON GPIO - for detecting jig on cpufreq */
-		cpufreq,jig_on = <&gpi2 4 0>;
 	};
 };

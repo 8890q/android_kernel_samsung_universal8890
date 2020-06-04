@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfg80211.h 819372 2019-05-13 06:41:30Z $
+ * $Id: wl_cfg80211.h 798772 2019-01-10 08:33:03Z $
  */
 
 /**
@@ -662,54 +662,6 @@ struct net_info {
 	struct list_head list; /* list of all net_info structure */
 };
 
-#ifdef WL_BCNRECV
-/* PERIODIC Beacon receive for detecting FakeAPs */
-typedef struct wl_bcnrecv_result {
-	uint8      SSID[DOT11_MAX_SSID_LEN];    /**< SSID String */
-	struct ether_addr BSSID;                /**< Network BSSID */
-	uint8      channel;                     /**< Channel */
-	uint16     beacon_interval;
-	uint32	   timestamp[2];		/**< Beacon Timestamp */
-	uint64     system_time;
-} wl_bcnrecv_result_t;
-
-typedef struct wl_bcnrecv_info {
-	uint bcnrecv_state;		/* TO know the fakeap state */
-} wl_bcnrecv_info_t;
-
-typedef enum wl_bcnrecv_state {
-	BEACON_RECV_IDLE = 0,
-	BEACON_RECV_STARTED,
-	BEACON_RECV_STOPPED,
-	BEACON_RECV_SUSPENDED
-} wl_bcnrecv_state_t;
-
-typedef enum wl_bcnrecv_reason {
-	WL_BCNRECV_INVALID = 0,
-	WL_BCNRECV_USER_TRIGGER,
-	WL_BCNRECV_SUSPEND,
-	WL_BCNRECV_SCANBUSY,
-	WL_BCNRECV_CONCURRENCY,
-	WL_BCNRECV_LISTENBUSY,
-	WL_BCNRECV_ROAMABORT,
-	WL_BCNRECV_HANG
-} wl_bcnrecv_reason_t;
-
-typedef enum wl_bcnrecv_status {
-	WL_BCNRECV_STARTED = 0,
-	WL_BCNRECV_STOPPED,
-	WL_BCNRECV_ABORTED,
-	WL_BCNRECV_SUSPENDED,
-	WL_BCNRECV_MAX
-} wl_bcnrecv_status_t;
-
-typedef enum wl_bcnrecv_attr_type {
-	BCNRECV_ATTR_STATUS = 1,
-	BCNRECV_ATTR_REASON,
-	BCNRECV_ATTR_BCNINFO
-} wl_bcnrecv_attr_type_t;
-#endif /* WL_BCNRECV */
-
 /* association inform */
 #define MAX_REQ_LINE 1024u
 struct wl_connect_info {
@@ -1005,7 +957,7 @@ struct bcm_cfg80211 {
 	struct completion wait_next_af;
 	struct mutex usr_sync;	/* maily for up/down synchronization */
 	struct mutex if_sync;	/* maily for iface op synchronization */
-	struct mutex scan_sync;	/* scan sync from different scan contexts  */
+	struct mutex scan_complete;	/* serialize scan_complete call */
 	struct wl_scan_results *bss_list;
 	struct wl_scan_results *scan_results;
 
@@ -1139,6 +1091,9 @@ struct bcm_cfg80211 {
 	nan_ranging_inst_t nan_ranging_info[NAN_MAX_RANGING_INST];
 #endif /* WL_NAN_DISC_CACHE  */
 #endif /* WL_NAN */
+#ifdef WL_CFG80211_P2P_DEV_IF
+	bool down_disc_if;
+#endif /* WL_CFG80211_P2P_DEV_IF */
 #ifdef P2PLISTEN_AP_SAMECHN
 	bool p2p_resp_apchn_status;
 #endif /* P2PLISTEN_AP_SAMECHN */
@@ -1222,12 +1177,6 @@ struct bcm_cfg80211 {
 #ifdef SUPPORT_CUSTOM_SET_CAC
 	int enable_cac;
 #endif	/* SUPPORT_CUSTOM_SET_CAC */
-
-#ifdef WL_BCNRECV
-	/* structure used for fake ap detection info */
-	struct mutex bcn_sync;	/* mainly for bcn resume/suspend synchronization */
-	wl_bcnrecv_info_t bcnrecv_info;
-#endif /* WL_BCNRECV */
 };
 
 #define WL_STATIC_IFIDX	(DHD_MAX_IFS + DHD_MAX_STATIC_IFS - 1)
@@ -1246,26 +1195,7 @@ enum static_ndev_states {
 #define IS_CFG80211_STATIC_IF_NAME(cfg, name) \
 	((cfg && !strcmp(cfg->static_ndev->name, name)))
 
-typedef enum wl_concurrency_mode {
-	CONCURRENCY_MODE_NONE = 0,
-	CONCURRENCY_SCC_MODE,
-	CONCURRENCY_VSDB_MODE,
-	CONCURRENCY_RSDB_MODE
-} wl_concurrency_mode_t;
-
 s32 wl_iftype_to_mode(wl_iftype_t iftype);
-
-typedef struct wips_detect_inform {
-	uint16	misdeauth;		/* wrong deauth count every 1sec */
-	int16	cur_bsscfg_rssi;	/* current bss rssi */
-	int16	deauth_rssi;		/* wrong deauth pkt rssi */
-	struct	ether_addr ea;		/* MAC address for misdeauth */
-	uint32	timestamp;		/* start timestamp for misdeauth */
-} wips_detect_inform_t;
-
-enum {
-	TAG_DEAUTH_TLV_WIPS = 0 /* Deauth info for WIPS */
-};
 
 #if defined(STRICT_GCC_WARNINGS) && defined(__GNUC__) && (__GNUC__ > 4 || (__GNUC__ == \
 	4 && __GNUC_MINOR__ >= 6))
@@ -2239,5 +2169,4 @@ extern bool wl_cfg80211_check_indoor_channels(struct net_device *ndev, int chann
 extern int wl_cfg80211_enable_cac(struct net_device *dev, int enable);
 extern void wl_cfg80211_set_cac(struct bcm_cfg80211 *cfg, int enable);
 #endif /* SUPPORT_SET_CAC */
-extern int wl_cfg80211_get_concurrency_mode(struct bcm_cfg80211 *cfg);
 #endif /* _wl_cfg80211_h_ */

@@ -27,7 +27,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmmsgbuf.h 777047 2018-08-17 01:01:33Z $
+ * $Id: bcmmsgbuf.h 739442 2018-01-08 17:45:01Z $
  */
 #ifndef _bcmmsgbuf_h_
 #define	_bcmmsgbuf_h_
@@ -68,10 +68,6 @@
 
 #define H2DRING_DYNAMIC_INFO_MAX_ITEM          32
 #define D2HRING_DYNAMIC_INFO_MAX_ITEM          32
-
-#define D2HRING_EDL_ITEMSIZE			2048u
-#define D2HRING_EDL_MAX_ITEM			256u
-#define D2HRING_EDL_WATERMARK			(D2HRING_EDL_MAX_ITEM >> 5u)
 
 #define D2HRING_CTRL_CMPLT_MAX_ITEM		64
 
@@ -580,15 +576,8 @@ typedef struct info_ring_submit_item {
 
 /** Control Completion messages (20 bytes) */
 typedef struct compl_msg_hdr {
-	union {
-		/** status for the completion */
-		int16	status;
-
-		/* mutually exclusive with pkt fate debug feature */
-		struct pktts_compl_hdr {
-			uint16 d_t4; /* Delta TimeStamp 3: T4-tref */
-		} tx_pktts;
-	};
+	/** status for the completion */
+	int16	status;
 	/** submisison flow ring id which generated this status */
 	union {
 	    uint16	ring_id;
@@ -639,12 +628,6 @@ typedef ts_timestamp_t tick_count_64_t;
 typedef ts_timestamp_t ts_timestamp_ns_64_t;
 typedef ts_timestamp_t ts_correction_m_t;
 typedef ts_timestamp_t ts_correction_b_t;
-
-typedef struct _pktts {
-	uint32 tref; /* Ref Clk in uSec (currently, tsf) */
-	uint16 d_t2; /* Delta TimeStamp 1: T2-tref */
-	uint16 d_t3; /* Delta TimeStamp 2: T3-tref */
-} pktts_t;
 
 /* completion header status codes */
 #define	BCMPCIE_SUCCESS			0
@@ -826,10 +809,8 @@ typedef struct info_buf_resp {
 	uint16			info_data_len;
 	/* sequence number */
 	uint16			seqnum;
-	/* destination */
-	uint8			dest;
 	/* rsvd	*/
-	uint8			rsvd[3];
+	uint32			rsvd;
 	/* XOR checksum or a magic number to audit DMA done */
 	dma_done_t		marker;
 } info_buf_resp_t;
@@ -937,23 +918,11 @@ typedef struct host_rxbuf_cmpl {
 	/** rx status */
 	uint32		rx_status_0;
 	uint32		rx_status_1;
-
-	union { /* size per IPC = (3 x uint32) bytes */
-		struct {
-			/* used by Monitor mode */
-			uint32 marker;
-			/* timestamp */
-			ipc_timestamp_t ts;
-		};
-
-		/* LatTS_With_XORCSUM */
-		struct {
-			/* latency timestamp */
-			pktts_t rx_pktts;
-			/* XOR checksum or a magic number to audit DMA done */
-			dma_done_t marker_ext;
-		};
-	};
+	/** XOR checksum or a magic number to audit DMA done */
+	/* This is for rev6 only. For IPC rev7, this is a reserved field */
+	dma_done_t	marker;
+	/* timestamp */
+	ipc_timestamp_t ts;
 } host_rxbuf_cmpl_t;
 
 typedef union rxbuf_complete_item {
@@ -1032,33 +1001,23 @@ typedef struct host_txbuf_cmpl {
 	cmn_msg_hdr_t	cmn_hdr;
 	/** completion message header */
 	compl_msg_hdr_t	compl_hdr;
-
-	union { /* size per IPC = (3 x uint32) bytes */
-		/* Usage 1: TxS_With_TimeSync */
+	union {
 		struct {
-			 struct {
-				union {
-					/** provided meta data len */
-					uint16	metadata_len;
-					/** provided extended TX status */
-					uint16	tx_status_ext;
-				}; /*Ext_TxStatus */
-
-				/** WLAN side txstatus */
-				uint16	tx_status;
-			}; /* TxS */
-			/* timestamp */
-			ipc_timestamp_t ts;
-		}; /* TxS_with_TS */
-
-		/* Usage 2: LatTS_With_XORCSUM */
-		struct {
-			/* latency timestamp */
-			pktts_t tx_pktts;
-			/* XOR checksum or a magic number to audit DMA done */
-			dma_done_t marker_ext;
+			union {
+				/** provided meta data len */
+				uint16	metadata_len;
+				/** provided extended TX status */
+				uint16	tx_status_ext;
+			};
+			/** WLAN side txstatus */
+			uint16	tx_status;
 		};
+		/** XOR checksum or a magic number to audit DMA done */
+		/* This is for rev6 only. For IPC rev7, this is not used */
+		dma_done_t	marker;
 	};
+	/* timestamp */
+	ipc_timestamp_t ts;
 
 } host_txbuf_cmpl_t;
 

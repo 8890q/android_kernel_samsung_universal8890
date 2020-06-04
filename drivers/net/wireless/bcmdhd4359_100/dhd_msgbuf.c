@@ -26,7 +26,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_msgbuf.c 818370 2019-05-07 11:39:47Z $
+ * $Id: dhd_msgbuf.c 796673 2018-12-26 08:34:38Z $
  */
 
 #include <typedefs.h>
@@ -8939,11 +8939,6 @@ dhd_prot_debug_info_print(dhd_pub_t *dhd)
 	DHD_ERROR(("\n ------- DUMPING VERSION INFORMATION ------- \r\n"));
 	DHD_ERROR(("DHD: %s\n", dhd_version));
 	DHD_ERROR(("Firmware: %s\n", fw_version));
-
-#ifdef DHD_FW_COREDUMP
-	DHD_ERROR(("\n ------- DUMPING CONFIGURATION INFORMATION ------ \r\n"));
-	DHD_ERROR(("memdump mode: %d\n", dhd->memdump_enabled));
-#endif /* DHD_FW_COREDUMP */
 
 	DHD_ERROR(("\n ------- DUMPING PROTOCOL INFORMATION ------- \r\n"));
 	DHD_ERROR(("ICPrevs: Dev %d, Host %d, active %d\n",

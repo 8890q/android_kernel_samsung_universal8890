@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: event_log_set.h 771154 2018-07-09 05:46:33Z $
+ * $Id: event_log_set.h 744920 2018-02-06 06:25:40Z $
  */
 
 #ifndef _EVENT_LOG_SET_H_
@@ -36,72 +36,50 @@
  * this to an appropriat enumber in their makefiles to reduce
  * ROM invalidation
  */
-#define NUM_EVENT_LOG_SETS (24)
+#define NUM_EVENT_LOG_SETS 11
 #endif // endif
 
-/* Set assignments */
-#define EVENT_LOG_SET_BUS		(0u)
-#define EVENT_LOG_SET_WL		(1u)
-#define EVENT_LOG_SET_PSM		(2u)
-#define EVENT_LOG_SET_ERROR		(3u)
+/* Legacy implementation does not have these sets. So make them 0. */
+#if (NUM_EVENT_LOG_SETS <= 8)
+#define NUM_EVENT_LOG_DBG_SETS	0
+#elif (NUM_EVENT_LOG_SETS == 9)
+#define NUM_EVENT_LOG_DBG_SETS	1
+#else
+#define NUM_EVENT_LOG_DBG_SETS	2
+#endif // endif
 
-/* MSCH logging */
-#define EVENT_LOG_SET_MSCH_PROFILER	(4u)
-
-#define EVENT_LOG_SET_5			(5u)
-#define EVENT_LOG_SET_ECOUNTERS		(EVENT_LOG_SET_5)
-#define EVENT_LOG_SET_6			(6u)
-#define EVENT_LOG_SET_7			(7u)
-
-#define EVENT_LOG_SET_8			(8u)
-#define EVENT_LOG_SET_PRSRV		(EVENT_LOG_SET_8)
-
-#define EVENT_LOG_SET_9			(9u)
-/* General purpose preserve chatty.
- * EVENT_LOG_SET_PRSRV_CHATTY log set should not be used by FW as it is
- * used by customer host. FW should use EVENT_LOG_SET_GP_PRSRV_CHATTY
- * for general purpose preserve chatty logs.
+/* Debug log sets start from this log set and are always the last few ones */
+/* Note that these log sets are not reserved for debug builds. They can be used
+ * for other purpose as well. If used for other purpose, the debug log set
+ * allocation code will check if there is a free one available out of
+ * NUM_EVENT_LOG_DBG_SETS starting from EVENT_LOG_DBG_START_SET
  */
-#define EVENT_LOG_SET_GP_PRSRV_CHATTY	(EVENT_LOG_SET_9)
-#define EVENT_LOG_SET_PRSRV_CHATTY	(EVENT_LOG_SET_6)
+#define EVENT_LOG_DBG_START_SET	(NUM_EVENT_LOG_SETS - NUM_EVENT_LOG_DBG_SETS)
 
-/* BUS preserve */
-#define EVENT_LOG_SET_PRSRV_BUS		(10u)
-
-/* WL preserve */
-#define EVENT_LOG_SET_PRSRV_WL		(11u)
-
-/* Slotted BSS set */
-#define EVENT_LOG_SET_WL_SLOTTED_BSS    (12u)
-
-/* PHY entity logging */
-#define EVENT_LOG_SET_PHY		(13u)
-
-/* PHY preserve */
-#define EVENT_LOG_SET_PRSRV_PHY		(14u)
-
-/* RTE entity */
-#define EVENT_LOG_SET_RTE		(15u)
-
-/* Malloc and free logging */
-#define EVENT_LOG_SET_MEM_API		(16u)
-
-/* Console buffer */
-#define EVENT_LOG_SET_RTE_CONS_BUF	(17u)
-
-/* three log sets for general debug purposes */
-#define EVENT_LOG_SET_GENERAL_DBG_1	(18u)
-#define EVENT_LOG_SET_GENERAL_DBG_2	(19u)
-#define EVENT_LOG_SET_GENERAL_DBG_3	(20u)
-
-/* Log sets for capturing power related logs. Note that these sets
- * are to be used across entire system and not just WL.
+/* Define new event log sets here */
+#define EVENT_LOG_SET_BUS	0
+#define EVENT_LOG_SET_WL	1
+#define EVENT_LOG_SET_PSM	2
+#define EVENT_LOG_SET_ERROR	3
+#define EVENT_LOG_SET_MEM_API	4
+/* Share the set with MEM_API for now to limit ROM invalidation.
+ * The above set is used in dingo only
+ * On trunk, MSCH should move to a different set.
  */
-#define EVENT_LOG_SET_POWER_1		(21u)
-#define EVENT_LOG_SET_POWER_2		(22u)
+#define EVENT_LOG_SET_MSCH_PROFILER	4
+#define EVENT_LOG_SET_ECOUNTERS 5	/* Host to instantiate this for ecounters. */
+#define EVENT_LOG_SET_6	6	/* Instantiated by host for channel switch logs */
+#define EVENT_LOG_SET_7	7	/* Instantiated by host for AMPDU stats */
 
-/* Used for timestamp plotting, TS_LOG() */
-#define EVENT_LOG_SET_TS_LOG		(23u)
+/* The following ones could be used for debug builds. Always the last few ones */
+#define EVENT_LOG_SET_8 8
+#define EVENT_LOG_SET_9	9
+
+#define EVENT_LOG_SET_PRSRV    7 /* The logtag set flushed only on error. Share with 7 to avoid
+				    * abandons.
+				    */
+
+#define EVENT_LOG_SET_PRSRV_BUS	10
 
 /* send delayed logs when >= 50% of buffer is full */
 #ifndef ECOUNTERS_DELAYED_FLUSH_PERCENTAGE

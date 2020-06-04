@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: wl_cfgvendor.h 818247 2019-05-07 04:15:13Z $
+ * $Id: wl_cfgvendor.h 740003 2018-01-10 10:47:17Z $
  */
 
 #ifndef _wl_cfgvendor_h_
@@ -447,9 +447,7 @@ typedef enum wl_vendor_event {
 
 	GOOGLE_ROAM_EVENT_START			= 32,
 
-	BRCM_VENDOR_EVENT_HANGED		= 33,
-	BRCM_VENDOR_EVENT_SAE_KEY               = 34,
-	BRCM_VENDOR_EVENT_BEACON_RECV           = 35
+	BRCM_VENDOR_EVENT_HANGED		= 33
 } wl_vendor_event_t;
 
 enum andr_wifi_attr {
@@ -605,22 +603,4 @@ extern int wl_cfgvendor_send_supp_eventstring(const char *func, const char *fmt,
 	normal_structure.member = value;
 #endif /* CONFIG_COMPAT */
 
-#ifdef WL_BCNRECV
-#if (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
-#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags) \
-	cfg80211_vendor_event_alloc(wiphy, ndev_to_wdev(ndev), len, \
-			BRCM_VENDOR_EVENT_BEACON_RECV, kflags);
-#else
-#define CFG80211_VENDOR_EVENT_ALLOC(wiphy, wdev, len, type, kflags) \
-	cfg80211_vendor_event_alloc(wiphy, len, BRCM_VENDOR_EVENT_BEACON_RECV, kflags);
-#endif /* (defined(CONFIG_ARCH_MSM) && defined(SUPPORT_WDEV_CFG80211_VENDOR_EVENT_ALLOC)) || */
-		/* LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0) */
-#endif /* WL_BCNRECV */
-
-#ifdef WL_CFGVENDOR_SEND_HANG_EVENT
-void wl_cfgvendor_send_hang_event(struct net_device *dev, u16 reason,
-	char *string, int hang_info_cnt);
-void wl_copy_hang_info_if_falure(struct net_device *dev, u16 reason, s32 ret);
-#endif /* WL_CFGVENDOR_SEND_HANG_EVENT */
 #endif /* _wl_cfgvendor_h_ */

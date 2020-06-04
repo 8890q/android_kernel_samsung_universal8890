@@ -24,7 +24,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: dhd_common.c 853336 2019-12-02 07:16:45Z $
+ * $Id: dhd_common.c 796845 2018-12-27 06:24:52Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -297,7 +297,7 @@ enum {
 
 const bcm_iovar_t dhd_iovars[] = {
 	/* name         varid                   flags   flags2 type     minlen */
-	{"version",	IOV_VERSION,		0,	0, IOVT_BUFFER,	0},
+	{"version",	IOV_VERSION,		0,	0, IOVT_BUFFER,	sizeof(dhd_version)},
 #ifdef DHD_DEBUG
 	{"msglevel",	IOV_MSGLEVEL,		0,	0, IOVT_UINT32,	0},
 	{"mem_debug",   IOV_MEM_DEBUG,  0,      0,      IOVT_BUFFER,    0 },
@@ -1450,13 +1450,13 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 	switch (actionid) {
 	case IOV_GVAL(IOV_VERSION):
 		/* Need to have checked buffer length */
-		dhd_ver_len = sizeof(dhd_version) - 1;
+		dhd_ver_len = strlen(dhd_version);
 		bus_api_rev_len = strlen(bus_api_revision);
-		if (len > dhd_ver_len + bus_api_rev_len) {
-			memcpy((char *)arg, dhd_version, dhd_ver_len);
-			memcpy((char *)arg + dhd_ver_len, bus_api_revision, bus_api_rev_len);
-			*((char *)arg + dhd_ver_len + bus_api_rev_len) = '\0';
-		}
+		if (dhd_ver_len)
+			bcm_strncpy_s((char*)arg, dhd_ver_len, dhd_version, dhd_ver_len);
+		if (bus_api_rev_len)
+			bcm_strncat_s((char*)arg + dhd_ver_len, bus_api_rev_len, bus_api_revision,
+				bus_api_rev_len);
 		break;
 
 	case IOV_GVAL(IOV_MSGLEVEL):
@@ -2399,7 +2399,7 @@ dhd_ioctl(dhd_pub_t * dhd_pub, dhd_ioctl_t *ioc, void *buf, uint buflen)
 				for (arg = buf, arglen = buflen; *arg && arglen; arg++, arglen--)
 					;
 
-				if (arglen == 0 || *arg) {
+				if (*arg) {
 					bcmerror = BCME_BUFTOOSHORT;
 					goto unlock_exit;
 				}
@@ -3638,7 +3638,7 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 	int 				rc;
 	uint32				mask_size;
 	uint32				pattern_size;
-	char				*argv[MAXPKT_ARG] = {0}, * buf = 0;
+	char				*argv[16], * buf = 0;
 	int					i = 0;
 	char				*arg_save = 0, *arg_org = 0;
 
@@ -3666,13 +3666,8 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 	}
 
 	argv[i] = bcmstrtok(&arg_save, " ", 0);
-	while (argv[i++]) {
-		if (i >= MAXPKT_ARG) {
-			DHD_ERROR(("Invalid args provided\n"));
-			goto fail;
-		}
+	while (argv[i++])
 		argv[i] = bcmstrtok(&arg_save, " ", 0);
-	}
 
 	i = 0;
 	if (argv[i] == NULL) {
@@ -4603,12 +4598,6 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd, int *dtim_period, int *bcn_interval)
 	int ret = -1;
 	int allowed_skip_dtim_cnt = 0;
 
-	if (dhd->disable_dtim_in_suspend) {
-		DHD_ERROR(("%s Disable bcn_li_dtim in suspend\n", __FUNCTION__));
-		bcn_li_dtim = 0;
-		return bcn_li_dtim;
-	}
-
 	/* Check if associated */
 	if (dhd_is_associated(dhd, 0, NULL) == FALSE) {
 		DHD_TRACE(("%s NOT assoc ret %d\n", __FUNCTION__, ret));
@@ -4684,12 +4673,6 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 	int dtim_period = 0;
 	int ap_beacon = 0;
 	int allowed_skip_dtim_cnt = 0;
-
-	if (dhd->disable_dtim_in_suspend) {
-		DHD_ERROR(("%s Disable bcn_li_dtim in suspend\n", __FUNCTION__));
-		bcn_li_dtim = 0;
-		goto exit;
-	}
 
 	/* Check if associated */
 	if (dhd_is_associated(dhd, 0, NULL) == FALSE) {

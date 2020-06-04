@@ -26,7 +26,7 @@
  *
  * <<Broadcom-WL-IPTag/Open:>>
  *
- * $Id: bcmevent.h 779385 2018-09-03 17:35:01Z $
+ * $Id: bcmevent.h 759112 2018-04-24 01:34:08Z $
  *
  */
 
@@ -292,12 +292,9 @@ typedef union bcm_event_msg_u {
 #define WLC_E_ADPS		176	/* ADPS event */
 #define WLC_E_SLOTTED_BSS_PEER_OP	177	/* Per peer SCB delete */
 #define WLC_E_HWA                178	/* HWA events */
-#define WLC_E_GTK_KEYROT_NO_CHANSW      179     /* Avoid Chanswitch while GTK key rotation */
-#define WLC_E_ONBODY_STATUS_CHANGE	180	/* Indication of onbody status change */
-#define WLC_E_BCNRECV_ABORTED		181	/* Fake AP bcnrecv aborted roam event */
-#define WLC_E_LAST			182	/* highest val + 1 for range checking */
-#if (WLC_E_LAST > 182)
-#error "WLC_E_LAST: Invalid value for last event; must be <= 182."
+#define WLC_E_LAST			179	/* highest val + 1 for range checking */
+#if (WLC_E_LAST > 179)
+#error "WLC_E_LAST: Invalid value for last event; must be <= 178."
 #endif /* WLC_E_LAST */
 
 /* define an API for getting the string name of an event */
@@ -335,8 +332,6 @@ void wl_event_to_network_order(wl_event_msg_t * evt);
 #define WLC_E_STATUS_ERROR		16	/* request failed due to error */
 #define WLC_E_STATUS_SLOTTED_PEER_ADD	17	/* Slotted scb for peer addition status */
 #define WLC_E_STATUS_SLOTTED_PEER_DEL	18	/* Slotted scb for peer deletion status */
-#define WLC_E_STATUS_RXBCN		19	/* Rx Beacon event for FAKEAP feature	*/
-#define WLC_E_STATUS_RXBCN_ABORT	20	/* Rx Beacon abort event for FAKEAP feature */
 #define WLC_E_STATUS_INVALID 0xff  /* Invalid status code to init variables. */
 
 /* 4-way handshake event type */
@@ -387,11 +382,6 @@ typedef struct wl_event_sdb_trans {
 	struct wl_event_sdb_data values[WL_MAX_BSSCFG];
 } wl_event_sdb_trans_t;
 
-/* reason codes for WLC_E_GTK_KEYROT_NO_CHANSW event */
-#define WLC_E_GTKKEYROT_SCANDELAY       0       /* Delay scan while gtk in progress */
-#define WLC_E_GTKKEYROT_SKIPCHANSW_AWDL 1       /* Avoid chansw by awdl while gtk in progress */
-#define WLC_E_GTKKEYROT_SKIPCHANSW_P2P  2       /* Avoid chansw by p2p while gtk in progress */
-
 /* roam reason codes */
 #define WLC_E_REASON_INITIAL_ASSOC	0	/* initial assoc */
 #define WLC_E_REASON_LOW_RSSI		1	/* roamed due to low RSSI */
@@ -441,8 +431,6 @@ typedef struct wl_event_sdb_trans {
 #define WLC_E_PRUNE_NO_DIAG_SUPPORT	19	/* prune due to diagnostic mode not supported */
 #endif /* BCMCCX */
 #define WLC_E_PRUNE_AUTH_RESP_MAC	20	/* suppress auth resp by MAC filter */
-#define WLC_E_PRUNE_ASSOC_RETRY_DELAY	21	/* MBO assoc retry delay */
-#define WLC_E_PRUNE_RSSI_ASSOC_REJ	22	/* OCE RSSI-based assoc rejection */
 
 /* WPA failure reason codes carried in the WLC_E_PSK_SUP event */
 #define WLC_E_SUP_OTHER			0	/* Other reason */
@@ -463,9 +451,6 @@ typedef struct wl_event_sdb_trans {
 #define WLC_E_SUP_WPA_PSK_TMO		15	/* WPA PSK 4-way handshake timeout */
 #define WLC_E_SUP_WPA_PSK_M1_TMO	16	/* WPA PSK 4-way handshake M1 timeout */
 #define WLC_E_SUP_WPA_PSK_M3_TMO	17	/* WPA PSK 4-way handshake M3 timeout */
-#define WLC_E_SUP_GTK_UPDATE_FAIL	18  /* GTK update failure */
-#define WLC_E_SUP_TK_UPDATE_FAIL	19  /* TK update failure */
-#define WLC_E_SUP_KEY_INSTALL_FAIL	20  /* Buffered key install failure */
 
 /* Ucode reason codes carried in the WLC_E_MACDBG event */
 #define WLC_E_MACDBG_LIST_PSM		0	/* Dump list update for PSM registers */
@@ -1115,9 +1100,8 @@ typedef struct {
 
 typedef enum wl_mbo_event_type {
 	WL_MBO_E_CELLULAR_NW_SWITCH = 1,
-	WL_MBO_E_BTM_RCVD = 2,
 	/* ADD before this */
-	WL_MBO_E_LAST = 3  /* highest val + 1 for range checking */
+	WL_MBO_E_LAST = 2,  /* highest val + 1 for range checking */
 } wl_mbo_event_type_t;
 
 /* WLC_E_MBO event structure version */
@@ -1147,29 +1131,6 @@ struct wl_event_mbo_cell_nw_switch {
 	* This is zero if not known or value is overflowing.
 	*/
 	uint32 assoc_time_remain;
-};
-
-/* WLC_E_MBO_BTM_RCVD event structure version */
-#define WL_BTM_EVENT_DATA_VER_1       1
-/* Specific btm event type data */
-struct wl_btm_event_type_data {
-	uint16	version;
-	uint16	len;
-	uint8	transition_reason;	/* transition reason code */
-	uint8	pad[3];			/* pad */
-};
-
-/* WLC_E_PRUNE event structure version */
-#define WL_BSSID_PRUNE_EVT_VER_1	1
-/* MBO-OCE params */
-struct wl_bssid_prune_evt_info {
-	uint16 version;
-	uint16 len;
-	uint8	SSID[32];
-	uint32	time_remaining;		/* Time remaining */
-	struct ether_addr BSSID;
-	uint8	SSID_len;
-	uint8	reason;			/* Reason code */
 };
 
 /* WLC_E_HWA Event structure */

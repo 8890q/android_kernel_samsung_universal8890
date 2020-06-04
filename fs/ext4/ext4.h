@@ -1411,14 +1411,6 @@ struct ext4_sb_info {
 	struct ratelimit_state s_err_ratelimit_state;
 	struct ratelimit_state s_warning_ratelimit_state;
 	struct ratelimit_state s_msg_ratelimit_state;
-
-	/* To gather information of fragmentation */
-	unsigned int s_sec_part_best_extents;
-	unsigned int s_sec_part_current_extents;
-	unsigned int s_sec_part_score;
-	unsigned int s_sec_defrag_writes_kb;
-	unsigned int s_sec_num_apps;
-	unsigned int s_sec_capacity_apps_kb;
 };
 
 static inline struct ext4_sb_info *EXT4_SB(struct super_block *sb)

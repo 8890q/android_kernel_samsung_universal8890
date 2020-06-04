@@ -8,11 +8,11 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
 */
-/* Rev0.2 + CCIC 0005 */
+
 /dts-v1/;
 #include "exynos8890-gracelte_common.dtsi"
-#include "exynos8890-gracelte_kor_gpio_01.dtsi"
-#include "exynos8890-gracelte_battery_kor_02.dtsi"
+#include "exynos8890-grace_gpio_00.dtsi"
+#include "exynos8890-gracelte_battery_eur_02.dtsi"
 #include "exynos8890-sound-cs47l91.dtsi"
 #include "exynos8890-gracelte-sound-cs47l91.dtsi"
 #include "exynos8890-luckylte_mst.dtsi"
@@ -20,8 +20,7 @@
 #include "exynos8890-grace_display_01.dtsi"
 #include "exynos8890-gracelte_motor.dtsi"
 #include "exynos8890-gracelte_svcled.dtsi"
-#include "exynos8890-gracelte-ccic-s2mm005_00.dtsi"
-#include "exynos8890-gracelte_kor-tdmb-01.dtsi"
+#include "exynos8890-ccic-s2mm003_00.dtsi"
 
 / {
 	model = "Samsung UNIVERSAL8890 board based on EXYNOS8890";
@@ -234,6 +233,10 @@
 			ssp-acc-position = <5>;
 			ssp-mag-position = <1>;
 			ssp-sns-combination = <0>;
+			ssp,prox-hi_thresh = <360>;
+			ssp,prox-low_thresh = <240>;
+			ssp,prox-cal_hi_thresh = <8192>;
+			SSP,prox-cal_low_thresh = <5000>;
 			ssp-ap-rev = <1>;
 			ssp-mag-array = <10700 440 130 440 8730 380 130 380 10570>;
 			ssp-glass-type = <0>;
@@ -296,10 +299,5 @@
 			sec,mis_cal_check = <1>;
 			sec,grip_concept = <2>;  	// 01: set_tunning_data, 10:set_grip_dtaa, 11:all
 		};
-	};
-
-	cpufreq {
-		/* CC IC JIG_ON GPIO - for detecting jig on cpufreq */
-		cpufreq,jig_on = <&gpi2 4 0>;
 	};
 };

@@ -927,10 +927,7 @@ exynos_thermal_curr_temp(struct device *dev,
 	int i = 0, len = 0;
 
 	list_for_each_entry(devnode, &dtm_dev_list, node) {
-		if (i < MAX_TMU_COUNT)
-			temp[i] = exynos_tmu_read(devnode);
-		else
-			break;
+		temp[i] = exynos_tmu_read(devnode);
 		i++;
 	}
 
