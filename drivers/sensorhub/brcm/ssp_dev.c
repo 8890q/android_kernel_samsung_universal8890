@@ -19,7 +19,7 @@
 #include <linux/sec_debug.h>
 #include <linux/sec_batt.h>
 
-#define DEBUG
+//#define DEBUG
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 static void ssp_early_suspend(struct early_suspend *handler);
@@ -41,7 +41,7 @@ unsigned int bootmode;
 EXPORT_SYMBOL(bootmode);
 
 struct mutex shutdown_lock;
-bool ssp_debug_time_flag;
+bool ssp_debug_time_flag = false;
 
 static int __init bootmode_setup(char *str)
 {

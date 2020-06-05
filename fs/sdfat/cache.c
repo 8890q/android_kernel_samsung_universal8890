@@ -34,7 +34,7 @@
 #include "sdfat.h"
 #include "core.h"
 
-#define DEBUG_HASH_LIST
+//#define DEBUG_HASH_LIST
 #define DEBUG_HASH_PREV	(0xAAAA5555)
 #define DEBUG_HASH_NEXT	(0x5555AAAA)
 

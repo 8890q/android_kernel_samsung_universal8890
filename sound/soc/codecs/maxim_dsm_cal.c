@@ -24,7 +24,7 @@
 #include <sound/maxim_dsm.h>
 #include <sound/maxim_dsm_cal.h>
 
-#define DEBUG_MAXIM_DSM_CAL
+//#define DEBUG_MAXIM_DSM_CAL
 #ifdef DEBUG_MAXIM_DSM_CAL
 #define dbg_maxdsm(format, args...)	\
 pr_info("[MAXIM_DSM_CAL] %s: " format "\n", __func__, ## args)
