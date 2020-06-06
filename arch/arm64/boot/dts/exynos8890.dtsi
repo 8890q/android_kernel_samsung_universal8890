@@ -3142,7 +3142,7 @@
 
 			/* Frequency table */
 			/* for level	:	1_Head */
-			input_booster,cpu_freqs = <1040000>;
+			input_booster,cpu_freqs = <754000>;
 			input_booster,hmp_boost = <1>;
 			input_booster,kfc_freqs = <0>;
 			input_booster,mif_freqs = <0>;
@@ -3150,7 +3150,7 @@
 
 			/* Time table */
 			input_booster,head_times = <500>;
-			input_booster,tail_times = <500>;
+			input_booster,tail_times = <300>;
 			input_booster,phase_times = <0>;
 		};
 		booster_key@2 {
@@ -3161,7 +3161,7 @@
 
 			/* Frequency table */
 			/* for level	:	1_Head */
-			input_booster,cpu_freqs = <1040000>;
+			input_booster,cpu_freqs = <754000>;
 			input_booster,hmp_boost = <1>;
 			input_booster,kfc_freqs = <0>;
 			input_booster,mif_freqs = <0>;
@@ -3180,16 +3180,16 @@
 
 			/* Frequency table */
 			/* for level	:	1_Head, 2_Head, 2_Tail */
-			input_booster,cpu_freqs = <1040000 1040000 0>;
-			input_booster,hmp_boost = <1 1 0>;
-			input_booster,kfc_freqs = <754000 754000 1274000>;
-			input_booster,mif_freqs = <0 0 0>;
-			input_booster,int_freqs = <0 0 0>;
+			input_booster,cpu_freqs = <754000>;
+			input_booster,hmp_boost = <1>;
+			input_booster,kfc_freqs = <0>;
+			input_booster,mif_freqs = <0>;
+			input_booster,int_freqs = <0>;
 
 			/* Time table */
-			input_booster,head_times = <130 130 0>;
-			input_booster,tail_times = <0 0 500>;
-			input_booster,phase_times = <0 0 0>;
+			input_booster,head_times = <100>;
+			input_booster,tail_times = <0>;
+			input_booster,phase_times = <0>;
 		};
 		booster_key@4 { // Input Booster +
 			input_booster,label = "MULTITOUCH";
@@ -3218,16 +3218,16 @@
 
 			/* Frequency table */
 			/* for level	:	1_Head 2_Tail*/
-			input_booster,cpu_freqs = <1040000 1040000>;
-			input_booster,hmp_boost = <1 1>;
-			input_booster,kfc_freqs = <754000 754000>;
-			input_booster,mif_freqs = <0 0>;
-			input_booster,int_freqs = <0 0>;
+			input_booster,cpu_freqs = <754000>;
+			input_booster,hmp_boost = <1>;
+			input_booster,kfc_freqs = <0>;
+			input_booster,mif_freqs = <0>;
+			input_booster,int_freqs = <0>;
 
 			/* Time table */
-			input_booster,head_times = <130 130>;
-			input_booster,tail_times = <0 0>;
-			input_booster,phase_times = <0 0>;
+			input_booster,head_times = <100>;
+			input_booster,tail_times = <0>;
+			input_booster,phase_times = <0>;
 		};
 		booster_key@6 {
 			input_booster,label = "MOUSE";
