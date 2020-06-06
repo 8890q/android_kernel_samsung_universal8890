@@ -4,6 +4,7 @@
 #include <linux/device.h>
 #include <linux/hrtimer.h>
 #include <linux/i2c/fts.h>
+#include <linux/pm_qos.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
@@ -529,6 +530,7 @@ struct fts_ts_info {
 
 	struct mutex i2c_mutex;
 	struct mutex device_mutex;
+    struct pm_qos_request pm_qos_req;
 	bool touch_stopped;
 	bool reinit_done;
 
