@@ -2022,7 +2022,7 @@ static int exynos_cpufreq_cpus_notifier(struct notifier_block *nb,
 		mutex_lock(&cpufreq_lock);
 
 		if (unlikely(freqs[CL_ONE]->old > exynos_cpufreq_get_possible_max_freq(big_cpu_cnt))) {
-			pr_err("frequency(%d) is higher than possible max frequency of big cpu cnt: %d\n",
+			pr_info("frequency(%d) is higher than possible max frequency of big cpu cnt: %d\n",
 			freqs[CL_ONE]->old, big_cpu_cnt);
 			mutex_unlock(&cpufreq_lock);
 
