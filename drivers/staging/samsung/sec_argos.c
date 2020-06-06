@@ -377,14 +377,12 @@ int argos_hmpboost_apply(int dev_num, bool enable)
 	if (enable) {
 		/* disable -> enable */
 		if (*hmpboost_enable == false) {
-			set_hmp_boost(true);
 			*hmpboost_enable = true;
 			pr_info("%s: hmp boost enable [%d]\n", __func__, dev_num);
 		}
 	} else {
 		/* enable -> disable */
 		if (*hmpboost_enable == true) {
-			set_hmp_boost(false);
 			*hmpboost_enable = false;
 			pr_info("%s: hmp boost disable [%d]\n", __func__, dev_num);
 		}
