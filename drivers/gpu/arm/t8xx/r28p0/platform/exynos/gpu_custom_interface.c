@@ -535,6 +535,9 @@ static ssize_t set_max_lock_dvfs(struct device *dev, struct device_attribute *at
 	int ret, clock = 0;
 	struct exynos_context *platform = (struct exynos_context *)pkbdev->platform_context;
 
+	// Kill it from now without interferring Game Launcher
+	return count;
+
 	if (!platform)
 		return -ENODEV;
 
@@ -603,6 +606,9 @@ static ssize_t set_min_lock_dvfs(struct device *dev, struct device_attribute *at
 {
 	int ret, clock = 0;
 	struct exynos_context *platform = (struct exynos_context *)pkbdev->platform_context;
+
+	// Kill it from now without interferring Game Launcher
+	return count;
 
 	if (!platform)
 		return -ENODEV;
