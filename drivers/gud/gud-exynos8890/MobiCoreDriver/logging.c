@@ -242,7 +242,7 @@ int mc_logging_init(void)
 		return -ENOMEM;
 
 	INIT_WORK(&log_ctx.work, log_worker);
-	log_ctx.enabled = true;
+	log_ctx.enabled = false;
 	debugfs_create_bool("swd_debug", 0600, g_ctx.debug_dir,
 			    &log_ctx.enabled);
 	return 0;
