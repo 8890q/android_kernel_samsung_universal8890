@@ -528,7 +528,7 @@ int sec_ts_read_calibration_report(struct sec_ts_data *ts)
 	buf[0] = SEC_TS_READ_CALIBRATION_REPORT;
 
 	ret = sec_ts_i2c_read(ts, buf[0], &buf[1], 4);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: failed to read, %d\n", __func__, ret);
 		return ret;
 	}
@@ -564,7 +564,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 	/* repeat READ_ONE_EVENT until buffer is empty(No event) */
 	do {
 		ret = sec_ts_i2c_read(ts, SEC_TS_READ_ONE_EVENT, read_event_buff, SEC_TS_Event_Buff_Size);
-		if (ret < 0) {
+		if (unlikely(ret < 0)) {
 			input_err(true, &ts->client->dev, "%s: i2c read one event failed\n", __func__);
 			return ;
 		}
@@ -574,7 +574,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 
 			/* write clear event stack command when read_event_count > MAX_EVENT_COUNT */
 			ret = sec_ts_i2c_write(ts, SEC_TS_CMD_CLEAR_EVENT_STACK, NULL, 0);
-			if (ret < 0)
+			if (unlikely(ret < 0))
 				input_err(true, &ts->client->dev, "%s: i2c write clear event failed\n", __func__);
 
 			return ;
@@ -590,7 +590,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 				if (read_event_buff[2] == 0x20) { /* watchdog reset flag */
 					sec_ts_release_all_finger(ts);
 					ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SENSE_ON, NULL, 0);
-					if (ret < 0)
+					if (unlikely(ret < 0))
 						input_err(true, &ts->client->dev, "%s: fail to write Sense_on\n", __func__);
 				}
 			}
@@ -641,13 +641,13 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 				u8 sponge[3] = { 0 };
 
 				ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_READ_PARAM, sponge, 2);
-				if (ret < 0)
+				if (unlikely(ret < 0))
 					input_err(true, &ts->client->dev, "%s: fail to read sponge command\n", __func__);
 
 				memset(sponge, 0x00, 3);
 
 				ret = sec_ts_i2c_read_bulk(ts, sponge, 3);
-				if (ret < 0)
+				if (unlikely(ret < 0))
 					input_err(true, &ts->client->dev, "%s: fail to read sponge data\n", __func__);
 
 				input_info(true, &ts->client->dev, "%s: Sponge, %x, %x, %x\n",
@@ -659,12 +659,12 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 					u8 data[5] = {0x0A, 0x00, 0x00, 0x00};
 
 					ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_READ_PARAM, data, 2);
-					if (ret < 0)
+					if (unlikely(ret < 0))
 						input_err(true, &ts->client->dev,
 								"%s: Failed to write aod read offset\n", __func__);
 
 					ret = sec_ts_i2c_read(ts, SEC_TS_CMD_SPONGE_READ_PARAM, data, 5);
-					if (ret < 0)
+					if (unlikely(ret < 0))
 						input_err(true, &ts->client->dev,
 								"%s: Failed to read touch coord\n", __func__);
 
@@ -986,12 +986,12 @@ void sec_ts_set_charger(bool enable)
 	if (enable) {
 		input_info(true, &ts->client->dev, "sec_ts_set_charger : charger CONNECTED!!\n");
 		ret = sec_ts_i2c_write(ts, NOISE_MODE_CMD, noise_mode_on, sizeof(noise_mode_on));
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "sec_ts_set_charger: fail to write NOISE_ON\n");
 	} else {
 		input_info(true, &ts->client->dev, "sec_ts_set_charger : charger DISCONNECTED!!\n");
 		ret = sec_ts_i2c_write(ts, NOISE_MODE_CMD, noise_mode_off, sizeof(noise_mode_off));
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "sec_ts_set_charger: fail to write NOISE_OFF\n");
 	}
 */
@@ -1013,7 +1013,7 @@ int sec_ts_glove_mode_enables(struct sec_ts_data *ts, int mode)
 		ts->touch_functions = ((ts->touch_functions&(~SEC_TS_BIT_SETFUNC_GLOVE))|SEC_TS_BIT_SETFUNC_MUTUAL);
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_TOUCHFUNCTION, &ts->touch_functions, 1);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: Failed to send command", __func__);
 		goto glove_enable_err;
 	}
@@ -1042,7 +1042,7 @@ int sec_ts_hover_enables(struct sec_ts_data *ts, int enables)
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_TOUCHFUNCTION, &ts->touch_functions, 1);
 
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: Failed to send command", __func__);
 		goto hover_enable_err;
 	}
@@ -1092,13 +1092,13 @@ int sec_ts_set_cover_type(struct sec_ts_data *ts, bool enable)
 		goto cover_enable_err;
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_COVERTYPE, &ts->cover_cmd, 1);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: Failed to send covertype command: %d", __func__, ts->cover_cmd);
 		goto cover_enable_err;
 	}
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_TOUCHFUNCTION, &ts->touch_functions, 1);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: Failed to send command", __func__);
 		goto cover_enable_err;
 	}
@@ -1206,7 +1206,7 @@ static ssize_t sec_ts_reg_store(struct device *dev, struct device_attribute *att
 			else
 				length = remain;
 			ret = sec_ts_i2c_write_burst(ts, (u8 *) & buf[offset], length);
-			if (ret < 0) {
+			if (unlikely(ret < 0)) {
 				input_err(true, &ts->client->dev,
 						"%s: i2c write %x command, remain = %d\n", __func__,
 						buf[offset], remain);
@@ -1271,7 +1271,7 @@ static ssize_t sec_ts_regread_show(struct device *dev, struct device_attribute *
 		else
 			ret = sec_ts_i2c_read_bulk(ts, &read_lv1_buff[offset], length);
 
-		if (ret < 0) {
+		if (unlikely(ret < 0)) {
 			input_err(true, &ts->client->dev, "%s: i2c read %x command, remain =%d\n", __func__, lv1cmd, remain);
 			goto i2c_err;
 		}
@@ -1372,7 +1372,7 @@ static ssize_t sec_ts_enter_recovery_store(struct device *dev, struct device_att
 
 		/* AFE Calibration */
 		ret = sec_ts_i2c_write(ts, SEC_TS_CMD_CALIBRATION_AMBIENT, NULL, 0);
-		if (ret < 0) {
+		if (unlikely(ret < 0)) {
 			input_err(true, &ts->client->dev, "%s: fail to write AFE_CAL\n",__func__);
 		}
 		sec_ts_delay(1000);
@@ -1398,7 +1398,7 @@ static void sec_ts_charger_config(struct sec_ts_data * ts, int status)
 		ts->touch_functions = ((ts->touch_functions&(~SEC_TS_BIT_SETFUNC_CHARGER))|SEC_TS_BIT_SETFUNC_MUTUAL);
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_TOUCHFUNCTION, &ts->touch_functions, 1);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: Failed to send command\n", __func__);
 		goto charger_config_err;
 	}
@@ -1451,7 +1451,7 @@ static void sec_ts_raw_device_init(struct sec_ts_data *ts)
 	}
 
 	ret = sysfs_create_group(&sec_ts_dev->kobj, &cmd_attr_group);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: fail - sysfs_create_group\n", __func__);
 		goto err_sysfs;
 	}
@@ -1459,7 +1459,7 @@ static void sec_ts_raw_device_init(struct sec_ts_data *ts)
 	ret = sysfs_create_link(&sec_ts_dev->kobj,
 				&ts->input_dev->dev.kobj, "input");
 
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: fail - sysfs_create_link\n", __func__);
 		goto err_sysfs;
 	}
@@ -1513,7 +1513,7 @@ static int sec_ts_power(void *data, bool on)
 		}
 
 		ret = pinctrl_select_state(pdata->pinctrl, pdata->pins_default);
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "%s: Failed to configure tsp_attn pin\n", __func__);
 
 		sec_ts_delay(5);
@@ -1524,7 +1524,7 @@ static int sec_ts_power(void *data, bool on)
 			regulator_disable(regulator_avdd);
 
 		ret = pinctrl_select_state(pdata->pinctrl, pdata->pins_sleep);
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "%s: Failed to configure tsp_attn pin\n", __func__);
 	}
 
@@ -1820,7 +1820,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 #endif
 
 	ret = sec_ts_setup_drv_data(client);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &client->dev, "%s: Failed to set up driver data\n", __func__);
 		goto err_setup_drv_data;
 	}
@@ -1892,11 +1892,11 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 #endif
 
 	ret = sec_ts_i2c_read(ts, SEC_TS_READ_BOOT_STATUS, &data[0], 1);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "%s: failed to read sub id(%d)\n", __func__, ret);
 	} else {
 		ret = sec_ts_i2c_read(ts, SEC_TS_READ_TS_STATUS, &data[1], 4);
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "%s: failed to touch status(%d)\n", __func__, ret);
 	}
 
@@ -1911,7 +1911,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 #ifdef CONFIG_FW_UPDATE_ON_PROBE
 	ret = sec_ts_firmware_update_on_probe(ts, force_update);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		goto err_init;
 #endif
 
@@ -1919,7 +1919,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 		/* Read Raw Channel Info */
 		ret = sec_ts_i2c_read(ts, SEC_TS_READ_SUB_ID, tBuff, 5);
-		if (ret < 0) {
+		if (unlikely(ret < 0)) {
 			input_err(true, &ts->client->dev, "sec_ts_probe: fail to read raw channel info\n");
 			goto err_init;
 		} else {
@@ -1931,7 +1931,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 
 	/* Sense_on */
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SENSE_ON, NULL, 0);
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "sec_ts_probe: fail to write Sense_on\n");
 		goto err_init;
 	}
@@ -2010,7 +2010,7 @@ static int sec_ts_probe(struct i2c_client *client, const struct i2c_device_id *i
 	ret = request_threaded_irq(client->irq, NULL, sec_ts_irq_thread,
 		ts->plat_data->irq_type, SEC_TS_I2C_NAME, ts);
 
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev, "sec_ts_probe: Unable to request threaded irq\n");
 		goto err_irq;
 	}
@@ -2143,18 +2143,18 @@ static int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 			data[2] = ((ts->lowpower_flag) & 0xF);
 
 			ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_WRITE_PARAM, &data[0], 3);
-			if (ret < 0)
+			if (unlikely(ret < 0))
 				input_err(true, &ts->client->dev, "%s: Failed to write mode\n", __func__);
 
 			ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_NOTIFY_PACKET, NULL, 0);
-			if (ret < 0)
+			if (unlikely(ret < 0))
 				input_err(true, &ts->client->dev, "%s: Failed to write mode\n", __func__);
 		}
 
 		lowpower_data = ((ts->lowpower_flag >> 4) & 0xF);
 
 		ret = sec_ts_i2c_write(ts, SEC_TS_CMD_GESTURE_MODE, &lowpower_data, 1);
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "%s: Failed to write mode\n", __func__);
 
 		if (ts->lowpower_flag & SEC_TS_MODE_SPONGE_AOD) {
@@ -2163,11 +2163,11 @@ static int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 			/* Clear AOD_RECT */
 			input_info(true, &ts->client->dev, "%s: clear aod_rect\n", __func__);
 			ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_WRITE_PARAM, &aod_rect[0], 10);
-			if (ret < 0)
+			if (unlikely(ret < 0))
 				input_err(true, &ts->client->dev, "%s: Failed to write offset\n", __func__);
 
 			ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_NOTIFY_PACKET, NULL, 0);
-			if (ret < 0)
+			if (unlikely(ret < 0))
 				input_err(true, &ts->client->dev, "%s: Failed to send notify\n", __func__);
 		}
 
@@ -2179,13 +2179,13 @@ static int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 
 retry_pmode:
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_POWER_MODE, &mode, 1);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		input_err(true, &ts->client->dev, "%s: failed\n", __func__);
 	sec_ts_delay(50);
 
 	/* read data */
 	ret = ts->sec_ts_i2c_read(ts, SEC_TS_CMD_SET_POWER_MODE, &para, 1);
-	if (ret < 0) input_err(true, &ts->client->dev, "%s: read power mode failed!\n", __func__);
+	if (unlikely(ret < 0)) input_err(true, &ts->client->dev, "%s: read power mode failed!\n", __func__);
 	else input_err(true, &ts->client->dev, "%s: power mode - write(%d) read(%d)\n", __func__,mode,para);
 	if(mode != para){
 		retrycnt++;
@@ -2193,7 +2193,7 @@ retry_pmode:
 	}
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_CLEAR_EVENT_STACK, NULL, 0);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		input_err(true, &ts->client->dev, "%s: i2c write clear event failed\n", __func__);
 
 	sec_ts_release_all_finger(ts);
@@ -2299,7 +2299,7 @@ static int sec_ts_input_open(struct input_dev *dev)
 			disable_irq_wake(ts->client->irq);
 	} else {
 		ret = sec_ts_start_device(ts);
-		if (ret < 0)
+		if (unlikely(ret < 0))
 			input_err(true, &ts->client->dev, "%s: Failed to start device\n", __func__);
 	}
 
@@ -2443,7 +2443,7 @@ static int sec_ts_start_device(struct sec_ts_data *ts)
 
 	reinit_completion(&ts->init_done);
 	ret = wait_for_completion_interruptible_timeout(&ts->init_done, msecs_to_jiffies(100));
-	if (ret < 0) {
+	if (unlikely(ret < 0)) {
 		input_err(true, &ts->client->dev,
 			"%s: timeout while waiting for device to init (%d)\n", __func__, ret);
 	}
@@ -2469,11 +2469,11 @@ static int sec_ts_start_device(struct sec_ts_data *ts)
 
 	ts->touch_functions = ts->touch_functions|SEC_TS_BIT_SETFUNC_MUTUAL;
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SET_TOUCHFUNCTION, &ts->touch_functions, 1);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		input_err(true, &ts->client->dev, "%s: Failed to send glove_mode command", __func__);
 
 	ret = sec_ts_i2c_write(ts, SEC_TS_CMD_SENSE_ON, NULL, 0);
-	if (ret < 0)
+	if (unlikely(ret < 0))
 		input_err(true, &ts->client->dev, "%s: fail to write Sense_on\n", __func__);
 
 out:
