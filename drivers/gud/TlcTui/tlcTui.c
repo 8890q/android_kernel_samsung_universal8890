@@ -28,9 +28,6 @@
 
 //#define DEBUG
 
-#if defined(CONFIG_SECURE_OS_BOOSTER_API)
-#include <soc/samsung/secos_booster.h>
-#endif
 /* ------------------------------------------------------------- */
 /* Globals */
 struct tui_dci_msg_t *dci;
@@ -194,11 +191,6 @@ static void tlc_process_cmd(void)
 {
 	uint32_t ret = TUI_DCI_ERR_INTERNAL_ERROR;
 	uint32_t command_id = CMD_TUI_SW_NONE;
-#if defined(CONFIG_SECURE_OS_BOOSTER_API)
-	int ret_val = 0;
-	u8 retry_cnt = 0;
-	uint32_t TUI_BOOSTER = 0xFFFF0000; /* boosting Frequency = MAX(2.1GHz), Boosting time =  0xFFFF (65536 msec)*/
-#endif
 
 	if  (NULL == dci) {
 		pr_debug("ERROR %s: DCI has not been set up properly - exiting"\
@@ -222,20 +214,6 @@ static void tlc_process_cmd(void)
 	switch (command_id) {
 	case CMD_TUI_SW_OPEN_SESSION:
 		pr_debug("%s: CMD_TUI_SW_OPEN_SESSION.\n", __func__);
-#if defined(CONFIG_SECURE_OS_BOOSTER_API)
-		pr_info("%s TUI_CPU_SPEEDUP ON retry: %d\n",
-			__func__, retry_cnt);
-		do {
-			ret_val = secos_booster_start(TUI_BOOSTER);
-			retry_cnt++;
-			if (ret_val) {
-				pr_err("%s: booster start failed. (%d) retry: %d\n"
-					, __func__, ret_val, retry_cnt);
-				if (retry_cnt < 7)
-					usleep_range(500, 510);
-				}
-			} while (ret_val && retry_cnt < 7);
-#endif
 
 		/* Start android TUI activity */
 		ret = send_cmd_to_user(TLC_TUI_CMD_START_ACTIVITY);
@@ -277,12 +255,6 @@ static void tlc_process_cmd(void)
 
 		hal_tui_free();
 
-#if defined(CONFIG_SECURE_OS_BOOSTER_API)
-		ret_val = secos_booster_stop();
-		if (ret_val)
-			pr_err("%s: booster stop failed. (%d)\n"
-				, __func__, ret_val);
-#endif
 		/* Stop android TUI activity */
 		/* Ignore return code, because an error means the TLC has been
 		* killed, which imply that the activity is stopped already. */
