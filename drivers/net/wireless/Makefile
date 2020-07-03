@@ -57,34 +57,38 @@ obj-$(CONFIG_MWIFIEX)	+= mwifiex/
 
 
 # Android Version Check from Platform source
-ifneq ($(ANDROID_VERSION),)
-MAJOR_VERSION := $(shell echo $(ANDROID_VERSION) | rev | cut -c 5- | rev)
-DHDCFLAGS += -DANDROID_PLATFORM_VERSION=$(MAJOR_VERSION)
-$(warning android version 1: $(ANDROID_VERSION))
-$(warning MAJOR_VERSION version 1: $(MAJOR_VERSION))
-else
-ifneq ($(PLATFORM_VERSION),)
-MAJOR_VERSION := $(shell echo $(PLATFORM_VERSION) | cut -d "." -f 1)
-DHDCFLAGS += -DANDROID_PLATFORM_VERSION=$(MAJOR_VERSION)
-$(warning platform version 2 : $(PLATFORM_VERSION))
-$(warning MAJOR_VERSION version 2: $(MAJOR_VERSION))
-endif
-endif
-ifneq ($(CONFIG_BCM4359),)
-ifeq ($(shell expr $(MAJOR_VERSION) \>= 9),1)
-$(warning platform version 3 : $(PLATFORM_VERSION))
-$(warning MAJOR_VERSION version 3: $(MAJOR_VERSION))
+#ifneq ($(ANDROID_VERSION),)
+#MAJOR_VERSION := $(shell echo $(ANDROID_VERSION) | rev | cut -c 5- | rev)
+#DHDCFLAGS += -DANDROID_PLATFORM_VERSION=$(MAJOR_VERSION)
+#$(warning android version 1: $(ANDROID_VERSION))
+#$(warning MAJOR_VERSION version 1: $(MAJOR_VERSION))
+#else
+#ifneq ($(PLATFORM_VERSION),)
+#MAJOR_VERSION := $(shell echo $(PLATFORM_VERSION) | cut -d "." -f 1)
+#DHDCFLAGS += -DANDROID_PLATFORM_VERSION=$(MAJOR_VERSION)
+#$(warning platform version 2 : $(PLATFORM_VERSION))
+#$(warning MAJOR_VERSION version 2: $(MAJOR_VERSION))
+#endif
+#endif
+#ifneq ($(CONFIG_BCM4359),)
+#ifeq ($(shell expr $(MAJOR_VERSION) \>= 9),1)
+#$(warning platform version 3 : $(PLATFORM_VERSION))
+#$(warning MAJOR_VERSION version 3: $(MAJOR_VERSION))
+#obj-$(CONFIG_BCM4359)   += bcmdhd4359_100/
+#obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359_100/dhd_custom_memprealloc.o
+#obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359_100/dhd_custom_exynos.o
+#else
+#$(warning platform version 4 : $(PLATFORM_VERSION))
+#$(warning MAJOR_VERSION version 4: $(MAJOR_VERSION))
+#obj-$(CONFIG_BCM4359)   += bcmdhd4359/
+#obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359/dhd_custom_memprealloc.o
+#obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359/dhd_custom_exynos.o
+#endif
+#endif
+DHDCFLAGS += -DANDROID_PLATFORM_VERSION=9
 obj-$(CONFIG_BCM4359)   += bcmdhd4359_100/
 obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359_100/dhd_custom_memprealloc.o
 obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359_100/dhd_custom_exynos.o
-else
-$(warning platform version 4 : $(PLATFORM_VERSION))
-$(warning MAJOR_VERSION version 4: $(MAJOR_VERSION))
-obj-$(CONFIG_BCM4359)   += bcmdhd4359/
-obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359/dhd_custom_memprealloc.o
-obj-$(CONFIG_SOC_EXYNOS8890) += bcmdhd4359/dhd_custom_exynos.o
-endif
-endif
 
 ifneq ($(CONFIG_BCM4358),)
 obj-$(CONFIG_BCM4358)   += bcmdhd4358/
