@@ -133,7 +133,7 @@ static int __init console_setup(char *str)
 	return 0;
 }
 #ifdef CONFIG_MODEL_GRACELTE
-early_param("androidboot.revision", mif_get_hw_rev);
+__setup("androidboot.revision=", console_setup);
 #else
 __setup("androidboot.hw_rev=", console_setup);
 #endif
