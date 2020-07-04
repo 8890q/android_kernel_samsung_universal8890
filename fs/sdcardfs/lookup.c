@@ -20,7 +20,6 @@
 
 #include "sdcardfs.h"
 #include "linux/delay.h"
-#include "internal.h"
 
 /* The dentry cache is just so we have properly sized dentries */
 static struct kmem_cache *sdcardfs_dentry_cachep;

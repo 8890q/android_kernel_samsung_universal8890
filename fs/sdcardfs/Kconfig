@@ -1,5 +1,13 @@
-#
-# Android Sdcardfs configuation
-#
+config SDCARD_FS
+	tristate "sdcard file system"
+	depends on CONFIGFS_FS
+	default y
+	help
+	  Sdcardfs is based on Wrapfs file system.
 
-source "fs/sdcardfs/$ANDROID_MAJOR_VERSION/Kconfig"
+config SDCARD_FS_FADV_NOACTIVE
+	bool "sdcardfs fadvise noactive support"
+	depends on FADV_NOACTIVE
+	default y
+	help
+	  Sdcardfs supports fadvise noactive mode.
