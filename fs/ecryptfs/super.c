@@ -39,7 +39,7 @@
 #endif
 
 #if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
-#include "sdcardfs.h"
+#include "../sdcardfs/sdcardfs.h"
 #endif
 
 struct kmem_cache *ecryptfs_inode_info_cache;
