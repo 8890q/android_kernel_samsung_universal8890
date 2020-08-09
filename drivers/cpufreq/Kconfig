@@ -53,15 +53,6 @@ choice
 	  This option sets which CPUFreq governor shall be loaded at
 	  startup. If in doubt, select 'performance'.
 
-config CPU_FREQ_DEFAULT_GOV_SCHED
-	bool "sched"
-	select CPU_FREQ_GOV_SCHED
-	select CPU_FREQ_GOV_PERFORMANCE
-	help
-	  Use the CPUfreq governor 'sched' as default. This scales
-	  cpu frequency from the scheduler as per-entity load tracking
-	  statistics are updated.
-
 config CPU_FREQ_DEFAULT_GOV_PERFORMANCE
 	bool "performance"
 	select CPU_FREQ_GOV_PERFORMANCE
@@ -123,7 +114,7 @@ config CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 
 config CPU_FREQ_DEFAULT_GOV_SCHED
 	bool "sched"
-	select CPU_FREQ_GOV_INTERACTIVE
+	select CPU_FREQ_GOV_SCHED
 	help
 	  Use the CPUfreq governor 'sched' as default. This scales
 	  cpu frequency using CPU utilization estimates from the
