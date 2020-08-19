@@ -105,6 +105,12 @@ extern struct rw_semaphore nommu_region_sem;
 extern unsigned int kobjsize(const void *objp);
 #endif
 
+#ifdef CONFIG_ZSWAP
+extern int sysctl_zswap_compact;
+extern int sysctl_zswap_compaction_handler(struct ctl_table *table, int write,
+			void __user *buffer, size_t *length, loff_t *ppos);
+#endif
+
 /*
  * vm_flags in vm_area_struct, see mm_types.h.
  */
@@ -234,7 +240,7 @@ struct vm_fault {
 /*
  * These are the virtual MM functions - opening of an area, closing and
  * unmapping it (needed to keep files on disk up-to-date etc), pointer
- * to the functions called when a no-page or a wp-page exception occurs. 
+ * to the functions called when a no-page or a wp-page exception occurs.
  */
 struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
@@ -1730,6 +1736,17 @@ extern void zone_pcp_reset(struct zone *zone);
 /* page_alloc.c */
 extern int min_free_kbytes;
 
+/* vmscan.c */
+extern void reclaim_contig_migrate_range(unsigned long start,
+					 unsigned long end, bool drain);
+/* ion_rbin_heap.c */
+void wake_ion_rbin_heap_prereclaim(void);
+void wake_ion_rbin_heap_shrink(void);
+
+extern unsigned long totalrbin_pages;
+extern atomic_t rbin_allocated_pages;
+extern atomic_t rbin_pool_pages;
+
 /* nommu.c */
 extern atomic_long_t mmap_pages_allocated;
 extern int nommu_shrink_inode_mappings(struct inode *, size_t, size_t);
@@ -1898,7 +1915,7 @@ int write_one_page(struct page *page, int wait);
 void task_dirty_inc(struct task_struct *tsk);
 
 /* readahead.c */
-#define VM_MAX_READAHEAD	128	/* kbytes */
+#define VM_MAX_READAHEAD	256	/* kbytes */
 #define VM_MIN_READAHEAD	16	/* kbytes (includes current page) */
 
 int force_page_cache_readahead(struct address_space *mapping, struct file *filp,
@@ -1920,6 +1937,7 @@ void page_cache_async_readahead(struct address_space *mapping,
 unsigned long max_sane_readahead(unsigned long nr);
 
 extern unsigned long stack_guard_gap;
+
 /* Generic expand stack which grows the stack according to GROWS{UP,DOWN} */
 extern int expand_stack(struct vm_area_struct *vma, unsigned long address);
 
@@ -2042,7 +2060,9 @@ static inline struct page *follow_page(struct vm_area_struct *vma,
 #define FOLL_HWPOISON	0x100	/* check page is hwpoisoned */
 #define FOLL_NUMA	0x200	/* force NUMA hinting page fault */
 #define FOLL_MIGRATION	0x400	/* wait for page to replace migration entry */
+#define FOLL_COW	0x4000	/* internal GUP flag */
 #define FOLL_TRIED	0x800	/* a retry, previous pass started an IO */
+#define FOLL_CMA        0x80000 /* migrate if the page is from cma pageblock */
 #define FOLL_COW	0x4000	/* internal GUP flag */
 
 typedef int (*pte_fn_t)(pte_t *pte, pgtable_t token, unsigned long addr,

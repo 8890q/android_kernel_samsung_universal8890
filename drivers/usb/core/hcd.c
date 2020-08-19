@@ -2910,7 +2910,6 @@ void usb_remove_hcd(struct usb_hcd *hcd)
 		if (hcd->irq > 0)
 			free_irq(hcd->irq, hcd);
 	}
-
 	usb_deregister_bus(&hcd->self);
 	hcd_buffer_destroy(hcd);
 

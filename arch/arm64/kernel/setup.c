@@ -60,6 +60,10 @@
 #include <asm/psci.h>
 #include <asm/efi.h>
 
+#if defined(CONFIG_ECT)
+#include <soc/samsung/ect_parser.h>
+#endif
+
 phys_addr_t __fdt_pointer __initdata;
 
 /*
@@ -109,6 +113,32 @@ void __init smp_setup_processor_id(void)
 	 */
 	set_my_cpu_offset(0);
 }
+
+#if defined(CONFIG_ECT)
+int __init early_init_dt_scan_ect(unsigned long node, const char *uname,
+		int depth, void *data)
+{
+	int address = 0, size = 0;
+	const __be32 *paddr, *psize;
+
+	if (depth != 1 || (strcmp(uname, "ect") != 0))
+		return 0;
+
+	paddr = of_get_flat_dt_prop(node, "parameter_address", &address);
+	if (paddr == NULL)
+		return 0;
+
+	psize = of_get_flat_dt_prop(node, "parameter_size", &size);
+	if (psize == NULL)
+		return -1;
+
+	printk("[ECT] Address %x, Size %x\b", be32_to_cpu(*paddr), be32_to_cpu(*psize));
+	memblock_reserve(be32_to_cpu(*paddr), be32_to_cpu(*psize));
+	ect_init(be32_to_cpu(*paddr), be32_to_cpu(*psize));
+
+	return 1;
+}
+#endif
 
 bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
 {
@@ -196,6 +226,11 @@ static void __init setup_machine_fdt(phys_addr_t dt_phys)
 	}
 
 	dump_stack_set_arch_desc("%s (DT)", of_flat_dt_get_machine_name());
+
+#if defined(CONFIG_ECT)
+	/* Scan dvfs paramter information, address that loaded on DRAM and size */
+	of_scan_flat_dt(early_init_dt_scan_ect, NULL);
+#endif
 }
 
 /*
@@ -305,12 +340,14 @@ void __init setup_arch(char **cmdline_p)
 	conswitchp = &dummy_con;
 #endif
 #endif
+#if !(defined CONFIG_RELOCATABLE_KERNEL) && !(defined CONFIG_RANDOMIZE_BASE)
 	if (boot_args[1] || boot_args[2] || boot_args[3]) {
 		pr_err("WARNING: x1-x3 nonzero in violation of boot protocol:\n"
 			"\tx1: %016llx\n\tx2: %016llx\n\tx3: %016llx\n"
 			"This indicates a broken bootloader or old kernel\n",
 			boot_args[1], boot_args[2], boot_args[3]);
 	}
+#endif
 }
 
 static int __init arm64_device_init(void)

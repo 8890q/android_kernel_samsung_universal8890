@@ -167,10 +167,34 @@ int inode_init_always(struct super_block *sb, struct inode *inode)
 	mapping->host = inode;
 	mapping->flags = 0;
 	atomic_set(&mapping->i_mmap_writable, 0);
+#ifdef CONFIG_RBIN
+	if ((sb->s_flags & MS_RDONLY) && !shmem_mapping(mapping))
+		mapping_set_gfp_mask(mapping, GFP_HIGHUSER_MOVABLE |
+					__GFP_RBIN);
+	else
+		mapping_set_gfp_mask(mapping, GFP_HIGHUSER_MOVABLE);
+#else
 	mapping_set_gfp_mask(mapping, GFP_HIGHUSER_MOVABLE);
+#endif
 	mapping->private_data = NULL;
 	mapping->backing_dev_info = &default_backing_dev_info;
 	mapping->writeback_index = 0;
+#if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
+	mapping->iv = NULL;
+	mapping->key = NULL;
+	mapping->key_length = 0;
+	mapping->alg = NULL;
+	mapping->sensitive_data_index = 0;
+	mapping->hash_tfm = NULL;
+#ifdef CONFIG_CRYPTO_FIPS
+	mapping->cc_enable = 0;
+#endif
+	mapping->use_fmp = 0;
+	mapping->plain_text = 0;
+#endif
+#ifdef CONFIG_SDP
+	mapping->userid = 0;
+#endif
 
 	/*
 	 * If the block_device provides a backing_dev_info for client
@@ -1397,7 +1421,11 @@ static void iput_final(struct inode *inode)
 	else
 		drop = generic_drop_inode(inode);
 
+#if defined(CONFIG_MMC_DW_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_ECRYPT_FS)
+	if (!drop && (sb->s_flags & MS_ACTIVE) && !inode->i_mapping->key) {
+#else
 	if (!drop && (sb->s_flags & MS_ACTIVE)) {
+#endif
 		inode->i_state |= I_REFERENCED;
 		inode_add_lru(inode);
 		spin_unlock(&inode->i_lock);
@@ -1845,8 +1873,14 @@ void inode_init_owner(struct inode *inode, const struct inode *dir,
 	inode->i_uid = current_fsuid();
 	if (dir && dir->i_mode & S_ISGID) {
 		inode->i_gid = dir->i_gid;
+
+		/* Directories are special, and always inherit S_ISGID */
 		if (S_ISDIR(mode))
 			mode |= S_ISGID;
+		else if ((mode & (S_ISGID | S_IXGRP)) == (S_ISGID | S_IXGRP) &&
+			!in_group_p(inode->i_gid) &&
+			!capable_wrt_inode_uidgid(dir, CAP_FSETID))
+			mode &= ~S_ISGID;
 	} else
 		inode->i_gid = current_fsgid();
 	inode->i_mode = mode;

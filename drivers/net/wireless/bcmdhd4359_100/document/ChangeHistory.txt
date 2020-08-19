@@ -1,0 +1,329 @@
+DHD 100.13.36.3 for Android P Projects
+(Notes: 100.13.x is twigged off from 100.10.246)
+
+DHD 100.13.36.3 - 2019.12.06
+Security Patch
+ - CS9179066(By Kim MoonSoo) SI-15880: Fixed heap buffer overflow in the "get version" request ioctl
+
+
+DHD 100.13.36.2 - 2019.10.17
+Others
+ - CS9059448(By Min SungBin) DHD:Add dhd_smmu_fault_handler to avoid compile error on latest kernel image
+
+
+DHD 100.13.36.1 - 2019.07.31
+Security Patch
+ - CS8424803(By Choi Hyeonu) SI-14869: Moved the length check routine for the nlioc variable before accessing it in the wl_cfgvendor_priv_string_handler() function
+
+
+DHD 100.13.36 - 2019.05.24
+New Feature
+ - CS5350346(By Jung Junyeop) Fake AP - Fixed to provide correct channel information for beacon receive result
+ - Enable to support Fake AP
+   (This patch should be sync up with FW 13.38.60(4361B0), FW 13.50.10(4361B2) or higher version)
+ - WIPS attack warning reporting
+   (This patch should be sync up with FW 13.38.60(4361B0), FW 13.50.10(4361B2) or higher version)
+
+Security Patch
+ - CS8069399(By Kang Hyung Wook) SI-13926 Fixed use-after-free in the wl_cfg80211_set_mgmt_vndr_ies function
+
+Others
+ - CS7939107(By Kim Tae-Yong) Included memdump value prints in the dump information
+ - Added missing options into the Kconfig file
+
+
+DHD 100.13.32 - 2019.04.26
+Kernel Panic
+ - CS7696936(By Min SungBin) Fix misspelling of CUSTOMER_HW4_DEBUG definition
+ - CS7706946(By Min SungBin) Fixed to avoid kernel panic due to race condition of cfg->scan_request
+
+Security Patch
+ - CS7860687(By Kang Hyung Wook) SI-12455: Fixed use-after-free write in dhd_set_monitor() function
+ - CS7949699(By Choi Hyeonu) SI-14074: Fixed Security issue, Potential stack-based buffer overflow in dhd_pktfilter_offload_set
+ - CS7956197(By Choi Hyeonu) SI-14130: Fixed the multiple NULL pointer dereference in wl_cfgvendor.c
+
+Others
+ - CS6844193(By MinSoo Kim) Changed log level of LQCM report
+ - CS7099653(By Nitesh Suthar) Enabled frameburst to enhance throughput for BCM43436 projects
+ - CS7362375(By Gu Ja Heon) Added Private command in order to receive every beacon in Suspend
+ - CS7526157(By Suthar Nitesh) Fixed DualBandConcurrency field in .softap.info
+ - CS7765577(By Park Heebae) Wifi-on time reduction by reading necessary CIS information
+ - CS7827257(By Choi Hyeonu) Fixed kernel panic caused by invalid memory access
+ - CS7834653(By Kang MinHo) Removed redundant TX error prints during suspend in SDIO
+ - CS7884436(By Beom Jip Kim) Fixed to cancel p2p listen offloading by framework scan request
+ - CS7892037(By Sun Yinghan) Fixed to support W2018/KELLY Android P OS upgrade
+
+
+DHD 100.13.31.1 - 2019.04.19
+Others
+ - CS4726130(By Min Hyun-Ki) Added User priority to AC mapping in case of various DSCP types that may not compatible with RFC8325
+ - CS6951980(By Min Hyun-Ki) Changed the UP to AC mapping of CS6 based on the RFC8325
+
+
+DHD 100.13.31 - 2019.02.15
+Others
+ - CS7241767(By LEE EONJI) Added more logs for the DPC schedule error debugging
+ - CS7299641(By Kim MinSoo) Enabled LB_TXP for MSM8998 Platform
+ - CS7323375(By kwon Jaecheol) Enabled the softap.info file support in BCM4359 platform
+ - CS7362527(By Hyeonu Choi) Cancel P2P listen offloading operation when SoftAP brings up
+ - CS7363197(By Junhak Lim) Fixed prevent issues
+ - CS7386068(By Lee Gibum) Disabled frameburst for "2.4Ghz + SoftAP" (Drame & Great projects)
+ - Fixed the scan failure when p2p listen offload is triggered
+ - Fixed to abort scan when connection/disconnection requested
+ - Prevented the bus suspend by the PCIe Runtime PM from abnormal ISR status
+
+
+DHD 100.13.28 - 2019.01.25
+Others
+ - CS7111512(By LEE EONJI) Detect turn on failure in factory binary
+ - CS7299329(By Kim Yu-Kyoung) Fixed SoftAP CTS fail due to interface creation failure
+ - Blocked WLC_E_ROAM event to fix wakes-up frequently under weak signal AP
+ - Changed error results of GETSTAINFO private command to BCME_UNSUPPORTED if the BIGDATA_SOFTAP is not supported
+
+
+DHD 100.13.23 - 2019.01.18
+Kernel Panic
+ - Fixed kernel panic during mfg mode interface creation
+
+Security Patch
+ - CS7091164(By Kang Hyung Wook) SI-13561: Fixed kernel heap overflow security issue at dhdpcie_downloadvars
+ - CS7091371(By Kang Hyung Wook) SI-13584: Fixed kernel panic due to access to not allocated memory
+
+Others
+ - CS6785460(By Jeong Min Cheol) Send HANG event to the framework for the sequential private command failure
+ - CS7003600(By Kang MinHo) Support android private command for restoring roam/scan parameters
+ - CS7094302(By Yoon YeJi) Fixed connect failure caused by connection information not initialized
+ - CS7103552(By LEE EONJI) Fixed the recovery routine to fix the D3_ACK timeout issue
+ - CS7119174(By Kim Seong Hwan) Avoid HANG event indication due to sequential private command failures in case of unsupported error
+ - CS7137399(By Yoon YeJi) Fixed connect failure caused by connection information not initialized
+ - CS7141596(By Suthar Nitesh) Fixed MHS operates with STA mac address
+ - Control HANG report for consecutive Android private command failure by sysfs
+ - Increased the NUMBER_SEQUENTIAL_PRIVCMD_ERRORS from 4 to 7
+ - Taking a SOCRAM dump in the sequential private command error case
+
+
+DHD 100.13.21 - 2019.01.11
+Security Patch
+ - CS6935603(By Hong Min Whoa) SI-13638: Fixed Kernel warning message by restructuring the DMA_LOCK and DMA_UNLOCK
+ - CS7091347(By Kang Hyung Wook) SI-13585: Fixed kernel panic due to write buffer exceeds the size
+
+Others
+ - CS6650676(YeJi Yoon) Fixed mismatch connect status between framework and DHD
+ - CS6678972(By Hwang MinSik) Fixed TIS/TRP test failure and high current issue from sysfs change
+ - CS6715508(By Choi Hyeonu) Exported sysfs for ADPS bad AP list
+ - CS6744438(By Yoon Jae Ho) Fixed duplicated roaming notification to WPA supplicant during FT roaming
+ - CS6769798(By Kim Beom Jip) Fixed for GraceR/4359c0 P OS P2P connection failure issue
+ - CS6856753(By kwon Jaecheol) Added the dual interface capability filed in the SoftAP info file (.softap.info)
+ - CS6870793(By Tae-Yong Kim) Fixed prevent issues
+ - CS6871138(By Lee Gibum) Configure AER registers to debug PCIE ERROR ATTN issues
+ - CS6880409(By Sung-gi Choi) Fixed prevent issues
+ - CS6887298(By Min Whoa Hong) Fixed prevent issues
+ - CS6928243(By Sung-gi Choi) Fixed prevent issues
+ - CS6935678(By Hwang MinSik) Fixed array out of bound issue from sysfs mac address
+ - CS6984743(By Min SungBin) Print DPC schedule request timestamp for ROT issue
+ - CS6985032(By LEE EONJI) Enabled DHD_RECOVER_TIMEOUT for D3_ACK missing case on 4359C0 and 4361B0
+ - CS6993967(By Jeong Min Cheol) Added last_d3_inform_timestamp to check root cause of ROT
+ - CS7042030(By Min SungBin) Implemented the new API to sync up the status between RC and EP to avoid unwanted L1ss configuration
+ - Changed the DHD_COMMON_DUMP_PATH for non-BCM4375 Android P OS projects
+ - DHD driven random mac enable by default for 4361B0
+ - Enable frameburst for standalone 2.4GHz SoftAP on Dream and Great project
+ - Wi-Fi Sharing-Lite feature support for Android P OS
+
+
+DHD 100.13.16.3 - 2018.12.05
+Kernel Panic
+ - CS6461136(By Min SungBin) Fixed for kernel panic due to stack overflow at get_roamscan_channel_list()
+
+Others
+ - CS6302259(By Kang Hyung Wook) Supported DHD driven Random MAC feature
+ - CS6324532(By Choi Hyeonu) Port files under /data/vendor/conn to sysfs after Android P OS
+ - CS6396705(By Min SungBin) Added additional timestamp log to debug resumed on timeout issue
+ - CS6398346(By Hyeonu Choi) Fixed prevent issues
+ - CS6516071(By Choi Hyeonu) Fixed for corner case of schedule_timeout() API at dhd_timeout_expired()
+ - CS6536174(By Choi Hyeonu) CS6433018(By Choi Hyeonu) Fixed prevent issues
+ - CS6594869(By Min SungBin) Triggering Kernel panic for the scheduling problem only if the memdump mode is enabled
+ - CS6600348(By LEE EONJI) Implemented 4359c0/GraceR P OS Wi-Fi sharing feature
+ - CS6658253(By Choi Hyeonu) Fixed random mac setting issue instead of otp mac
+ - CS6678972(By Hwang MinSik) Fixed TIS/TRP test failure and high current issue from sysfs change
+ - CS6713692(By Kim MinSoo) Fixed NET_RX delay issue
+ - CS6769798(By Kim Beom Jip) Fixed for GraceR/4359c0 P OS P2P connection failure issue
+ - CS6791516(By Lee Gibum) Fixed the unexpected frameburst enable on standalone SoftAP in 2GHz
+ - CS6791556(By Hwang MinSik) Removed CR/LF character at .cid.info including sysfs
+ - CS6809444(By Hwang MinSik) Unified DHD_COMMON_DUMP_PATH for the Android P OS project of all chips
+ - Changed the timestamp value to Kernel local time to debug resumed on timeout and scan timeout issues
+ - Defer RxBuf post size based on the rxbufpost_sz iovar return value for monitor mode
+ - Disabled DHD_LB_IRQSET for Exynos8890 platform
+ - Dump AER HeaderLog registers in configuration space for PCIe debugging
+ - Dumping PCIe registers for PCIe debugging enhancement
+ - Fixed VHT features enable issue from GraceR project
+ - Fixed unexpected RSDB mode configuration for legacy RSDB chip
+ - Implemented the debug code to check if the scan timeout or resumed on timeout happens due to the DPC scheduling problem
+ - Refined TDLS initialization code
+
+
+DHD 100.13.15.4 - 2018.12.03
+Security Patch
+ - CS6671196(By Kang Hyung Wook) SI-13162: Disconnect WiFi when TCP sync flood attack detected
+ - CS6793364(By Kang Hyung Wook) SI-13537: Fixed stack buffer overflow at wl_cfgvendor_get_ndev()
+ - CS6861227(By Kang Hyung Wook) SI-13560: Fixed kernel memory disclosure caused by no offset validation
+
+Others
+ - CS6401579(By Choi Jongmin) Supported single nvram feature for Android P OS
+ - CS6402730(By Kim Tae-Yong) Fixed race condition issue seen in interface add/del operation path
+
+
+DHD 100.13.15.1 - 2018.10.19
+Kernel Panic
+ - CS5557938(By Huang Junming) Skipping duplicated flowring creation requests with same flowid to fix the Kernel panic
+ - CS5884117(By Min SungBin) Avoid kernel panic when interrupt reg has invalid value
+ - CS5913988(By Min SungBin) Skip reading shared memory if PCIe link down is detected
+ - CS6011257(By Min SungBin) CS6066450(By Jeong Min Cheol) CS6083140(By Kim Tae-Yong) Avoid kernel panic when PCIe link down happens
+ - CS6068611(By Kim Tae-Yong) Added boundary check routine while reading ETD preserve log to fix the Kernel panic
+ - CS6074894(By Kim Tae-Yong) Fixed infinite loop problem during reading dongle dump
+ - CS6109173(By Kim Tae-Yong) Skipped PCIe link down check routines when the D3_ACK timeout happens to fix the kernel panic
+ - CS6302189(By Kim Tae-Yong) Blocked the PCIe bus access while Wi-Fi off path if the PCIe link down happened
+
+Security Patch
+ - CS6156404(By Kang Hyung Wook) SI-12974: Fixed to be not print out ndev pointer for security issue
+ - CS6189370(By Kang Hyung Wook) SI-12455: Added synchronization scheme for Monitor Mode IOVAR to avoid race condition
+ - CS6196908(By Kang Hyung Wook) SI-11983: Changed the SUBLOGLEVELZ definition to correct form to fix the security issue
+ - CS6198456(By Kang Hyung Wook) SI-13022: Fixed the out-of-the-bound read due to bcm_atoi() function
+ - CS6283529(By Kang Hyung Wook) SI-12921: Fixed out-of-bound access in the copy_hang_info_ioctl_timeout() function
+ - CS6428973(By Kang Hyung Wook) SI-12312: Fixed security issue not to print out g_dhd_pub pointer information
+ - V2018072201 Fixed OOB read in the wl_inform_single_bss() function
+ - V2018072202 Fixed OOB write in the wl_notify_sched_scan_results() function
+
+Others
+ - CS4962211(By HUSSAIN FAROOQ) Enabled WL_STATIC_IF only when P OS and 4361/4375 combinations
+ - CS5244412(By Choi Hyeonu) Changed PLATFORM_PATH due to Android P OS TREBLE policies
+ - CS5588941(By Choi Jongmin) Fixed kernel panic at WIFI off during WIFI sharing on Android P-OS
+ - CS5727963(By Choi Jongmin) Fixed for Android P OS SoftAP mac address issue
+ - CS5925628(By Choi Hyeonu) Removed CR and NULL characters in .mac.info file
+ - CS5969174(By Choi Hyeonu) Linux sysfs support for MAC Address operation
+ - CS6044799(By FAROOQ HUSSAIN) Fixed for framework hang recovery when MHS in operation
+ - CS6076163(By Hyeonu Choi) Removed unnecessary log message
+ - CS6096860(By Bang Haejung) Fixed invalid scan results in case of P2P scan abort
+ - CS6157209(By Kang Hyung Wook) Improved CLM and Blob version information log format
+ - CS6188893(By Choi Jongmin) Fixed for data Tx failure in AP+STA scenarios due to netif_queue control
+ - CS6223938(By Min Whoa Hong)  Fixed Prevent issues
+ - CS6301199(By SungBin Min) Skip pcie doorbell access in the case of PCIe link down
+ - Changed the location of the hidden SSID configuration to support Android P OS
+ - Enhanced debug logging for SMMU fault issue
+
+
+DHD 100.13.13 - 2018.08.31
+Others
+ - CS5615003(By Kim MinSoo)  Added PCie IRQ affinity interface and enable LB_TX by default
+
+
+DHD 100.13.12 - 2018.08.22
+Security Patch
+ - CS5188660(By Min SungBin) SI-11783: Fixed potential kernel panic from malicious message
+ - CS5368479(By Min SungBin) SI-12312: Hided pointer information
+ - CS5549090(By Min SungBin) SI-11784: Added the validation routine of ifidx variable to fix the security issue
+ - CS5550321(By Min SungBin) SI-11785: Added the boundary check routine for flowid to fix the security issue
+ - CS5844556(By Kang Hyung Wook) SI-12304: Hided wdev and ndev pointer information for security issue
+ - CS5844633(By Kang Hyung Wook) SI-12262: Changed the print format specifier to hide pointer information
+ - CS5844688(By Kang Hyung Wook) SI-12227: Fixed out of bounds read in dhd_get_memdump_info() function
+
+Others
+ - CS5287075(By Min Hyun-Ki) Supported to change TID of UDP frames for specific game application which has specific UID
+ - CS5395053(By Min SungBin) Added memory boundary check routine in dhdpcie_readshared() function
+ - CS5635953(By Choi Junsu) Added private command to set fixed bcn_li_dtim
+ - Fixed the potential memory leak in the dhd_trace_read_proc() function
+
+
+DHD 100.13.11 - 2018.06.26
+Kernel Panic
+ - CS5126440(By Kim Gwang Min) Restricted processing the remaining data when SMMU fault is triggered
+ - CS5301020(By Min SungBin) Added PCIe link down check routine while Wi-Fi power on
+ - CS5318818(By Min SungBin) Restricted race condition avoidance implementation for BME bit clear only for Wi-Fi power on case to avoid NOC error
+
+Security Patch
+ - CS5168121(By Kim Tae-Yong) Hide host memory address information for security
+ - CS5219404(By Choi Hyeonu) SI-12070: Fixed vulnerability issue due to NULL pointer dereference
+ - CS5262126(By Min SungBin) SI-11164: Fixed buffer overflow in handling PKTLOG_FILTER_ADD command
+ - CS5264403(By Min SungBin) SI-12150: Fixed out of bounds read in dhd_ioctl_process()
+ - CS5270298(By Kang Hyung Wook) CS5844595(By Kang Hyung Wook) SI-12140 SI-12268: Fixed not to print out wdev and netdev pointer
+ - CS5272148(By Kang Hyung Wook) SI-12126: Fixed buffer overflow when parsing MAC by file
+
+Others
+ - CS4227562(By Min SungBin) Changed ADPS Bad AP black list file path to "/data/misc/conn/"
+ - CS5212235(By Min SungBin) Fixed the race condition between BME bit clear at host and the Memory Read Request from dongle
+ - Changed EWP counters logic to support multiple version
+ - Cleared key length explicitly to prevent abnormal behavior
+ - Fixed boundary check for the number of flowring
+
+
+DHD 100.13.6 - 2018.06.05
+Kernel Panic
+ - CS5120366(By Jeong Min Cheol) SI-11983: Fixed potential buffer overflow due to sscanf
+
+Others
+ - CS4417297(By Jeong Min Cheol) Fixed vulnerability issue by repeated INTERFACE_CREATE command
+ - CS4996816(By Kim TaeYoung) Fixed prevent issue - INVALID_ASSIGNMENT warning
+ - Added virtual and physical address information log of BAR0/BAR1 to support PCIe related issue
+ - Changed EWP counters version to version #2 for 4361B2
+ - Disabled WPS state sync code until stabilized
+
+
+DHD 100.13.3 - 2018.05.18
+Others
+ - CS4227562(By SungBin Min) Supported a list of bad APs handling PS mode improperly
+ - CS4679906(By Yoon Jae Ho) Added to check MFP condition when enabling MFP
+ - CS4985606(By Kim MinSoo) Throughput enhancement in upload mode with HFS tool on Exynos 9810 platform
+ - CS4996816(By Kim Gwang Min) Fixed prevent issue(Possibility of memory leakage)
+ - Enhanced interface type setting even initial value was not set properly
+ - Fixed Certification issue for 5.2.16 PMK Caching Test
+
+
+DHD 100.10.246 - 2018.05.04
+Security Patch
+ - Changed length field to unsigned variable for TLV parsing code
+
+Others
+ - CS4795437(By Gu Ja Heon) Changed threshold for Exynos 9810 PCIe interrupt affinity
+ - Added error logs and changed the return value in ISR
+ - Fixed "Failed to cache disc result" failures in NAN COMMS test
+ - Fixed ARP iovar was blocked due to improper bus status check during RPM suspend
+ - Fixed devreset iovar error issue
+ - Fixed PCIe ring dump delay issue
+
+
+DHD 100.10.235 - 2018.04.20
+Major Issue
+ - CS4384271(By MinSoo Kim) Modified to select TSQ MULTIPLIER by kernel config
+   (CONFIG_WLAN_TSQ_MULTIPLIER should be defined on kernel defconfig to use TSQ MULTIPLIER feature)
+
+New Feature
+ - CS4628274(By Choi Junsu) Monitor mode support (Disabled RunTime PM and Enabled Scansuppress)
+ - First official NAN feature release
+
+Kernel Panic
+ - CS4854788(By Jeong Min Cheol) Moved the debug info prints to avoid the Kernel panic due to watchdog bark
+
+Others
+ - CS4555626(By Min SungBin) Added to check roaming condition on wl_cfg80211_get_station() function
+ - CS4596042(By Kwak Hogil) Changed EXCESS_PM_WAKE_EVENT interval time on suspend mode
+ - CS4725359(By Junsu Choi) Disabled android PNO feature
+ - CS4795437(By Gu Ja Heon) TPUT enhancement for Exynos 9810 Big Turbo feature
+ - CS4807325(By Min SungBin) Replaced country code to XZ ccode if ccode is an undefined country
+ - CS4865776(By Kim Tae-Yong) Decide FW/NVRAM/BLOB base location by referring PLATFORM_VERSION and ANDROID_VERSION together
+ - Added DHD_LOG_MEM macro for saving log to memory only (not print out to kernel message)
+ - Added dump code for all PCIe rings in debug_dump
+ - Added invalid flowid check routine
+ - Added PKT TAG size check in run time
+ - Dropped tx packet if it is larger than MAX_MTU_SZ(1600 bytes)
+ - Fixed Race condition between wl_cfg80211_add_if() and event_handler context
+ - Fixed wrong size buffer posting error after MFG FW loading (cleared monitor_enable flag in dhd_prot_init() )
+
+
+DHD 100.10.222 - 2018.03.30
+Security Patch
+ - CVE-2017-13292 V2018010201 Fixed buffer overflow in wl_get_assoc_ies() during assoc_info iovar results handling
+
+Note
+  - This is the initial version for Crown Project
+  - All code fixes till 100.11.4 in Star project are included in this version
+
+
