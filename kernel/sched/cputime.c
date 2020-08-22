@@ -151,10 +151,8 @@ void account_user_time(struct task_struct *p, cputime_t cputime,
 	/* Account for user time used */
 	acct_account_cputime(p);
 
-#ifdef CONFIG_CPU_FREQ_STAT
 	/* Account power usage for user time */
 	acct_update_power(p, cputime);
-#endif
 }
 
 /*
@@ -206,10 +204,8 @@ void __account_system_time(struct task_struct *p, cputime_t cputime,
 	/* Account for system time used */
 	acct_account_cputime(p);
 
-#ifdef CONFIG_CPU_FREQ_STAT
 	/* Account power usage for system time */
 	acct_update_power(p, cputime);
-#endif
 }
 
 /*
@@ -270,21 +266,21 @@ static __always_inline bool steal_account_process_tick(void)
 #ifdef CONFIG_PARAVIRT
 	if (static_key_false(&paravirt_steal_enabled)) {
 		u64 steal;
-		unsigned long steal_jiffies;
+		cputime_t steal_ct;
 
 		steal = paravirt_steal_clock(smp_processor_id());
 		steal -= this_rq()->prev_steal_time;
 
 		/*
-		 * steal is in nsecs but our caller is expecting steal
-		 * time in jiffies. Lets cast the result to jiffies
+		 * cputime_t may be less precise than nsecs (eg: if it's
+		 * based on jiffies). Lets cast the result to cputime
 		 * granularity and account the rest on the next rounds.
 		 */
-		steal_jiffies = nsecs_to_jiffies(steal);
-		this_rq()->prev_steal_time += jiffies_to_nsecs(steal_jiffies);
+		steal_ct = nsecs_to_cputime(steal);
+		this_rq()->prev_steal_time += cputime_to_nsecs(steal_ct);
 
-		account_steal_time(jiffies_to_cputime(steal_jiffies));
-		return steal_jiffies;
+		account_steal_time(steal_ct);
+		return steal_ct;
 	}
 #endif
 	return false;

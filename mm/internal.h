@@ -410,5 +410,7 @@ unsigned long reclaim_clean_pages_from_list(struct zone *zone,
 #define ALLOC_CPUSET		0x40 /* check for correct cpuset */
 #define ALLOC_CMA		0x80 /* allow allocations from CMA areas */
 #define ALLOC_FAIR		0x100 /* fair zone allocation */
+#define ALLOC_RBIN		0x200 /* allow allocations from RBIN areas */
 
+extern void test_and_set_mem_boost_timeout(void);
 #endif	/* __MM_INTERNAL_H */
