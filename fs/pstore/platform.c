@@ -411,7 +411,6 @@ static int pstore_write_buf_user_compat(enum pstore_type_id type,
 			       bool compressed, size_t size,
 			       struct pstore_info *psi)
 {
-	unsigned long flags = 0;
 	size_t i, bufsize = size;
 	long ret = 0;
 
@@ -419,7 +418,6 @@ static int pstore_write_buf_user_compat(enum pstore_type_id type,
 		return -EFAULT;
 	if (bufsize > psinfo->bufsize)
 		bufsize = psinfo->bufsize;
-	spin_lock_irqsave(&psinfo->buf_lock, flags);
 	for (i = 0; i < size; ) {
 		size_t c = min(size - i, bufsize);
 
@@ -430,11 +428,15 @@ static int pstore_write_buf_user_compat(enum pstore_type_id type,
 		}
 		ret = psi->write_buf(type, reason, id, part, psinfo->buf,
 				     compressed, c, psi);
+#ifdef CONFIG_EXYNOS_SNAPSHOT_HOOK_LOGGER
+		exynos_ss_hook_pmsg(psinfo->buf, c);
+#endif
+
 		if (unlikely(ret < 0))
 			break;
 		i += c;
 	}
-	spin_unlock_irqrestore(&psinfo->buf_lock, flags);
+
 	return unlikely(ret < 0) ? ret : size;
 }
 
@@ -462,8 +464,12 @@ int pstore_register(struct pstore_info *psi)
 
 	if (!psi->write)
 		psi->write = pstore_write_compat;
+#ifndef CONFIG_EXYNOS_SNAPSHOT_PSTORE
 	if (!psi->write_buf_user)
 		psi->write_buf_user = pstore_write_buf_user_compat;
+#else
+	psi->write_buf_user = pstore_write_buf_user_compat;
+#endif
 	psinfo = psi;
 	mutex_init(&psinfo->read_mutex);
 	spin_unlock(&pstore_lock);
