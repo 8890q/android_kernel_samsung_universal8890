@@ -37,36 +37,40 @@
 #include "include/circ_queue.h"
 #include "include/sipc5.h"
 
-#define DEBUG_MODEM_IF
+// #define DEBUG_MODEM_IF
 #ifdef DEBUG_MODEM_IF
-#if 1
-#define DEBUG_MODEM_IF_LINK_TX
-#endif
-#if 1
-#define DEBUG_MODEM_IF_LINK_RX
-#endif
-#if defined(DEBUG_MODEM_IF_LINK_TX) && defined(DEBUG_MODEM_IF_LINK_RX)
-#define DEBUG_MODEM_IF_LINK_HEADER
-#endif
+	#if 1
+		#define DEBUG_MODEM_IF_LINK_TX
+	#endif
 
-#if 0
-#define DEBUG_MODEM_IF_IODEV_TX
-#endif
-#if 0
-#define DEBUG_MODEM_IF_IODEV_RX
-#endif
+	#if 1
+		#define DEBUG_MODEM_IF_LINK_RX
+	#endif
 
-#if 0
-#define DEBUG_MODEM_IF_FLOW_CTRL
-#endif
+	#if defined(DEBUG_MODEM_IF_LINK_TX) && defined(DEBUG_MODEM_IF_LINK_RX)
+		#define DEBUG_MODEM_IF_LINK_HEADER
+	#endif
 
-#if 0
-#define DEBUG_MODEM_IF_PS_DATA
-#endif
-#if 0
-#define DEBUG_MODEM_IF_IP_DATA
-#endif
-#endif
+	#if 0
+		#define DEBUG_MODEM_IF_IODEV_TX
+	#endif
+
+	#if 0
+		#define DEBUG_MODEM_IF_IODEV_RX
+	#endif
+
+	#if 0
+		#define DEBUG_MODEM_IF_FLOW_CTRL
+	#endif
+
+	#if 0
+		#define DEBUG_MODEM_IF_PS_DATA
+	#endif
+
+	#if 0
+		#define DEBUG_MODEM_IF_IP_DATA
+	#endif
+#endif // DEBUG_MODEM_IF
 
 /*
 IOCTL commands
