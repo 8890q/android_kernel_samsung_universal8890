@@ -10,6 +10,8 @@
  * published by the Free Software Foundation.
  */
 
+#define SEC_TS_DEBUG 0
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/delay.h>
@@ -678,6 +680,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 
 					if (sponge[1] & SEC_TS_MODE_SPONGE_AOD) {
 						ts->scrub_id = SPONGE_EVENT_TYPE_AOD_DOUBLETAB;
+#if SEC_TS_DEBUG
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 						input_info(true, &ts->client->dev, "%s: aod: %d\n",
 								__func__, ts->scrub_id);
@@ -685,14 +688,17 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 						input_info(true, &ts->client->dev, "%s: aod: %d, %d, %d\n",
 								__func__, ts->scrub_id, ts->scrub_x, ts->scrub_y);
 #endif
+#endif
 					} else if (sponge[1] & SEC_TS_MODE_SPONGE_SINGLE_TAP) {
 						ts->scrub_id = SPONGE_EVENT_TYPE_SINGLE_TAP;
+#if SEC_TS_DEBUG
 #ifdef CONFIG_SAMSUNG_PRODUCT_SHIP
 						input_info(true, &ts->client->dev, "%s: singletap: %d\n",
 								__func__, ts->scrub_id);
 #else
 						input_info(true, &ts->client->dev, "%s: singletap: %d, %d, %d\n",
 								__func__, ts->scrub_id, ts->scrub_x, ts->scrub_y);
+#endif
 #endif
 					}
 				} else if (sponge[1] & SEC_TS_MODE_SPONGE_SPAY) {
@@ -926,6 +932,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 
 		}
 
+#if SEC_TS_DEBUG
 #if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		if (coordinate.action == SEC_TS_Coordinate_Action_Press)
 			input_info(true, &ts->client->dev,
@@ -956,6 +963,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 #endif
 			ts->coord[t_id].mcount = 0;
 		}
+#endif
 	} while(is_event_remain);
 	input_sync(ts->input_dev);
 }
