@@ -834,10 +834,6 @@ static void dump_orphan_list(struct super_block *sb, struct ext4_sb_info *sbi)
 		       inode->i_mode, inode->i_nlink,
 		       NEXT_ORPHAN(inode));
 	}
-#ifdef CONFIG_EXT4_FS_ENCRYPTION
-	if (EXT4_I(inode)->i_crypt_info)
-		ext4_free_encryption_info(inode, EXT4_I(inode)->i_crypt_info);
-#endif
 }
 
 static void ext4_put_super(struct super_block *sb)
