@@ -45,6 +45,10 @@
 #include <linux/cpu.h>
 #include <linux/pm_qos.h>
 
+#ifdef CONFIG_USB_NOTIFY_PROC_LOG
+#include <linux/usblog_proc_notify.h>
+#endif
+
 int irq_select_affinity_usr(unsigned int irq, struct cpumask *mask);
 
 static struct notifier_block rndis_notifier;
