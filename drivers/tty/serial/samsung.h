@@ -31,6 +31,7 @@ struct s3c24xx_uart_info {
 	unsigned long		tx_fifomask;
 	unsigned long		tx_fifoshift;
 	unsigned long		tx_fifofull;
+	unsigned int		rts_trig_shift;
 	unsigned int		def_clk_sel;
 	unsigned long		num_clks;
 	unsigned long		clksel_mask;
@@ -82,6 +83,13 @@ struct s3c24xx_uart_port {
 #define DOMAIN_TOP	0
 #define DOMAIN_AUD	1
 	u32				domain;
+	unsigned int			uart_panic_log;
+	struct pinctrl_state 	*uart_pinctrl_tx_dat;
+	struct pinctrl_state 	*uart_pinctrl_rts;
+	struct pinctrl_state 	*uart_pinctrl_default;
+	struct pinctrl *default_uart_pinctrl;
+	unsigned int		rts_control;
+	unsigned int		rts_trig_level;
 
 	/* reference to platform data */
 	struct s3c2410_uartcfg		*cfg;
@@ -92,6 +100,7 @@ struct s3c24xx_uart_port {
 	struct pm_qos_request		s3c24xx_uart_cpu_qos;
 	struct delayed_work		qos_work;
 
+	unsigned int			in_band_wakeup;
 	unsigned int dbg_mode;
 	unsigned int			uart_logging;
 	struct uart_local_buf		uart_local_buf;

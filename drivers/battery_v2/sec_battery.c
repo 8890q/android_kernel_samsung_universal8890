@@ -6273,6 +6273,11 @@ static int sec_bat_set_property(struct power_supply *psy,
 			}
 			sec_bat_set_charging_current(battery);
 			break;
+		case POWER_SUPPLY_EXT_PROP_HV_DISABLE:
+			pr_info("HV wired charging mode is %s\n", (val->intval == CH_MODE_AFC_DISABLE_VAL ? "Disabled" : "Enabled"));
+			sec_bat_set_current_event(battery, (val->intval == CH_MODE_AFC_DISABLE_VAL ?
+				SEC_BAT_CURRENT_EVENT_HV_DISABLE : 0), SEC_BAT_CURRENT_EVENT_HV_DISABLE);
+			break;
 		default:
 			return -EINVAL;
 		}
@@ -6874,15 +6879,20 @@ static void sec_bat_set_rp_current(struct sec_battery_info *battery, int cable_t
 {
 	if (battery->pdic_info.sink_status.rp_currentlvl > RP_CURRENT_LEVEL_DEFAULT && cable_type == SEC_BATTERY_CABLE_USB)
 		sec_bat_set_current_event(battery, 0, SEC_BAT_CURRENT_EVENT_USB_100MA);
-	if (battery->pdic_info.sink_status.rp_currentlvl == RP_CURRENT_LEVEL3)
-		sec_bat_change_default_current(battery, cable_type,
-			RP_CURRENT_RP3, battery->pdata->max_charging_current);
-	else if (battery->pdic_info.sink_status.rp_currentlvl == RP_CURRENT_LEVEL2)
+	if (battery->pdic_info.sink_status.rp_currentlvl == RP_CURRENT_LEVEL3) {
+		if (battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE)
+			sec_bat_change_default_current(battery, cable_type,
+				battery->pdata->default_input_current, battery->pdata->default_charging_current);
+		else
+			sec_bat_change_default_current(battery, cable_type,
+				RP_CURRENT_RP3, battery->pdata->max_charging_current);
+	} else if (battery->pdic_info.sink_status.rp_currentlvl == RP_CURRENT_LEVEL2) {
 		sec_bat_change_default_current(battery, cable_type,
 			RP_CURRENT_RP2, RP_CURRENT_RP2);
-	else if (cable_type == SEC_BATTERY_CABLE_USB)
+	} else if (cable_type == SEC_BATTERY_CABLE_USB) {
 		sec_bat_change_default_current(battery, cable_type,
 			RP_CURRENT_RP1, RP_CURRENT_RP1);
+	}
 
 	pr_info("%s:(%d)\n", __func__, battery->pdic_info.sink_status.rp_currentlvl);
 	battery->max_charge_power = 0;
@@ -6895,8 +6905,10 @@ static int make_pd_list(struct sec_battery_info *battery)
 	int i = 0, j = 0, min = 0, temp_voltage = 0, temp_current = 0, temp_index = 0;
 	int base_charge_power = 0, selected_pdo_voltage = 0, selected_pdo_num = 0;
 	int pd_list_index = 0;
+	int pd_charging_charge_power = battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE ?
+		battery->pdata->nv_charge_power : battery->pdata->pd_charging_charge_power;
 
-	for(base_charge_power = battery->pdata->pd_charging_charge_power * 1000;
+	for(base_charge_power = pd_charging_charge_power * 1000;
 	    base_charge_power >= 1000000; base_charge_power -= 1000000)
 	{
 		selected_pdo_voltage = battery->pdata->max_input_voltage + 1;
@@ -6984,9 +6996,11 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 		unsigned long action, void *data)
 {
 	const char *cmd;
-	int cable_type = SEC_BATTERY_CABLE_NONE, i = 0, current_pdo = 0;
 	struct sec_battery_info *battery =
 			container_of(nb, struct sec_battery_info, usb_typec_nb);
+	int cable_type = SEC_BATTERY_CABLE_NONE, i = 0, current_pdo = 0;
+	int pd_charging_charge_power = battery->current_event & SEC_BAT_CURRENT_EVENT_HV_DISABLE ?
+		battery->pdata->nv_charge_power : battery->pdata->pd_charging_charge_power;
 	CC_NOTI_ATTACH_TYPEDEF usb_typec_info = *(CC_NOTI_ATTACH_TYPEDEF *)data;
 
 	dev_info(battery->dev, "%s: action (%ld) dump(0x%01x, 0x%01x, 0x%02x, 0x%04x, 0x%04x, 0x%04x)\n",
@@ -7123,9 +7137,9 @@ static int usb_typec_handle_notification(struct notifier_block *nb,
 
 			if ((battery->pdic_info.sink_status.power_list[i].max_voltage *
 			     battery->pdic_info.sink_status.power_list[i].max_current) >
-			    (battery->pdata->pd_charging_charge_power * 1000)) {
+			    (pd_charging_charge_power * 1000)) {
 				battery->pdic_info.sink_status.power_list[i].max_current =
-					(battery->pdata->pd_charging_charge_power * 1000) /
+					(pd_charging_charge_power * 1000) /
 					battery->pdic_info.sink_status.power_list[i].max_voltage;
 
 				pr_info("%s: ->updated [%d], voltage : %d, current : %d, power : %d\n", __func__, i,
@@ -7549,6 +7563,9 @@ static int sec_bat_parse_dt(struct device *dev,
 		ret = of_property_read_u32(np, "default_charging_current", &charging_current);
 		ret = of_property_read_u32(np, "full_check_current_1st", &pdata->full_check_current_1st);
 		ret = of_property_read_u32(np, "full_check_current_2nd", &pdata->full_check_current_2nd);
+
+		pdata->default_input_current = input_current;
+		pdata->default_charging_current = charging_current;
 
 		pdata->charging_current =
 			kzalloc(sizeof(sec_charging_current_t) * SEC_BATTERY_CABLE_MAX,
@@ -8723,19 +8740,27 @@ static int sec_bat_parse_dt(struct device *dev,
 		pdata->pd_charging_charge_power = 15000;
 	}
 
+	ret = of_property_read_u32(np, "battery,nv_charge_power",
+			&pdata->nv_charge_power);
+	if (ret) {
+		pr_err("%s: nv_charge_power is Empty\n", __func__);
+		pdata->nv_charge_power =
+			SEC_INPUT_VOLTAGE_5V * pdata->default_input_current;
+	}
+
 	pr_info("%s: vendor : %s, technology : %d, cable_check_type : %d\n"
 		"cable_source_type : %d, event_waiting_time : %d\n"
 		"polling_type : %d, initial_count : %d, check_count : %d\n"
 		"check_adc_max : %d, check_adc_min : %d\n"
 		"ovp_uvlo_check_type : %d, thermal_source : %d\n"
-		"temp_check_type : %d, temp_check_count : %d\n",
+		"temp_check_type : %d, temp_check_count : %d, nv_charge_power : %d\n",
 		__func__,
 		pdata->vendor, pdata->technology,pdata->cable_check_type,
 		pdata->cable_source_type, pdata->event_waiting_time,
 		pdata->polling_type, pdata->monitor_initial_count,
 		pdata->check_count, pdata->check_adc_max, pdata->check_adc_min,
 		pdata->ovp_uvlo_check_type, pdata->thermal_source,
-		pdata->temp_check_type, pdata->temp_check_count);
+		pdata->temp_check_type, pdata->temp_check_count, pdata->nv_charge_power);
 #if defined(CONFIG_SEC_FACTORY)
 	ret = of_property_read_u32(np, "battery,factory_store_mode_max",
 		&pdata->store_mode_max);
@@ -9010,6 +9035,13 @@ static int sec_battery_probe(struct platform_device *pdev)
 		sleep_mode = true;
 	else
 		sleep_mode = false;
+
+	/* Check High Voltage charging option for wired charging */
+	if (get_afc_mode() == CH_MODE_AFC_DISABLE_VAL) {
+		pr_info("HV wired charging mode is disabled\n");
+		sec_bat_set_current_event(battery,
+			SEC_BAT_CURRENT_EVENT_HV_DISABLE, SEC_BAT_CURRENT_EVENT_HV_DISABLE);
+	}
 
 #if defined(CONFIG_BATTERY_SBM_DATA)
 	battery->sbm_data = false;
