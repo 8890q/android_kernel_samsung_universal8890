@@ -58,6 +58,7 @@ enum power_supply_ext_property {
 	POWER_SUPPLY_EXT_PROP_WATER_DETECT,
 	POWER_SUPPLY_EXT_PROP_SURGE,
 	POWER_SUPPLY_EXT_PROP_SUB_PBA_TEMP_REC,
+	POWER_SUPPLY_EXT_PROP_HV_DISABLE,
 };
 
 enum sec_battery_usb_conf {
@@ -860,6 +861,9 @@ struct sec_battery_platform_data {
 	int pre_afc_work_delay;
 	int pre_wc_afc_work_delay;
 
+	int default_input_current;
+	int default_charging_current;
+
 	sec_charger_functions_t chg_functions_setting;
 
 	bool fake_capacity;
@@ -881,6 +885,7 @@ struct sec_battery_platform_data {
 	unsigned int full_check_current_2nd;
 
 	unsigned int pd_charging_charge_power;
+	unsigned int nv_charge_power;
 
 	unsigned int expired_time;
 	unsigned int recharging_expired_time;
