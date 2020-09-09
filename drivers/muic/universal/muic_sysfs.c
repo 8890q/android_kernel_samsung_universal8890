@@ -55,6 +55,10 @@
 #include "muic_ccic.h"
 #endif
 
+#if defined(CONFIG_MUIC_HV) || defined(CONFIG_SUPPORT_QC30)
+#include "../../battery_v2/include/sec_charging_common.h"
+#endif
+
 static int muic_resolve_attached_dev(muic_data_t *pmuic)
 {
 #if defined(CONFIG_MUIC_SUPPORT_CCIC)
@@ -504,6 +508,9 @@ static ssize_t muic_set_afc_disable(struct device *dev,
 	struct muic_platform_data *pdata = pmuic->pdata;
 	bool curr_val = pdata->afc_disable;
 	int param_val, ret = 0;
+#if defined(CONFIG_MUIC_HV) || defined(CONFIG_SUPPORT_QC30)
+	union power_supply_propval psy_val;
+#endif
 
 	/* Disable AFC */
 	if (!strncasecmp(buf, "1", 1))
@@ -531,6 +538,12 @@ static ssize_t muic_set_afc_disable(struct device *dev,
 #endif
 	pr_info("%s:%s afc_disable:%d (AFC %s)\n", MUIC_DEV_NAME, __func__,
 		pdata->afc_disable, pdata->afc_disable ? "Disabled": "Enabled");
+
+#if defined(CONFIG_MUIC_HV) || defined(CONFIG_SUPPORT_QC30)
+	psy_val.intval = param_val;
+	psy_do_property("battery", set,
+		POWER_SUPPLY_EXT_PROP_HV_DISABLE, psy_val);
+#endif
 
 	/* for factory self charging test (AFC-> NORMAL TA) */
 	if (pmuic->is_factory_start) {
