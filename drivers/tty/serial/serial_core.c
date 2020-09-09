@@ -144,7 +144,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 		int init_hw)
 {
 	struct uart_port *uport = state->uart_port;
-	unsigned long page;
+	void *addr;
 	int retval = 0;
 
 	if (uport->type == PORT_UNKNOWN)
@@ -161,11 +161,11 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 	 */
 	if (!state->xmit.buf) {
 		/* This is protected by the per port mutex */
-		page = get_zeroed_page(GFP_KERNEL);
-		if (!page)
+		addr = alloc_pages_exact(PAGE_SIZE * 4, GFP_KERNEL|__GFP_ZERO);
+		if (!addr)
 			return -ENOMEM;
 
-		state->xmit.buf = (unsigned char *) page;
+		state->xmit.buf = (unsigned char *) addr;
 		uart_circ_clear(&state->xmit);
 	}
 
@@ -285,7 +285,7 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 	 * Free the transmit buffer page.
 	 */
 	if (state->xmit.buf) {
-		free_page((unsigned long)state->xmit.buf);
+		free_pages_exact((void *)state->xmit.buf, PAGE_SIZE * 4);
 		state->xmit.buf = NULL;
 	}
 }
