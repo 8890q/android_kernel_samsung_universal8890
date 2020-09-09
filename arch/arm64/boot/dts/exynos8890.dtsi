@@ -629,12 +629,15 @@
 	serial_1: uart@14C20000 {
 		compatible = "samsung,exynos-uart";
 		samsung,separate-uart-clk;
+		samsung,rts-trig-level = <1>;
+		samsung,rts-gpio-control;
 		reg = <0x0 0x14C20000 0x100>;
 		samsung,fifo-size = <256>;
 		interrupts = <0 432 0>;
-		pinctrl-names = "btdefault", "btsleep";
-		pinctrl-0 = <&uart1_default>;
-		pinctrl-1 = <&uart1_btsleep>;
+		pinctrl-names = "default", "rts", "tx_dat";
+		pinctrl-0 = <&uart1_bus>;
+		pinctrl-1 = <&uart1_bus_rts &uart1_bus_tx_con>;
+		pinctrl-2 = <&uart1_bus_tx_dat>;
 		clocks = <&clock 258>, <&clock 263>, <&clock 263>;
 		clock-names = "gate_pclk1", "gate_uart1", "sclk_uart1";
 		status = "okay";
