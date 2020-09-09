@@ -1712,7 +1712,7 @@ static ssize_t front_camera_hw_param_store(struct device *dev,
 	return count;
 }
 
-#ifdef CONFIG_MODEL_GRACELTE
+#if defined(CONFIG_MODEL_GRACELTE) || defined(CONFIG_MODEL_GRACELTEKOR)
 static ssize_t iris_camera_hw_param_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
@@ -1829,7 +1829,7 @@ static DEVICE_ATTR(rear_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				rear_camera_hw_param_show, rear_camera_hw_param_store);
 static DEVICE_ATTR(front_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				front_camera_hw_param_show, front_camera_hw_param_store);
-#ifdef CONFIG_MODEL_GRACELTE
+#if defined(CONFIG_MODEL_GRACELTE) || defined(CONFIG_MODEL_GRACELTEKOR)
 static DEVICE_ATTR(iris_hwparam, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH,
 				iris_camera_hw_param_show, iris_camera_hw_param_store);
 #endif
