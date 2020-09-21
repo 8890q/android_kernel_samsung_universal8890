@@ -199,6 +199,15 @@ static ssize_t camera_secure_sensorid_show(struct device *dev,
 static DEVICE_ATTR(secure_sensorid, S_IRUGO, camera_secure_sensorid_show, NULL);
 #endif
 
+#ifdef CONFIG_FAKE_SECURE_CAMERA_USE
+static ssize_t camera_secure_sensorid_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "\n");
+}
+static DEVICE_ATTR(secure_sensorid, S_IRUGO, camera_secure_sensorid_show, NULL);
+#endif
+
 static int fimc_is_get_sensor_data(struct device *dev, char *maker, char *name, int position)
 {
 	struct fimc_is_core *core;
