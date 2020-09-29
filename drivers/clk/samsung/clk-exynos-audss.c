@@ -90,7 +90,7 @@ static int exynos_audss_clk_probe(struct platform_device *pdev)
 	match = of_match_node(exynos_audss_clk_of_match, pdev->dev.of_node);
 	if (!match)
 		return -EINVAL;
-	variant = (enum exynos_audss_clk_type)match->data;
+	variant = (enum exynos_audss_clk_type)(long)match->data;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	reg_base = devm_ioremap_resource(&pdev->dev, res);
