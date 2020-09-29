@@ -278,7 +278,7 @@ enum iod_rx_state {
 	MAX_IOD_RX_STATE
 };
 
-static const char const *rx_state_string[] = {
+static const char *rx_state_string[] = {
 	[IOD_RX_ON_STANDBY]	= "RX_ON_STANDBY",
 	[IOD_RX_HEADER]		= "RX_HEADER",
 	[IOD_RX_PAYLOAD]	= "RX_PAYLOAD",
