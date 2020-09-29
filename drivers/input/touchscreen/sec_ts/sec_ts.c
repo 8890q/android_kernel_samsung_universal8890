@@ -750,7 +750,7 @@ static void sec_ts_read_event(struct sec_ts_data *ts)
 				coordinate.palm = (coordinate.ttype == SEC_TS_TOUCHTYPE_PALM) ? 1 : 0;
 
 				if ((t_id == SEC_TS_EVENTID_HOVER) && coordinate.ttype == SEC_TS_TOUCHTYPE_PROXIMITY) {
-					if ((coordinate.action == SEC_TS_Coordinate_Action_Release)) {
+					if (coordinate.action == SEC_TS_Coordinate_Action_Release) {
 						input_mt_slot(ts->input_dev, 0);
 						input_mt_report_slot_state(ts->input_dev, MT_TOOL_FINGER, false);
 						input_dbg(true, &ts->client->dev,
