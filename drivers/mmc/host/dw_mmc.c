@@ -245,7 +245,7 @@ static void dw_mci_debug_cmd_log(struct mmc_command *cmd, struct dw_mci *host,
 
 		cmd_log[count].done_time = 0x0;
 		cmd_log[count].seq_status = DW_MCI_FLAG_SEND_CMD;
-		if (!flags & DW_MCI_FLAG_SEND_CMD)
+		if (!(flags & DW_MCI_FLAG_SEND_CMD))
 			cmd_log[count].seq_status |= DW_MCI_FLAG_NEW_CMD_ERR;
 
 		cmd_log[count].rint_sts = 0x0;
