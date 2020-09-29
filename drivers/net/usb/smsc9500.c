@@ -3436,7 +3436,7 @@ static int smsc9500_rx_fixup(struct usbnet *dev, struct sk_buff *skb)
 
 		}
 
-		if ((size == skb->len)) {
+		if (size == skb->len) {
 			if (adapterData->UseRxCsum) {
 				u16 wHwCsum;
 #ifdef NET_SKBUFF_DATA_USES_OFFSET
@@ -4653,8 +4653,6 @@ static u16 CalculateCrc16(const BYTE * bpData,const u32 dwLen, const BOOLEAN fBi
 	BYTE bCurrentByte;
 	u16 wNumOfBits = 16U;
 	u16 wCrcOut=0;
-
-	wNumOfBits = wNumOfBits; // to avoid lint warning
 
 	for (i=0; i<(u16)dwLen; i++)
 	{
