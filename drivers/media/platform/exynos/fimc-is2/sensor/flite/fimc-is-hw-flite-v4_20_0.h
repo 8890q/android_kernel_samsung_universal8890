@@ -109,7 +109,7 @@
 
 /* BNS */
 #define FLITE_REG_BINNINGON				(0x120)
-#define FLITE_REG_BINNINGON_CLKGATE_ON(x)		(~(x) << 1)
+#define FLITE_REG_BINNINGON_CLKGATE_ON(x)		(!(x) << 1)
 #define FLITE_REG_BINNINGON_EN(x)			((x) << 0)
 
 #define FLITE_REG_BINNINGCTRL				(0x124)
