@@ -365,8 +365,8 @@ static int ecryptfs_update_crypt_flag(struct dentry *dentry, enum sdp_op operati
      * To update metadata we need to make sure keysig_list contains fekek.
      * Because our EDEK is stored along with key for protected file.
      */
-    if(list_empty(&crypt_stat->keysig_list))
-        ecryptfs_dek_copy_mount_wide_sigs_to_inode_sigs(crypt_stat, mount_crypt_stat);
+	if (list_empty(&crypt_stat->keysig_list))
+		ecryptfs_dek_copy_mount_wide_sigs_to_inode_sigs(crypt_stat, mount_crypt_stat);
 
 	mutex_lock(&crypt_stat->cs_mutex);
 	rc = ecryptfs_get_lower_file(dentry, inode);
