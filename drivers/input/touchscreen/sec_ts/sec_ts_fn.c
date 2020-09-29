@@ -533,7 +533,7 @@ static ssize_t cmd_store(struct device *dev, struct device_attribute *attr,
 			input_err(true, &ts->client->dev,
 						"[cmd is delayed] %d, param = %d, %d\n", __LINE__, buf[17] - '0', buf[19] - '0');
 			ts->delayed_cmd_param[0] = buf[17] - '0';
-			if (ts->delayed_cmd_param[0] > 1)
+				if (ts->delayed_cmd_param[0] > 1)
 				ts->delayed_cmd_param[1] = buf[19]-'0';
 				schedule_delayed_work(&ts->cover_cmd_work, msecs_to_jiffies(10));
 		}
