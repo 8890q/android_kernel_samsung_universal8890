@@ -3762,7 +3762,7 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 			WL_PKT_FILTER_FIXED_LEN + WL_PKT_FILTER_PATTERN_FIXED_LEN);
 	} else if ((pkt_filter.type == 2) || (pkt_filter.type == 6)) {
 		int list_cnt = 0;
-		char *endptr = '\0';
+		char *endptr = NULL;
 		wl_pkt_filter_pattern_listel_t *pf_el =
 			(wl_pkt_filter_pattern_listel_t *)&pkt_filterp->u.patlist.patterns[0];
 
@@ -3836,7 +3836,7 @@ dhd_pktfilter_offload_set(dhd_pub_t * dhd, char *arg)
 					htod16(WL_PKT_FILTER_MFLAG_NEG);
 				(argv[i])++;
 			}
-			if (argv[i] == '\0') {
+			if (argv[i] == NULL) {
 				printf("Pattern not provided\n");
 				goto fail;
 			}
