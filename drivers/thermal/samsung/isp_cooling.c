@@ -304,11 +304,11 @@ static int isp_set_cur_state(struct thermal_cooling_device *cdev,
 	return isp_apply_cooling(isp_device, state);
 }
 
-static enum tmu_noti_state_t isp_tstate = ISP_COLD;
+static enum isp_noti_state_t isp_tstate = ISP_COLD;
 
 int isp_set_cur_temp(bool suspended, unsigned long temp)
 {
-	enum tmu_noti_state_t tstate;
+	enum isp_noti_state_t tstate;
 
 	if (suspended || temp < EXYNOS_COLD_TEMP)
 		tstate = ISP_COLD;
