@@ -823,8 +823,8 @@ static ssize_t show_sysfs_bbd_pl(struct device *dev, struct device_attribute *at
 static ssize_t store_sysfs_lk_timeout(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
 {
 	int status = kstrtol(buf, 0, &bbd.lk.timeout_sec);
-    if(bbd.lk.timeout_sec < 10)
-        bbd.lk.timeout_sec = 10; //base timeout 10sec
+	if(bbd.lk.timeout_sec < 10)
+        	bbd.lk.timeout_sec = 10; //base timeout 10sec
 	return status ? : len;
 }
 static ssize_t show_sysfs_lk_timeout(struct device *dev, struct device_attribute *attr, char *buf)
