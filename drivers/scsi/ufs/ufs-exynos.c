@@ -1875,7 +1875,7 @@ static int exynos_ufs_link_startup_notify(struct ufs_hba *hba, bool notify)
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	int ret = 0;
 
-	switch (notify) {
+	switch ((int) notify) {
 	case PRE_CHANGE:
 		exynos_ufs_enable_io_coherency(ufs);
 		exynos_ufs_dev_hw_reset(hba);
@@ -1897,7 +1897,7 @@ static int exynos_ufs_pwr_change_notify(struct ufs_hba *hba, bool notify,
 {
 	int ret = 0;
 
-	switch (notify) {
+	switch ((int) notify) {
 	case PRE_CHANGE:
 		ret = exynos_ufs_pre_prep_pmc(hba, pwr_max, pwr_req);
 		break;
@@ -1914,7 +1914,7 @@ static int exynos_ufs_pwr_change_notify(struct ufs_hba *hba, bool notify,
 static void exynos_ufs_hibern8_notify(struct ufs_hba *hba,
 				u8 enter, int notify)
 {
-	switch (notify) {
+	switch ((int) notify) {
 	case PRE_CHANGE:
 		exynos_ufs_pre_hibern8(hba, enter);
 		break;
@@ -1931,7 +1931,7 @@ static void exynos_ufs_clock_control_notify(struct ufs_hba *hba, bool on, bool n
 	struct exynos_ufs *ufs = to_exynos_ufs(hba);
 	s32 pm_qos_int_value = ufs->pm_qos_int_value;
 
-	switch (notify) {
+	switch ((int) notify) {
 	case PRE_CHANGE:
 		if (on) {
 #ifdef CONFIG_CPU_IDLE
