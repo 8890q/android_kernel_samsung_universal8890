@@ -549,7 +549,7 @@ exit:
 #endif
 }
 
-static void debug_timer_func(unsigned long ptr)
+static void __maybe_unused debug_timer_func(unsigned long ptr)
 {
 	struct ssp_data *data = (struct ssp_data *)ptr;
 
