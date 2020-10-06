@@ -729,7 +729,7 @@ wl_cfgp2p_init_discovery(struct bcm_cfg80211 *cfg)
 	 * so that time, the ifidx returned in WLC_E_IF should be used for populating
 	 * the netinfo
 	 */
-	ret = wl_alloc_netinfo(cfg, NULL, cfg->p2p_wdev, WL_MODE_BSS, 0, bssidx, 0);
+	ret = wl_alloc_netinfo(cfg, NULL, cfg->p2p_wdev, WL_IF_TYPE_STA, 0, bssidx, 0);
 	if (unlikely(ret)) {
 		goto exit;
 	}

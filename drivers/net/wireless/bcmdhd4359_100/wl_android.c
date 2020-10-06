@@ -6270,7 +6270,7 @@ wl_android_get_lqcm_report(struct net_device *dev, char *command, int total_len)
 {
 	int bytes_written, err = 0;
 	uint32 lqcm_report = 0;
-	uint32 lqcm_enable, tx_lqcm_idx, rx_lqcm_idx;
+	uint32 lqcm_enable = 0, tx_lqcm_idx = 0, rx_lqcm_idx = 0;
 
 	err = wldev_iovar_getint(dev, "lqcm", &lqcm_report);
 	if (err != BCME_OK) {
@@ -8484,8 +8484,10 @@ wl_genl_send_msg(
 	int pid = 0;
 	u8 *ptr = NULL, *p = NULL;
 	u32 tot_len = sizeof(bcm_event_hdr_t) + subhdr_len + len;
-	u16 kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
+	gfp_t kflags;
 	struct bcm_cfg80211 *cfg = wl_get_cfg(ndev);
+
+	kflags = in_atomic() ? GFP_ATOMIC : GFP_KERNEL;
 
 	WL_DBG(("Enter \n"));
 

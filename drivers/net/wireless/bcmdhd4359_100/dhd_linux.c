@@ -6647,7 +6647,7 @@ dhd_ethtool(dhd_info_t *dhd, void *uaddr)
 		/* Copy out any request driver name */
 		if (copy_from_user(&info, uaddr, sizeof(info)))
 			return -EFAULT;
-		strncpy(drvname, info.driver, sizeof(info.driver));
+		memcpy(drvname, info.driver, sizeof(info.driver));
 		drvname[sizeof(info.driver)-1] = '\0';
 
 		/* clear struct for return */
@@ -9417,7 +9417,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 		len = strlen(if_name);
 		ch = if_name[len - 1];
 		if ((ch > '9' || ch < '0') && (len < IFNAMSIZ - 2))
-			strncat(if_name, "%d", 2);
+			strcat(if_name, "%d");
 	}
 
 	/* Passing NULL to dngl_name to ensure host gets if_name in dngl_name member */
@@ -10044,7 +10044,7 @@ bool dhd_update_fw_nv_path(dhd_info_t *dhdinfo)
 				uint32 padding_size = (uint32)(dhdinfo->nv_path +
 					nv_path_len - sp);
 				memset(sp, 0, padding_size);
-				strncat(dhdinfo->nv_path, ext_tag, strlen(ext_tag));
+				strlcat(dhdinfo->nv_path, ext_tag, padding_size);
 				nv_len = strlen(dhdinfo->nv_path);
 				DHD_INFO(("%s: new nvram path = %s\n",
 					__FUNCTION__, dhdinfo->nv_path));
@@ -19312,7 +19312,7 @@ int custom_rps_map_set(struct netdev_rx_queue *queue, char *buf, size_t len)
 	}
 
 	map = kzalloc(max_t(unsigned int,
-		(unsigned int)RPS_MAP_SIZE(cpumask_weight(mask)), L1_CACHE_BYTES),
+		RPS_MAP_SIZE(cpumask_weight(mask)), L1_CACHE_BYTES),
 		GFP_KERNEL);
 	if (!map) {
 		free_cpumask_var(mask);
