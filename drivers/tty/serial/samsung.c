@@ -1913,9 +1913,10 @@ static ssize_t s3c24xx_serial_bt_log(struct file *file, char __user *userbuf, si
 
 		copied_bytes = 0;
 
-        if (port && port->state->pm_state == UART_PM_STATE_ON)
+        if (port && port->state->pm_state == UART_PM_STATE_ON) {
     		s3c24xx_print_reg_status(ourport);
 		return 0;
+		}
 	}
 
 	if (copied_bytes + bytes < LOG_BUFFER_SIZE) {
