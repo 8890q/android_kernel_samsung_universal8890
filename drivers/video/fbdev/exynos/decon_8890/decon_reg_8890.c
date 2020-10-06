@@ -1831,9 +1831,10 @@ void decon_reg_set_int(u32 id, struct decon_mode_info *psr, u32 en)
 #else	/* OS always use Vstatus Interrupt irrespective of operating mode */
 	if (en) {
 		val = INTERRUPT_INT_EN | INTERRUPT_FIFO_LEVEL_INT_EN | INTERRUPT_RESOURCE_CONFLICT_INT_EN | INTERRUPT_DPU0_INT_EN | INTERRUPT_DPU1_INT_EN;
-		if (psr->psr_mode == DECON_MIPI_COMMAND_MODE)
+		if (psr->psr_mode == DECON_MIPI_COMMAND_MODE) {
 			val |= INTERRUPT_FRAME_DONE_INT_EN;
 			val |= INTERRUPT_DISPIF_VSTATUS_INT_EN | INTERRUPT_DISPIF_VSTATUS_VSA;
+		}
 		decon_write_mask(id, INTERRUPT_ENABLE, val, ~0);
 	} else {
 		decon_write_mask(id, INTERRUPT_ENABLE, 0, INTERRUPT_INT_EN);
