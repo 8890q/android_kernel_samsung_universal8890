@@ -213,6 +213,8 @@ struct ffs_data {
 	/* ids in stringtabs are set in functionfs_bind() */
 	const void			*raw_strings;
 	struct usb_gadget_strings	**stringtabs;
+	struct usb_gadget_strings	*stringtab;
+	struct usb_string		*strings;
 
 	/*
 	 * File system's super block, write once when file system is
@@ -262,7 +264,11 @@ struct ffs_function {
 
 	struct ffs_ep			*eps;
 	u8				eps_revmap[16];
+	struct usb_descriptor_header	**fs_descs;
+	struct usb_descriptor_header	**hs_descs;
+	struct usb_descriptor_header	**ss_descs;
 	short				*interfaces_nums;
+	char				*raw_descs;
 
 	struct usb_function		function;
 };
@@ -1350,6 +1356,8 @@ static void ffs_data_clear(struct ffs_data *ffs)
 	kfree(ffs->raw_descs_data);
 	kfree(ffs->raw_strings);
 	kfree(ffs->stringtabs);
+	kfree(ffs->stringtab);
+	kfree(ffs->strings);
 }
 
 static void ffs_data_reset(struct ffs_data *ffs)
@@ -1363,6 +1371,8 @@ static void ffs_data_reset(struct ffs_data *ffs)
 	ffs->raw_descs = NULL;
 	ffs->raw_strings = NULL;
 	ffs->stringtabs = NULL;
+	ffs->stringtab = NULL;
+	ffs->strings = NULL;
 
 	ffs->raw_descs_length = 0;
 	ffs->fs_descs_count = 0;
@@ -1536,12 +1546,12 @@ static void ffs_func_free(struct ffs_function *func)
 	ffs_data_put(func->ffs);
 
 	kfree(func->eps);
-	/*
-	 * eps and interfaces_nums are allocated in the same chunk so
-	 * only one free is required.  Descriptors are also allocated
-	 * in the same chunk.
-	 */
 
+	kfree(func->fs_descs);
+	kfree(func->hs_descs);
+	kfree(func->ss_descs);
+	kfree(func->interfaces_nums);
+	kfree(func->raw_descs);
 	kfree(func);
 }
 
@@ -1940,8 +1950,9 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 				  char *const _data, size_t len)
 {
 	u32 str_count, needed_count, lang_count;
-	struct usb_gadget_strings **stringtabs, *t;
-	struct usb_string *strings, *s;
+	struct usb_gadget_strings *t, **stringtabs = NULL;
+	struct usb_gadget_strings *stringtab = NULL;
+	struct usb_string *s, *strings = NULL;
 	const char *data = _data;
 
 	ENTER();
@@ -1970,33 +1981,35 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 		return 0;
 	}
 
-	/* Allocate everything in one chunk so there's less maintenance. */
 	{
-		struct {
-			struct usb_gadget_strings *stringtabs[lang_count + 1];
-			struct usb_gadget_strings stringtab[lang_count];
-			struct usb_string strings[lang_count*(needed_count+1)];
-		} *d;
 		unsigned i = 0;
 
-		d = kmalloc(sizeof *d, GFP_KERNEL);
-		if (unlikely(!d)) {
+		struct usb_gadget_strings **b;
+
+		stringtabs = kmalloc(sizeof(*stringtabs)*(lang_count + 1),
+			GFP_KERNEL);
+		stringtab = kmalloc(sizeof(*stringtab)*(lang_count),
+			GFP_KERNEL);
+		strings = kmalloc(sizeof(*strings)
+			* (lang_count * (needed_count + 1)), GFP_KERNEL);
+		if (unlikely(!stringtabs || !stringtab || !strings)) {
+			kfree(stringtabs);
+			kfree(stringtab);
+			kfree(strings);
 			kfree(_data);
 			return -ENOMEM;
 		}
 
-		stringtabs = d->stringtabs;
-		t = d->stringtab;
+		b = stringtabs;
+		t = stringtab;
 		i = lang_count;
 		do {
-			*stringtabs++ = t++;
+			*b++ = t++;
 		} while (--i);
-		*stringtabs = NULL;
+		*b = NULL;
 
-		stringtabs = d->stringtabs;
-		t = d->stringtab;
-		s = d->strings;
-		strings = s;
+		t = stringtab;
+		s = strings;
 	}
 
 	/* For each language */
@@ -2054,12 +2067,16 @@ static int __ffs_data_got_strings(struct ffs_data *ffs,
 
 	/* Done! */
 	ffs->stringtabs = stringtabs;
+	ffs->stringtab = stringtab;
+	ffs->strings = strings;
 	ffs->raw_strings = _data;
 
 	return 0;
 
 error_free:
 	kfree(stringtabs);
+	kfree(stringtab);
+	kfree(strings);
 error:
 	kfree(_data);
 	return -EINVAL;
@@ -2279,18 +2296,12 @@ static int ffs_func_bind(struct usb_configuration *c,
 
 	int fs_len, hs_len, ret;
 
-	/* Make it a single chunk, less management later on */
-	struct {
-		struct ffs_ep eps[ffs->eps_count];
-		struct usb_descriptor_header
-			*fs_descs[full ? ffs->fs_descs_count + 1 : 0];
-		struct usb_descriptor_header
-			*hs_descs[high ? ffs->hs_descs_count + 1 : 0];
-		struct usb_descriptor_header
-			*ss_descs[super ? ffs->ss_descs_count + 1 : 0];
-		short inums[ffs->interfaces_count];
-		char raw_descs[ffs->raw_descs_length];
-	} *data;
+	struct ffs_ep *eps = NULL;
+	struct usb_descriptor_header **fs_descs = NULL;
+	struct usb_descriptor_header **hs_descs = NULL;
+	struct usb_descriptor_header **ss_descs = NULL;
+	short *inums = NULL;
+	char *raw_descs = NULL;
 
 	ENTER();
 
@@ -2299,23 +2310,46 @@ static int ffs_func_bind(struct usb_configuration *c,
 		return -ENOTSUPP;
 
 	/* Allocate */
-	data = kmalloc(sizeof *data, GFP_KERNEL);
-	if (unlikely(!data))
+	size_t eps_sz = sizeof(*eps)*ffs->eps_count;
+	eps = kmalloc(eps_sz, GFP_KERNEL);
+	fs_descs = kmalloc(sizeof(*fs_descs)*
+			    (full ? ffs->fs_descs_count + 1 : 0), GFP_KERNEL);
+	hs_descs = kmalloc(sizeof(*hs_descs)*
+			     (high ? ffs->hs_descs_count + 1 : 0), GFP_KERNEL);
+	ss_descs = kmalloc(sizeof(*ss_descs)*
+			      (super ? ffs->ss_descs_count + 1 : 0), GFP_KERNEL);
+	size_t inums_sz = sizeof(*inums)*ffs->interfaces_count;
+	inums = kmalloc(inums_sz, GFP_KERNEL);
+	size_t raw_descs_sz = sizeof(*raw_descs)*(ffs->raw_descs_length);
+	raw_descs = kmalloc(raw_descs_sz, GFP_KERNEL);
+
+	if (unlikely(!eps || !fs_descs || !hs_descs || !ss_descs || !inums || !raw_descs)) {
+		kfree(eps);
+		kfree(fs_descs);
+		kfree(hs_descs);
+		kfree(ss_descs);
+		kfree(inums);
+		kfree(raw_descs);
 		return -ENOMEM;
+	}
 
 	/* Zero */
-	memset(data->eps, 0, sizeof data->eps);
+	memset(eps, 0, eps_sz);
 	/* Copy descriptors */
-	memcpy(data->raw_descs, ffs->raw_descs,
+	memcpy(raw_descs, ffs->raw_descs,
 	       ffs->raw_descs_length);
 
-	memset(data->inums, 0xff, sizeof data->inums);
+	memset(inums, 0xff, inums_sz);
 	for (ret = ffs->eps_count; ret; --ret)
-		data->eps[ret].num = -1;
+		eps[ret].num = -1;
 
 	/* Save pointers */
-	func->eps             = data->eps;
-	func->interfaces_nums = data->inums;
+	func->eps             = eps;
+	func->fs_descs        = fs_descs;
+	func->hs_descs        = hs_descs;
+	func->ss_descs        = ss_descs;
+	func->interfaces_nums = inums;
+	func->raw_descs       = raw_descs;
 
 	/*
 	 * Go through all the endpoint descriptors and allocate
@@ -2323,10 +2357,10 @@ static int ffs_func_bind(struct usb_configuration *c,
 	 * numbers without worrying that it may be described later on.
 	 */
 	if (likely(full)) {
-		func->function.fs_descriptors = data->fs_descs;
+		func->function.fs_descriptors = fs_descs;
 		fs_len = ffs_do_descs(ffs->fs_descs_count,
-				      data->raw_descs,
-				      sizeof data->raw_descs,
+				      raw_descs,
+				      raw_descs_sz,
 				      __ffs_func_bind_do_descs, func);
 		if (unlikely(fs_len < 0)) {
 			ret = fs_len;
@@ -2337,10 +2371,10 @@ static int ffs_func_bind(struct usb_configuration *c,
 	}
 
 	if (likely(high)) {
-		func->function.hs_descriptors = data->hs_descs;
+		func->function.hs_descriptors = hs_descs;
 		hs_len = ffs_do_descs(ffs->hs_descs_count,
-				      data->raw_descs + fs_len,
-				      (sizeof data->raw_descs) - fs_len,
+				      raw_descs + fs_len,
+				      raw_descs_sz - fs_len,
 				      __ffs_func_bind_do_descs, func);
 		if (unlikely(hs_len < 0)) {
 			ret = hs_len;
@@ -2351,10 +2385,10 @@ static int ffs_func_bind(struct usb_configuration *c,
 	}
 
 	if (likely(super)) {
-		func->function.ss_descriptors = data->ss_descs;
+		func->function.ss_descriptors = ss_descs;
 		ret = ffs_do_descs(ffs->ss_descs_count,
-				data->raw_descs + fs_len + hs_len,
-				(sizeof data->raw_descs) - fs_len - hs_len,
+				raw_descs + fs_len + hs_len,
+				raw_descs_sz - fs_len - hs_len,
 				__ffs_func_bind_do_descs, func);
 		if (unlikely(ret < 0))
 			goto error;
@@ -2368,7 +2402,7 @@ static int ffs_func_bind(struct usb_configuration *c,
 	ret = ffs_do_descs(ffs->fs_descs_count +
 			   (high ? ffs->hs_descs_count : 0) +
 			   (super ? ffs->ss_descs_count : 0),
-			   data->raw_descs, sizeof data->raw_descs,
+			   raw_descs, raw_descs_sz,
 			   __ffs_func_bind_do_nums, func);
 	if (unlikely(ret < 0))
 		goto error;
@@ -2379,7 +2413,6 @@ static int ffs_func_bind(struct usb_configuration *c,
 
 error:
 	/* XXX Do we need to release all claimed endpoints here? */
-	kfree(data);
 	return ret;
 }
 
