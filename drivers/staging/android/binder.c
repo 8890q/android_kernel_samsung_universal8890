@@ -799,24 +799,6 @@ static bool binder_worklist_empty_ilocked(struct list_head *list)
 	return list_empty(list);
 }
 
-/**
- * binder_worklist_empty() - Check if no items on the work list
- * @proc:       binder_proc associated with list
- * @list:	list to check
- *
- * Return: true if there are no items on list, else false
- */
-static bool binder_worklist_empty(struct binder_proc *proc,
-				  struct list_head *list)
-{
-	bool ret;
-
-	binder_inner_proc_lock(proc);
-	ret = binder_worklist_empty_ilocked(list);
-	binder_inner_proc_unlock(proc);
-	return ret;
-}
-
 static void
 binder_enqueue_work_ilocked(struct binder_work *work,
 			   struct list_head *target_list)
