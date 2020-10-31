@@ -3526,7 +3526,7 @@ _dhd_pno_get_batch_handler(struct work_struct *work)
 	}
 }
 
-int
+noinline int
 dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason)
 {
 	int err = BCME_OK;

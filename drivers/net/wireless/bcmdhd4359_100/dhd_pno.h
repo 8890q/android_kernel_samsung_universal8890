@@ -526,7 +526,7 @@ extern int dhd_pno_set_for_ssid(dhd_pub_t *dhd, wlc_ssid_ext_t* ssid_list, int n
 
 extern int dhd_pno_set_for_batch(dhd_pub_t *dhd, struct dhd_pno_batch_params *batch_params);
 
-extern int dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason);
+extern noinline int dhd_pno_get_for_batch(dhd_pub_t *dhd, char *buf, int bufsize, int reason);
 
 extern int dhd_pno_stop_for_batch(dhd_pub_t *dhd);
 
