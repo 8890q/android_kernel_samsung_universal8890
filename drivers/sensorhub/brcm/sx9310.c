@@ -151,7 +151,7 @@ static int check_hallic_state(char *file_path, unsigned char hall_ic_status[])
 	if (iRet != sizeof(hall_sysfs)) {
 		iRet = -EIO;
 	} else {
-		strncpy(hall_ic_status, hall_sysfs, sizeof(hall_sysfs));
+		strncpy(hall_ic_status, hall_sysfs, sizeof(*hall_sysfs));
 	}
 
 	filp_close(filep, current->files);
