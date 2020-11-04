@@ -893,6 +893,8 @@ exynos_thermal_sensor_temp(struct device *dev,
 			name = "GPU";
 		else if(devnode->pdata->d_type == ISP)
 			name = "ISP";
+		else
+			return len;
 		len += snprintf(&buf[len], PAGE_SIZE,"sensor%d[%s] : %d\n",
 			i, name, exynos_tmu_read(devnode) * MCELSIUS);
 		i++;
