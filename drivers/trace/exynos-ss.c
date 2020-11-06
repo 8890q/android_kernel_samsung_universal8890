@@ -51,8 +51,9 @@
 #include <asm/smp_plat.h>
 #include <soc/samsung/exynos-pmu.h>
 
-#ifdef CONFIG_SEC_DEBUG
 #include <linux/sec_debug.h>
+
+#ifdef CONFIG_SEC_DEBUG
 #include <linux/sec_debug_hard_reset_hook.h>
 
 extern void (*mach_restart)(char mode, const char *cmd);
