@@ -6377,7 +6377,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 				POWER_SUPPLY_PROP_VOLTAGE_NOW, value);
 		battery->voltage_now = value.intval;
-		dev_err(battery->dev,
+		dev_dbg(battery->dev,
 			"%s: voltage now(%d)\n", __func__, battery->voltage_now);
 #endif
 		/* voltage value should be in uV */
@@ -6389,7 +6389,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 		psy_do_property(battery->pdata->fuelgauge_name, get,
 				POWER_SUPPLY_PROP_VOLTAGE_AVG, value);
 		battery->voltage_avg = value.intval;
-		dev_err(battery->dev,
+		dev_dbg(battery->dev,
 			"%s: voltage avg(%d)\n", __func__, battery->voltage_avg);
 #endif
 		/* voltage value should be in uV */

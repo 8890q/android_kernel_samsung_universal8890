@@ -10,7 +10,7 @@
  * published by the Free Software Foundation.
  */
 
-#define DEBUG
+/* #define DEBUG */
 /* #define BATTERY_LOG_MESSAGE */
 
 #include <linux/mfd/max77854-private.h>
