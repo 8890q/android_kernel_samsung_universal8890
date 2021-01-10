@@ -246,7 +246,7 @@ uart_error_cnt_show(struct device *dev, struct device_attribute *attr, char *buf
 	return ret;
 }
 
-static DEVICE_ATTR(error_cnt, 0664, uart_error_cnt_show, NULL);
+static DEVICE_ATTR(error_cnt, S_IRUGO, uart_error_cnt_show, NULL);
 
 struct proc_dir_entry *bluetooth_dir, *bt_log_dir;
 static void uart_copy_to_local_buf(int dir, struct uart_local_buf *local_buf,
