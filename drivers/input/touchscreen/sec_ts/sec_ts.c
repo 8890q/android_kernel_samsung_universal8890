@@ -2166,20 +2166,6 @@ static int sec_ts_set_lowpowermode(struct sec_ts_data *ts, u8 mode)
 		if (ret < 0)
 			input_err(true, &ts->client->dev, "%s: Failed to write mode\n", __func__);
 
-		if (ts->lowpower_flag & SEC_TS_MODE_SPONGE_AOD) {
-			u8 aod_rect[10] = {0x02, 0};
-
-			/* Clear AOD_RECT */
-			input_info(true, &ts->client->dev, "%s: clear aod_rect\n", __func__);
-			ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_WRITE_PARAM, &aod_rect[0], 10);
-			if (ret < 0)
-				input_err(true, &ts->client->dev, "%s: Failed to write offset\n", __func__);
-
-			ret = ts->sec_ts_i2c_write(ts, SEC_TS_CMD_SPONGE_NOTIFY_PACKET, NULL, 0);
-			if (ret < 0)
-				input_err(true, &ts->client->dev, "%s: Failed to send notify\n", __func__);
-		}
-
 		input_info(true, &ts->client->dev, "%s set lowpower flag:%d lowpower_data:%d\n", __func__,
 			ts->lowpower_flag, lowpower_data);
 	}
