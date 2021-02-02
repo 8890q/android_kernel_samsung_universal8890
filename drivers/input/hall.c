@@ -185,7 +185,7 @@ static void flip_cover_work(struct work_struct *work)
 	if(first == second) {
 		flip_cover = first;
 
-		input_report_switch(ddata->input, ddata->event_val, flip_cover);
+		input_report_switch(ddata->input, ddata->event_val, !flip_cover);
 		input_sync(ddata->input);
 
 #ifdef CONFIG_V_HALL_FOLDING
@@ -223,7 +223,7 @@ static void flip_cover_work(struct work_struct *work)
 	printk("[keys] hall ic reported value: %d (%s)\n",
 		flip_cover, flip_cover?"open":"close");
 
-	input_report_switch(ddata->input, ddata->event_val, flip_cover);
+	input_report_switch(ddata->input, ddata->event_val, !flip_cover);
 	input_sync(ddata->input);
 out:
 	hall_close(ddata->input);
@@ -259,7 +259,7 @@ static void flip_cover_work(struct work_struct *work)
 
 	flip_cover = first;
 
-	input_report_switch(ddata->input, ddata->event_val, flip_cover);
+	input_report_switch(ddata->input, ddata->event_val, !flip_cover);
 	input_sync(ddata->input);
 
 #ifdef CONFIG_V_HALL_FOLDING
@@ -615,7 +615,7 @@ static int hall_resume(struct device *dev)
 	bool status;
 
 	printk("%s start\n", __func__);
-	status = gpio_get_value(ddata->gpio_flip_cover);
+	status = !gpio_get_value(ddata->gpio_flip_cover);
 	printk("[keys] %s flip_status : %d (%s)\n", __func__, status, status?"open":"close");
 	input_sync(input);
 /* WorkAround for Hall IRQ Noise problem in connect to GGSM band */
