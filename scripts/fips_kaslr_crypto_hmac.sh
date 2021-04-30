@@ -253,7 +253,7 @@ fi
 
 #start patching vmlinux with static patcher, temporary put it here 
 rm -f kaslr_fips
-$HOSTCC -o kaslr_fips  $srctree/scripts/kaslr_fips.c
+$HOSTCC $HOSTCFLAGS -o kaslr_fips $srctree/scripts/kaslr_fips.c
 retval=$?
 if [ $retval -ne 0 ]; then
 	echo "$0 : $HOSTCC returned error"
@@ -261,7 +261,7 @@ if [ $retval -ne 0 ]; then
 fi
 
 rm -f fips_crypto_utils
-$HOSTCC -o fips_crypto_utils $srctree/scripts/fips_crypto_utils.c
+$HOSTCC $HOSTCFLAGS -o fips_crypto_utils $srctree/scripts/fips_crypto_utils.c
 retval=$?
 if [ $retval -ne 0 ]; then
 	echo "$0 : $HOSTCC returned error"
@@ -269,7 +269,7 @@ if [ $retval -ne 0 ]; then
 fi
 
 rm -f fips_fmp_utils
-$HOSTCC -o fips_fmp_utils $srctree/scripts/fips_fmp_utils.c
+$HOSTCC $HOSTCFLAGS -o fips_fmp_utils $srctree/scripts/fips_fmp_utils.c
 retval=$?
 if [ $retval -ne 0 ]; then
 	echo "$0 : $HOSTCC returned error"
