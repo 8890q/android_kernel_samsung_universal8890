@@ -28,6 +28,7 @@
 #include <linux/workqueue.h>
 #include <linux/hyperv.h>
 
+#include "hyperv_vmbus.h"
 
 /*
  * Pre win8 version numbers used in ws2008 and ws 2008 r2 (win7)
@@ -655,7 +656,6 @@ void hv_kvp_onchannelcallback(void *context)
 			 */
 
 			kvp_transaction.recv_len = recvlen;
-			kvp_transaction.recv_channel = channel;
 			kvp_transaction.recv_req_id = requestid;
 			kvp_transaction.active = true;
 			kvp_transaction.kvp_msg = kvp_msg;
@@ -670,7 +670,8 @@ void hv_kvp_onchannelcallback(void *context)
 			 * user-mode not responding.
 			 */
 			schedule_work(&kvp_sendkey_work);
-			schedule_delayed_work(&kvp_work, 5*HZ);
+			schedule_delayed_work(&kvp_work,
+					      HV_UTIL_TIMEOUT * HZ);
 
 			return;
 
@@ -695,6 +696,7 @@ hv_kvp_init(struct hv_util_service *srv)
 	if (err)
 		return err;
 	recv_buffer = srv->recv_buffer;
+	kvp_transaction.recv_channel = srv->channel;
 
 	/*
 	 * When this driver loads, the user level daemon that

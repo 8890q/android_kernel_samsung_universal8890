@@ -73,6 +73,7 @@
 #include <net/icmp.h>
 #include <net/checksum.h>
 #include <net/inetpeer.h>
+#include <net/inet_ecn.h>
 #include <linux/igmp.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/netfilter_bridge.h>
@@ -97,6 +98,9 @@ int __ip_local_out(struct sk_buff *skb)
 
 	iph->tot_len = htons(skb->len);
 	ip_send_check(iph);
+
+	skb->protocol = htons(ETH_P_IP);
+
 	return nf_hook(NFPROTO_IPV4, NF_INET_LOCAL_OUT, skb, NULL,
 		       skb_dst(skb)->dev, dst_output);
 }
@@ -148,7 +152,7 @@ int ip_build_and_send_pkt(struct sk_buff *skb, struct sock *sk,
 	iph->daddr    = (opt && opt->opt.srr ? opt->opt.faddr : daddr);
 	iph->saddr    = saddr;
 	iph->protocol = sk->sk_protocol;
-	ip_select_ident(skb, sk);
+	ip_select_ident(sock_net(sk), skb, sk);
 
 	if (opt && opt->opt.optlen) {
 		iph->ihl += opt->opt.optlen>>2;
@@ -230,6 +234,7 @@ static int ip_finish_output_gso(struct sk_buff *skb)
 	 * from host network stack.
 	 */
 	features = netif_skb_features(skb);
+	BUILD_BUG_ON(sizeof(*IPCB(skb)) > SKB_SGO_CB_OFFSET);
 	segs = skb_gso_segment(skb, features & ~NETIF_F_GSO_MASK);
 	if (IS_ERR_OR_NULL(segs)) {
 		kfree_skb(skb);
@@ -430,7 +435,8 @@ packet_routed:
 		ip_options_build(skb, &inet_opt->opt, inet->inet_daddr, rt, 0);
 	}
 
-	ip_select_ident_segs(skb, sk, skb_shinfo(skb)->gso_segs ?: 1);
+	ip_select_ident_segs(sock_net(sk), skb, sk,
+			     skb_shinfo(skb)->gso_segs ?: 1);
 
 	/* TODO : should we use skb->sk here instead of sk ? */
 	skb->priority = sk->sk_priority;
@@ -454,10 +460,13 @@ static void ip_copy_metadata(struct sk_buff *to, struct sk_buff *from)
 	to->pkt_type = from->pkt_type;
 	to->priority = from->priority;
 	to->protocol = from->protocol;
+	to->skb_iif = from->skb_iif;
 	skb_dst_drop(to);
 	skb_dst_copy(to, from);
 	to->dev = from->dev;
 	to->mark = from->mark;
+
+	skb_copy_hash(to, from);
 
 	/* Copy the flags to each fragment. */
 	IPCB(to)->flags = IPCB(from)->flags;
@@ -893,7 +902,7 @@ static int __ip_append_data(struct sock *sk,
 	    (skb_queue_len(queue) <= 1) &&
 	    (sk->sk_protocol == IPPROTO_UDP) &&
 	    (rt->dst.dev->features & NETIF_F_UFO) && !rt->dst.header_len &&
-	    (sk->sk_type == SOCK_DGRAM))) {
+	    (sk->sk_type == SOCK_DGRAM) && !sk->sk_no_check_tx)) {
 		err = ip_ufo_append_data(sk, queue, getfrag, from, length,
 					 hh_len, fragheaderlen, transhdrlen,
 					 maxfraglen, flags);
@@ -1028,7 +1037,8 @@ alloc_new_skb:
 		if (copy > length)
 			copy = length;
 
-		if (!(rt->dst.dev->features&NETIF_F_SG)) {
+		if (!(rt->dst.dev->features&NETIF_F_SG) &&
+		    skb_tailroom(skb) >= copy) {
 			unsigned int off;
 
 			off = skb->len;
@@ -1107,13 +1117,17 @@ static int ip_setup_cork(struct sock *sk, struct inet_cork *cork,
 	rt = *rtp;
 	if (unlikely(!rt))
 		return -EFAULT;
-	/*
-	 * We steal reference to this route, caller should not release it
-	 */
-	*rtp = NULL;
+
 	cork->fragsize = ip_sk_use_pmtu(sk) ?
-			 dst_mtu(&rt->dst) : rt->dst.dev->mtu;
+			 dst_mtu(&rt->dst) : READ_ONCE(rt->dst.dev->mtu);
+
+	if (!inetdev_valid_mtu(cork->fragsize))
+		return -ENETUNREACH;
+
 	cork->dst = &rt->dst;
+	/* We stole this route, caller should not release it. */
+	*rtp = NULL;
+
 	cork->length = 0;
 	cork->ttl = ipc->ttl;
 	cork->tos = ipc->tos;
@@ -1207,14 +1221,17 @@ ssize_t	ip_append_page(struct sock *sk, struct flowi4 *fl4, struct page *page,
 	if ((skb = skb_peek_tail(&sk->sk_write_queue)) == NULL)
 		return -EINVAL;
 
-	cork->length += size;
 	if ((size + skb->len > mtu) &&
 	    (skb_queue_len(&sk->sk_write_queue) == 1) &&
 	    (sk->sk_protocol == IPPROTO_UDP) &&
 	    (rt->dst.dev->features & NETIF_F_UFO)) {
+		if (skb->ip_summed != CHECKSUM_PARTIAL)
+			return -EOPNOTSUPP;
+
 		skb_shinfo(skb)->gso_size = mtu - fragheaderlen;
 		skb_shinfo(skb)->gso_type = SKB_GSO_UDP;
 	}
+	cork->length += size;
 
 
 	while (size > 0) {
@@ -1387,7 +1404,7 @@ struct sk_buff *__ip_make_skb(struct sock *sk,
 	iph->ttl = ttl;
 	iph->protocol = sk->sk_protocol;
 	ip_copy_addrs(iph, fl4);
-	ip_select_ident(skb, sk);
+	ip_select_ident(net, skb, sk);
 
 	if (opt) {
 		iph->ihl += opt->optlen>>2;
@@ -1554,7 +1571,7 @@ void ip_send_unicast_reply(struct sock *sk, struct sk_buff *skb,
 	if (IS_ERR(rt))
 		return;
 
-	inet_sk(sk)->tos = arg->tos;
+	inet_sk(sk)->tos = arg->tos & ~INET_ECN_MASK;
 
 	sk->sk_priority = skb->priority;
 	sk->sk_protocol = ip_hdr(skb)->protocol;

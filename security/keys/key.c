@@ -260,8 +260,8 @@ struct key *key_alloc(struct key_type *type, const char *desc,
 
 		spin_lock(&user->lock);
 		if (!(flags & KEY_ALLOC_QUOTA_OVERRUN)) {
-			if (user->qnkeys + 1 >= maxkeys ||
-			    user->qnbytes + quotalen >= maxbytes ||
+			if (user->qnkeys + 1 > maxkeys ||
+			    user->qnbytes + quotalen > maxbytes ||
 			    user->qnbytes + quotalen < user->qnbytes)
 				goto no_quota;
 		}
@@ -378,7 +378,7 @@ int key_payload_reserve(struct key *key, size_t datalen)
 		spin_lock(&key->user->lock);
 
 		if (delta > 0 &&
-		    (key->user->qnbytes + delta >= maxbytes ||
+		    (key->user->qnbytes + delta > maxbytes ||
 		     key->user->qnbytes + delta < key->user->qnbytes)) {
 			ret = -EDQUOT;
 		}
@@ -396,6 +396,18 @@ int key_payload_reserve(struct key *key, size_t datalen)
 	return ret;
 }
 EXPORT_SYMBOL(key_payload_reserve);
+
+/*
+ * Change the key state to being instantiated.
+ */
+static void mark_key_instantiated(struct key *key, int reject_error)
+{
+	/* Commit the payload before setting the state; barrier versus
+	 * key_read_state().
+	 */
+	smp_store_release(&key->state,
+			  (reject_error < 0) ? reject_error : KEY_IS_POSITIVE);
+}
 
 /*
  * Instantiate a key and link it into the target keyring atomically.  Must be
@@ -420,14 +432,14 @@ static int __key_instantiate_and_link(struct key *key,
 	mutex_lock(&key_construction_mutex);
 
 	/* can't instantiate twice */
-	if (!test_bit(KEY_FLAG_INSTANTIATED, &key->flags)) {
+	if (key->state == KEY_IS_UNINSTANTIATED) {
 		/* instantiate the key */
 		ret = key->type->instantiate(key, prep);
 
 		if (ret == 0) {
 			/* mark the key as being instantiated */
 			atomic_inc(&key->user->nikeys);
-			set_bit(KEY_FLAG_INSTANTIATED, &key->flags);
+			mark_key_instantiated(key, 0);
 
 			if (test_and_clear_bit(KEY_FLAG_USER_CONSTRUCT, &key->flags))
 				awaken = 1;
@@ -555,13 +567,10 @@ int key_reject_and_link(struct key *key,
 	mutex_lock(&key_construction_mutex);
 
 	/* can't instantiate twice */
-	if (!test_bit(KEY_FLAG_INSTANTIATED, &key->flags)) {
+	if (key->state == KEY_IS_UNINSTANTIATED) {
 		/* mark the key as being negatively instantiated */
 		atomic_inc(&key->user->nikeys);
-		key->type_data.reject_error = -error;
-		smp_wmb();
-		set_bit(KEY_FLAG_NEGATIVE, &key->flags);
-		set_bit(KEY_FLAG_INSTANTIATED, &key->flags);
+		mark_key_instantiated(key, -error);
 		now = current_kernel_time();
 		key->expiry = now.tv_sec + timeout;
 		key_schedule_gc(key->expiry + key_gc_delay);
@@ -733,8 +742,8 @@ static inline key_ref_t __key_update(key_ref_t key_ref,
 
 	ret = key->type->update(key, prep);
 	if (ret == 0)
-		/* updating a negative key instantiates it */
-		clear_bit(KEY_FLAG_NEGATIVE, &key->flags);
+		/* Updating a negative key positively instantiates it */
+		mark_key_instantiated(key, 0);
 
 	up_write(&key->sem);
 
@@ -969,8 +978,8 @@ int key_update(key_ref_t key_ref, const void *payload, size_t plen)
 
 	ret = key->type->update(key, &prep);
 	if (ret == 0)
-		/* updating a negative key instantiates it */
-		clear_bit(KEY_FLAG_NEGATIVE, &key->flags);
+		/* Updating a negative key positively instantiates it */
+		mark_key_instantiated(key, 0);
 
 	up_write(&key->sem);
 

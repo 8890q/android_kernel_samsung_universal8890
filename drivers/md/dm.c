@@ -1964,7 +1964,7 @@ requeued:
 	spin_lock(q->queue_lock);
 
 delay_and_out:
-	blk_delay_queue(q, HZ / 10);
+	blk_delay_queue(q, 10);
 out:
 	dm_put_live_table(md, srcu_idx);
 }
@@ -2583,30 +2583,34 @@ EXPORT_SYMBOL_GPL(dm_device_name);
 
 static void __dm_destroy(struct mapped_device *md, bool wait)
 {
+	struct request_queue *q = dm_get_md_queue(md);
 	struct dm_table *map;
 	int srcu_idx;
 
 	might_sleep();
 
 	spin_lock(&_minor_lock);
-	map = dm_get_live_table(md, &srcu_idx);
 	idr_replace(&_minor_idr, MINOR_ALLOCED, MINOR(disk_devt(dm_disk(md))));
 	set_bit(DMF_FREEING, &md->flags);
 	spin_unlock(&_minor_lock);
+
+	spin_lock_irq(q->queue_lock);
+	queue_flag_set(QUEUE_FLAG_DYING, q);
+	spin_unlock_irq(q->queue_lock);
 
 	/*
 	 * Take suspend_lock so that presuspend and postsuspend methods
 	 * do not race with internal suspend.
 	 */
 	mutex_lock(&md->suspend_lock);
+	map = dm_get_live_table(md, &srcu_idx);
 	if (!dm_suspended_md(md)) {
 		dm_table_presuspend_targets(map);
 		dm_table_postsuspend_targets(map);
 	}
-	mutex_unlock(&md->suspend_lock);
-
 	/* dm_put_live_table must be before msleep, otherwise deadlock is possible */
 	dm_put_live_table(md, srcu_idx);
+	mutex_unlock(&md->suspend_lock);
 
 	/*
 	 * Rare, but there may be I/O requests still going to complete,

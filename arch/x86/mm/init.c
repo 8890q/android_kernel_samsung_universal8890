@@ -27,6 +27,35 @@
 
 #include "mm_internal.h"
 
+/*
+ * Tables translating between page_cache_type_t and pte encoding.
+ * Minimal supported modes are defined statically, modified if more supported
+ * cache modes are available.
+ * Index into __cachemode2pte_tbl is the cachemode.
+ * Index into __pte2cachemode_tbl are the caching attribute bits of the pte
+ * (_PAGE_PWT, _PAGE_PCD, _PAGE_PAT) at index bit positions 0, 1, 2.
+ */
+uint16_t __cachemode2pte_tbl[_PAGE_CACHE_MODE_NUM] = {
+	[_PAGE_CACHE_MODE_WB]		= 0,
+	[_PAGE_CACHE_MODE_WC]		= _PAGE_PWT,
+	[_PAGE_CACHE_MODE_UC_MINUS]	= _PAGE_PCD,
+	[_PAGE_CACHE_MODE_UC]		= _PAGE_PCD | _PAGE_PWT,
+	[_PAGE_CACHE_MODE_WT]		= _PAGE_PCD,
+	[_PAGE_CACHE_MODE_WP]		= _PAGE_PCD,
+};
+EXPORT_SYMBOL_GPL(__cachemode2pte_tbl);
+uint8_t __pte2cachemode_tbl[8] = {
+	[__pte2cm_idx(0)] = _PAGE_CACHE_MODE_WB,
+	[__pte2cm_idx(_PAGE_PWT)] = _PAGE_CACHE_MODE_WC,
+	[__pte2cm_idx(_PAGE_PCD)] = _PAGE_CACHE_MODE_UC_MINUS,
+	[__pte2cm_idx(_PAGE_PWT | _PAGE_PCD)] = _PAGE_CACHE_MODE_UC,
+	[__pte2cm_idx(_PAGE_PAT)] = _PAGE_CACHE_MODE_WB,
+	[__pte2cm_idx(_PAGE_PWT | _PAGE_PAT)] = _PAGE_CACHE_MODE_WC,
+	[__pte2cm_idx(_PAGE_PCD | _PAGE_PAT)] = _PAGE_CACHE_MODE_UC_MINUS,
+	[__pte2cm_idx(_PAGE_PWT | _PAGE_PCD | _PAGE_PAT)] = _PAGE_CACHE_MODE_UC,
+};
+EXPORT_SYMBOL_GPL(__pte2cachemode_tbl);
+
 static unsigned long __initdata pgt_buf_start;
 static unsigned long __initdata pgt_buf_end;
 static unsigned long __initdata pgt_buf_top;
@@ -71,8 +100,6 @@ __ref void *alloc_low_pages(unsigned int num)
 	} else {
 		pfn = pgt_buf_end;
 		pgt_buf_end += num;
-		printk(KERN_DEBUG "BRK [%#010lx, %#010lx] PGTABLE\n",
-			pfn << PAGE_SHIFT, (pgt_buf_end << PAGE_SHIFT) - 1);
 	}
 
 	for (i = 0; i < num; i++) {
@@ -714,4 +741,4 @@ DEFINE_PER_CPU_SHARED_ALIGNED(struct tlb_state, cpu_tlbstate) = {
 #endif
 	.cr4 = ~0UL,	/* fail hard if we screw up cr4 shadow initialization */
 };
-EXPORT_SYMBOL_GPL(cpu_tlbstate);
+EXPORT_PER_CPU_SYMBOL(cpu_tlbstate);

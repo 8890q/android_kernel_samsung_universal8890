@@ -130,7 +130,7 @@ static int stmmac_mdio_write(struct mii_bus *bus, int phyaddr, int phyreg,
  */
 int stmmac_mdio_reset(struct mii_bus *bus)
 {
-#if defined(CONFIG_STMMAC_PLATFORM)
+#if IS_ENABLED(CONFIG_STMMAC_PLATFORM)
 	struct net_device *ndev = bus->priv;
 	struct stmmac_priv *priv = netdev_priv(ndev);
 	unsigned int mii_address = priv->hw->mii.addr;
@@ -159,7 +159,7 @@ int stmmac_mdio_reset(struct mii_bus *bus)
 		reset_gpio = data->reset_gpio;
 		active_low = data->active_low;
 
-		if (!gpio_request(reset_gpio, "mdio-reset")) {
+		if (!devm_gpio_request(priv->device, reset_gpio, "mdio-reset")) {
 			gpio_direction_output(reset_gpio, active_low ? 1 : 0);
 			udelay(data->delays[0]);
 			gpio_set_value(reset_gpio, active_low ? 0 : 1);

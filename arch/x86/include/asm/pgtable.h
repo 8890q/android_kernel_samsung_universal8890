@@ -145,19 +145,34 @@ static inline int pte_special(pte_t pte)
 		(pte_flags(pte) & (_PAGE_PRESENT|_PAGE_PROTNONE));
 }
 
+/* Entries that were set to PROT_NONE are inverted */
+
+static inline u64 protnone_mask(u64 val);
+
 static inline unsigned long pte_pfn(pte_t pte)
 {
-	return (pte_val(pte) & PTE_PFN_MASK) >> PAGE_SHIFT;
+	phys_addr_t pfn = pte_val(pte);
+	pfn ^= protnone_mask(pfn);
+	return (pfn & PTE_PFN_MASK) >> PAGE_SHIFT;
 }
 
 static inline unsigned long pmd_pfn(pmd_t pmd)
 {
-	return (pmd_val(pmd) & PTE_PFN_MASK) >> PAGE_SHIFT;
+	phys_addr_t pfn = pmd_val(pmd);
+	pfn ^= protnone_mask(pfn);
+	return (pfn & pmd_pfn_mask(pmd)) >> PAGE_SHIFT;
 }
 
 static inline unsigned long pud_pfn(pud_t pud)
 {
-	return (pud_val(pud) & PTE_PFN_MASK) >> PAGE_SHIFT;
+	phys_addr_t pfn = pud_val(pud);
+	pfn ^= protnone_mask(pfn);
+	return (pfn & pud_pfn_mask(pud)) >> PAGE_SHIFT;
+}
+
+static inline unsigned long pgd_pfn(pgd_t pgd)
+{
+	return (pgd_val(pgd) & PTE_PFN_MASK) >> PAGE_SHIFT;
 }
 
 #define pte_page(pte)	pfn_to_page(pte_pfn(pte))
@@ -302,11 +317,6 @@ static inline pmd_t pmd_mkwrite(pmd_t pmd)
 	return pmd_set_flags(pmd, _PAGE_RW);
 }
 
-static inline pmd_t pmd_mknotpresent(pmd_t pmd)
-{
-	return pmd_clear_flags(pmd, _PAGE_PRESENT);
-}
-
 #ifdef CONFIG_HAVE_ARCH_SOFT_DIRTY
 static inline int pte_soft_dirty(pte_t pte)
 {
@@ -361,19 +371,31 @@ static inline pgprotval_t massage_pgprot(pgprot_t pgprot)
 
 static inline pte_t pfn_pte(unsigned long page_nr, pgprot_t pgprot)
 {
-	return __pte(((phys_addr_t)page_nr << PAGE_SHIFT) |
-		     massage_pgprot(pgprot));
+	phys_addr_t pfn = (phys_addr_t)page_nr << PAGE_SHIFT;
+	pfn ^= protnone_mask(pgprot_val(pgprot));
+	pfn &= PTE_PFN_MASK;
+	return __pte(pfn | massage_pgprot(pgprot));
 }
 
 static inline pmd_t pfn_pmd(unsigned long page_nr, pgprot_t pgprot)
 {
-	return __pmd(((phys_addr_t)page_nr << PAGE_SHIFT) |
-		     massage_pgprot(pgprot));
+	phys_addr_t pfn = (phys_addr_t)page_nr << PAGE_SHIFT;
+	pfn ^= protnone_mask(pgprot_val(pgprot));
+	pfn &= PHYSICAL_PMD_PAGE_MASK;
+	return __pmd(pfn | massage_pgprot(pgprot));
 }
+
+static inline pmd_t pmd_mknotpresent(pmd_t pmd)
+{
+	return pfn_pmd(pmd_pfn(pmd),
+		       __pgprot(pmd_flags(pmd) & ~(_PAGE_PRESENT|_PAGE_PROTNONE)));
+}
+
+static inline u64 flip_protnone_guard(u64 oldval, u64 val, u64 mask);
 
 static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 {
-	pteval_t val = pte_val(pte);
+	pteval_t val = pte_val(pte), oldval = val;
 
 	/*
 	 * Chop off the NX bit (if present), and add the NX portion of
@@ -381,17 +403,17 @@ static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 	 */
 	val &= _PAGE_CHG_MASK;
 	val |= massage_pgprot(newprot) & ~_PAGE_CHG_MASK;
-
+	val = flip_protnone_guard(oldval, val, PTE_PFN_MASK);
 	return __pte(val);
 }
 
 static inline pmd_t pmd_modify(pmd_t pmd, pgprot_t newprot)
 {
-	pmdval_t val = pmd_val(pmd);
+	pmdval_t val = pmd_val(pmd), oldval = val;
 
 	val &= _HPAGE_CHG_MASK;
 	val |= massage_pgprot(newprot) & ~_HPAGE_CHG_MASK;
-
+	val = flip_protnone_guard(oldval, val, PHYSICAL_PMD_PAGE_MASK);
 	return __pmd(val);
 }
 
@@ -518,7 +540,7 @@ static inline unsigned long pmd_page_vaddr(pmd_t pmd)
  * Currently stuck as a macro due to indirect forward reference to
  * linux/mmzone.h's __section_mem_map_addr() definition:
  */
-#define pmd_page(pmd)	pfn_to_page((pmd_val(pmd) & PTE_PFN_MASK) >> PAGE_SHIFT)
+#define pmd_page(pmd)	pfn_to_page(pmd_pfn(pmd))
 
 /*
  * the pmd page can be thought of an array like this: pmd_t[PTRS_PER_PMD]
@@ -591,7 +613,7 @@ static inline unsigned long pud_page_vaddr(pud_t pud)
  * Currently stuck as a macro due to indirect forward reference to
  * linux/mmzone.h's __section_mem_map_addr() definition:
  */
-#define pud_page(pud)		pfn_to_page(pud_val(pud) >> PAGE_SHIFT)
+#define pud_page(pud)	pfn_to_page(pud_pfn(pud))
 
 /* Find an entry in the second-level page table.. */
 static inline pmd_t *pmd_offset(pud_t *pud, unsigned long address)
@@ -631,7 +653,7 @@ static inline unsigned long pgd_page_vaddr(pgd_t pgd)
  * Currently stuck as a macro due to indirect forward reference to
  * linux/mmzone.h's __section_mem_map_addr() definition:
  */
-#define pgd_page(pgd)		pfn_to_page(pgd_val(pgd) >> PAGE_SHIFT)
+#define pgd_page(pgd)		pfn_to_page(pgd_pfn(pgd))
 
 /* to find an entry in a page-table-directory. */
 static inline unsigned long pud_index(unsigned long address)

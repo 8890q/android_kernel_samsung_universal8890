@@ -256,6 +256,17 @@ static int dmm_txn_commit(struct dmm_txn *txn, bool wait)
 	}
 
 	txn->last_pat->next_pa = 0;
+	/* ensure that the written descriptors are visible to DMM */
+	wmb();
+
+	/*
+	 * NOTE: the wmb() above should be enough, but there seems to be a bug
+	 * in OMAP's memory barrier implementation, which in some rare cases may
+	 * cause the writes not to be observable after wmb().
+	 */
+
+	/* read back to ensure the data is in RAM */
+	readl(&txn->last_pat->next_pa);
 
 	/* write to PAT_DESCR to clear out any pending transaction */
 	writel(0x0, dmm->base + reg[PAT_DESCR][engine->id]);
@@ -280,7 +291,12 @@ static int dmm_txn_commit(struct dmm_txn *txn, bool wait)
 				msecs_to_jiffies(1)) <= 0) {
 			dev_err(dmm->dev, "timed out waiting for done\n");
 			ret = -ETIMEDOUT;
+			goto cleanup;
 		}
+
+		/* Check the engine status before continue */
+		ret = wait_status(engine, DMM_PATSTATUS_READY |
+				  DMM_PATSTATUS_VALID | DMM_PATSTATUS_DONE);
 	}
 
 cleanup:
@@ -351,10 +367,14 @@ int tiler_unpin(struct tiler_block *block)
 struct tiler_block *tiler_reserve_2d(enum tiler_fmt fmt, uint16_t w,
 		uint16_t h, uint16_t align)
 {
-	struct tiler_block *block = kzalloc(sizeof(*block), GFP_KERNEL);
+	struct tiler_block *block;
 	u32 min_align = 128;
 	int ret;
 	unsigned long flags;
+
+	block = kzalloc(sizeof(*block), GFP_KERNEL);
+	if (!block)
+		return ERR_PTR(-ENOMEM);
 
 	BUG_ON(!validfmt(fmt));
 
@@ -678,6 +698,7 @@ static int omap_dmm_probe(struct platform_device *dev)
 				&omap_dmm->refill_pa, GFP_KERNEL);
 	if (!omap_dmm->refill_va) {
 		dev_err(&dev->dev, "could not allocate refill memory\n");
+		ret = -ENOMEM;
 		goto fail;
 	}
 

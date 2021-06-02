@@ -28,6 +28,10 @@
  *	Implement flush IPI by CALL_FUNCTION_VECTOR, Alex Shi
  */
 
+atomic64_t last_mm_ctx_id = ATOMIC64_INIT(1);
+
+#ifdef CONFIG_SMP
+
 struct flush_tlb_info {
 	struct mm_struct *flush_mm;
 	unsigned long flush_start;
@@ -56,6 +60,101 @@ void leave_mm(int cpu)
 	}
 }
 EXPORT_SYMBOL_GPL(leave_mm);
+
+#endif /* CONFIG_SMP */
+
+void switch_mm(struct mm_struct *prev, struct mm_struct *next,
+	       struct task_struct *tsk)
+{
+	unsigned long flags;
+
+	local_irq_save(flags);
+	switch_mm_irqs_off(prev, next, tsk);
+	local_irq_restore(flags);
+}
+
+void switch_mm_irqs_off(struct mm_struct *prev, struct mm_struct *next,
+			struct task_struct *tsk)
+{
+	unsigned cpu = smp_processor_id();
+
+	if (likely(prev != next)) {
+#ifdef CONFIG_SMP
+		this_cpu_write(cpu_tlbstate.state, TLBSTATE_OK);
+		this_cpu_write(cpu_tlbstate.active_mm, next);
+#endif
+		cpumask_set_cpu(cpu, mm_cpumask(next));
+
+		/*
+		 * Re-load page tables.
+		 *
+		 * This logic has an ordering constraint:
+		 *
+		 *  CPU 0: Write to a PTE for 'next'
+		 *  CPU 0: load bit 1 in mm_cpumask.  if nonzero, send IPI.
+		 *  CPU 1: set bit 1 in next's mm_cpumask
+		 *  CPU 1: load from the PTE that CPU 0 writes (implicit)
+		 *
+		 * We need to prevent an outcome in which CPU 1 observes
+		 * the new PTE value and CPU 0 observes bit 1 clear in
+		 * mm_cpumask.  (If that occurs, then the IPI will never
+		 * be sent, and CPU 0's TLB will contain a stale entry.)
+		 *
+		 * The bad outcome can occur if either CPU's load is
+		 * reordered before that CPU's store, so both CPUs must
+		 * execute full barriers to prevent this from happening.
+		 *
+		 * Thus, switch_mm needs a full barrier between the
+		 * store to mm_cpumask and any operation that could load
+		 * from next->pgd.  TLB fills are special and can happen
+		 * due to instruction fetches or for no reason at all,
+		 * and neither LOCK nor MFENCE orders them.
+		 * Fortunately, load_cr3() is serializing and gives the
+		 * ordering guarantee we need.
+		 *
+		 */
+		load_cr3(next->pgd);
+
+		trace_tlb_flush(TLB_FLUSH_ON_TASK_SWITCH, TLB_FLUSH_ALL);
+
+		/* Stop flush ipis for the previous mm */
+		cpumask_clear_cpu(cpu, mm_cpumask(prev));
+
+		/* Load the LDT, if the LDT is different: */
+		if (unlikely(prev->context.ldt != next->context.ldt))
+			load_mm_ldt(next);
+	}
+#ifdef CONFIG_SMP
+	  else {
+		this_cpu_write(cpu_tlbstate.state, TLBSTATE_OK);
+		BUG_ON(this_cpu_read(cpu_tlbstate.active_mm) != next);
+
+		if (!cpumask_test_cpu(cpu, mm_cpumask(next))) {
+			/*
+			 * On established mms, the mm_cpumask is only changed
+			 * from irq context, from ptep_clear_flush() while in
+			 * lazy tlb mode, and here. Irqs are blocked during
+			 * schedule, protecting us from simultaneous changes.
+			 */
+			cpumask_set_cpu(cpu, mm_cpumask(next));
+
+			/*
+			 * We were in lazy tlb mode and leave_mm disabled
+			 * tlb flush IPI delivery. We must reload CR3
+			 * to make sure to use no freed page tables.
+			 *
+			 * As above, load_cr3() is serializing and orders TLB
+			 * fills with respect to the mm_cpumask write.
+			 */
+			load_cr3(next->pgd);
+			trace_tlb_flush(TLB_FLUSH_ON_TASK_SWITCH, TLB_FLUSH_ALL);
+			load_mm_ldt(next);
+		}
+	}
+#endif
+}
+
+#ifdef CONFIG_SMP
 
 /*
  * The flush IPI assumes that a thread switch happens in this order:
@@ -153,20 +252,6 @@ void native_flush_tlb_others(const struct cpumask *cpumask,
 	smp_call_function_many(cpumask, flush_tlb_func, &info, 1);
 }
 
-void flush_tlb_current_task(void)
-{
-	struct mm_struct *mm = current->mm;
-
-	preempt_disable();
-
-	count_vm_tlb_event(NR_TLB_LOCAL_FLUSH_ALL);
-	local_flush_tlb();
-	trace_tlb_flush(TLB_LOCAL_SHOOTDOWN, TLB_FLUSH_ALL);
-	if (cpumask_any_but(mm_cpumask(mm), smp_processor_id()) < nr_cpu_ids)
-		flush_tlb_others(mm_cpumask(mm), mm, 0UL, TLB_FLUSH_ALL);
-	preempt_enable();
-}
-
 /*
  * See Documentation/x86/tlb.txt for details.  We choose 33
  * because it is large enough to cover the vast majority (at
@@ -187,19 +272,33 @@ void flush_tlb_mm_range(struct mm_struct *mm, unsigned long start,
 	unsigned long base_pages_to_flush = TLB_FLUSH_ALL;
 
 	preempt_disable();
-	if (current->active_mm != mm)
-		goto out;
-
-	if (!current->mm) {
-		leave_mm(smp_processor_id());
-		goto out;
-	}
 
 	if ((end != TLB_FLUSH_ALL) && !(vmflag & VM_HUGETLB))
 		base_pages_to_flush = (end - start) >> PAGE_SHIFT;
-
-	if (base_pages_to_flush > tlb_single_page_flush_ceiling) {
+	if (base_pages_to_flush > tlb_single_page_flush_ceiling)
 		base_pages_to_flush = TLB_FLUSH_ALL;
+
+	if (current->active_mm != mm) {
+		/* Synchronize with switch_mm. */
+		smp_mb();
+
+		goto out;
+	}
+
+	if (!current->mm) {
+		leave_mm(smp_processor_id());
+
+		/* Synchronize with switch_mm. */
+		smp_mb();
+
+		goto out;
+	}
+
+	/*
+	 * Both branches below are implicit full barriers (MOV to CR or
+	 * INVLPG) that synchronize with switch_mm.
+	 */
+	if (base_pages_to_flush == TLB_FLUSH_ALL) {
 		count_vm_tlb_event(NR_TLB_LOCAL_FLUSH_ALL);
 		local_flush_tlb();
 	} else {
@@ -217,25 +316,6 @@ out:
 	}
 	if (cpumask_any_but(mm_cpumask(mm), smp_processor_id()) < nr_cpu_ids)
 		flush_tlb_others(mm_cpumask(mm), mm, start, end);
-	preempt_enable();
-}
-
-void flush_tlb_page(struct vm_area_struct *vma, unsigned long start)
-{
-	struct mm_struct *mm = vma->vm_mm;
-
-	preempt_disable();
-
-	if (current->active_mm == mm) {
-		if (current->mm)
-			__flush_tlb_one(start);
-		else
-			leave_mm(smp_processor_id());
-	}
-
-	if (cpumask_any_but(mm_cpumask(mm), smp_processor_id()) < nr_cpu_ids)
-		flush_tlb_others(mm_cpumask(mm), mm, start, 0UL);
-
 	preempt_enable();
 }
 
@@ -323,3 +403,5 @@ static int __init create_tlb_single_page_flush_ceiling(void)
 	return 0;
 }
 late_initcall(create_tlb_single_page_flush_ceiling);
+
+#endif /* CONFIG_SMP */

@@ -392,6 +392,8 @@ static int pppoe_rcv_core(struct sock *sk, struct sk_buff *skb)
 
 		if (!__pppoe_xmit(sk_pppox(relay_po), skb))
 			goto abort_put;
+
+		sock_put(sk_pppox(relay_po));
 	} else {
 		if (sock_queue_rcv_skb(sk, skb))
 			goto abort_kfree;
@@ -471,6 +473,9 @@ static int pppoe_disc_rcv(struct sk_buff *skb, struct net_device *dev,
 	skb = skb_share_check(skb, GFP_ATOMIC);
 	if (!skb)
 		goto out;
+
+	if (skb->pkt_type != PACKET_HOST)
+		goto abort;
 
 	if (!pskb_may_pull(skb, sizeof(struct pppoe_hdr)))
 		goto abort;
@@ -613,6 +618,10 @@ static int pppoe_connect(struct socket *sock, struct sockaddr *uservaddr,
 	lock_sock(sk);
 
 	error = -EINVAL;
+
+	if (sockaddr_len != sizeof(struct sockaddr_pppox))
+		goto end;
+
 	if (sp->sa_protocol != PX_PROTO_OE)
 		goto end;
 
@@ -830,6 +839,7 @@ static int pppoe_sendmsg(struct kiocb *iocb, struct socket *sock,
 	struct pppoe_hdr *ph;
 	struct net_device *dev;
 	char *start;
+	int hlen;
 
 	lock_sock(sk);
 	if (sock_flag(sk, SOCK_DEAD) || !(sk->sk_state & PPPOX_CONNECTED)) {
@@ -848,16 +858,16 @@ static int pppoe_sendmsg(struct kiocb *iocb, struct socket *sock,
 	if (total_len > (dev->mtu + dev->hard_header_len))
 		goto end;
 
-
-	skb = sock_wmalloc(sk, total_len + dev->hard_header_len + 32,
-			   0, GFP_KERNEL);
+	hlen = LL_RESERVED_SPACE(dev);
+	skb = sock_wmalloc(sk, hlen + sizeof(*ph) + total_len +
+			   dev->needed_tailroom, 0, GFP_KERNEL);
 	if (!skb) {
 		error = -ENOMEM;
 		goto end;
 	}
 
 	/* Reserve space for headers. */
-	skb_reserve(skb, dev->hard_header_len);
+	skb_reserve(skb, hlen);
 	skb_reset_network_header(skb);
 
 	skb->dev = dev;
@@ -918,7 +928,7 @@ static int __pppoe_xmit(struct sock *sk, struct sk_buff *skb)
 	/* Copy the data if there is no space for the header or if it's
 	 * read-only.
 	 */
-	if (skb_cow_head(skb, sizeof(*ph) + dev->hard_header_len))
+	if (skb_cow_head(skb, LL_RESERVED_SPACE(dev) + sizeof(*ph)))
 		goto abort;
 
 	__skb_push(skb, sizeof(*ph));
@@ -1116,6 +1126,9 @@ static const struct proto_ops pppoe_ops = {
 	.recvmsg	= pppoe_recvmsg,
 	.mmap		= sock_no_mmap,
 	.ioctl		= pppox_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl	= pppox_compat_ioctl,
+#endif
 };
 
 static const struct pppox_proto pppoe_proto = {

@@ -785,6 +785,9 @@ wavefront_send_patch (snd_wavefront_t *dev, wavefront_patch_info *header)
 	DPRINT (WF_DEBUG_LOAD_PATCH, "downloading patch %d\n",
 				      header->number);
 
+	if (header->number >= ARRAY_SIZE(dev->patch_status))
+		return -EINVAL;
+
 	dev->patch_status[header->number] |= WF_SLOT_FILLED;
 
 	bptr = buf;
@@ -808,6 +811,9 @@ wavefront_send_program (snd_wavefront_t *dev, wavefront_patch_info *header)
 
 	DPRINT (WF_DEBUG_LOAD_PATCH, "downloading program %d\n",
 		header->number);
+
+	if (header->number >= ARRAY_SIZE(dev->prog_status))
+		return -EINVAL;
 
 	dev->prog_status[header->number] = WF_SLOT_USED;
 
@@ -897,6 +903,9 @@ wavefront_send_sample (snd_wavefront_t *dev,
 		snd_printk ("unspecified sample => %d\n", x);
 		header->number = x;
 	}
+
+	if (header->number >= WF_MAX_SAMPLE)
+		return -EINVAL;
 
 	if (header->size) {
 
@@ -1165,7 +1174,10 @@ wavefront_send_alias (snd_wavefront_t *dev, wavefront_patch_info *header)
 				      "alias for %d\n",
 				      header->number,
 				      header->hdr.a.OriginalSample);
-    
+
+	if (header->number >= WF_MAX_SAMPLE)
+		return -EINVAL;
+
 	munge_int32 (header->number, &alias_hdr[0], 2);
 	munge_int32 (header->hdr.a.OriginalSample, &alias_hdr[2], 2);
 	munge_int32 (*((unsigned int *)&header->hdr.a.sampleStartOffset),
@@ -1195,6 +1207,9 @@ wavefront_send_multisample (snd_wavefront_t *dev, wavefront_patch_info *header)
 	int i;
 	int num_samples;
 	unsigned char *msample_hdr;
+
+	if (header->number >= WF_MAX_SAMPLE)
+		return -EINVAL;
 
 	msample_hdr = kmalloc(WF_MSAMPLE_BYTES, GFP_KERNEL);
 	if (! msample_hdr)

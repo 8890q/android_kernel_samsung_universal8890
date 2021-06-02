@@ -193,13 +193,11 @@ static void bch_data_insert_start(struct closure *cl)
 	struct data_insert_op *op = container_of(cl, struct data_insert_op, cl);
 	struct bio *bio = op->bio, *n;
 
-	if (atomic_sub_return(bio_sectors(bio), &op->c->sectors_to_gc) < 0) {
-		set_gc_sectors(op->c);
-		wake_up_gc(op->c);
-	}
-
 	if (op->bypass)
 		return bch_data_invalidate(cl);
+
+	if (atomic_sub_return(bio_sectors(bio), &op->c->sectors_to_gc) < 0)
+		wake_up_gc(op->c);
 
 	/*
 	 * Journal writes are marked REQ_FLUSH; if the original write was a
@@ -631,11 +629,11 @@ static void do_bio_hook(struct search *s, struct bio *orig_bio)
 static void search_free(struct closure *cl)
 {
 	struct search *s = container_of(cl, struct search, cl);
-	bio_complete(s);
 
 	if (s->iop.bio)
 		bio_put(s->iop.bio);
 
+	bio_complete(s);
 	closure_debug_destroy(cl);
 	mempool_free(s, s->d->c->search);
 }

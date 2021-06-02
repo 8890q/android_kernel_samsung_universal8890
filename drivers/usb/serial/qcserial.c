@@ -122,6 +122,7 @@ static const struct usb_device_id id_table[] = {
 	{USB_DEVICE(0x1410, 0xa021)},	/* Novatel Gobi 3000 Composite */
 	{USB_DEVICE(0x413c, 0x8193)},	/* Dell Gobi 3000 QDL */
 	{USB_DEVICE(0x413c, 0x8194)},	/* Dell Gobi 3000 Composite */
+	{USB_DEVICE(0x413c, 0x81a6)},	/* Dell DW5570 QDL (MC8805) */
 	{USB_DEVICE(0x1199, 0x68a4)},	/* Sierra Wireless QDL */
 	{USB_DEVICE(0x1199, 0x68a5)},	/* Sierra Wireless Modem */
 	{USB_DEVICE(0x1199, 0x68a8)},	/* Sierra Wireless QDL */
@@ -153,6 +154,7 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_SWI(0x1199, 0x9056)},	/* Sierra Wireless Modem */
 	{DEVICE_SWI(0x1199, 0x9060)},	/* Sierra Wireless Modem */
 	{DEVICE_SWI(0x1199, 0x9061)},	/* Sierra Wireless Modem */
+	{DEVICE_SWI(0x1199, 0x9062)},	/* Sierra Wireless EM7305 QDL */
 	{DEVICE_SWI(0x1199, 0x9063)},	/* Sierra Wireless EM7305 */
 	{DEVICE_SWI(0x1199, 0x9070)},	/* Sierra Wireless MC74xx */
 	{DEVICE_SWI(0x1199, 0x9071)},	/* Sierra Wireless MC74xx */
@@ -169,6 +171,8 @@ static const struct usb_device_id id_table[] = {
 	{DEVICE_SWI(0x413c, 0x81b3)},	/* Dell Wireless 5809e Gobi(TM) 4G LTE Mobile Broadband Card (rev3) */
 	{DEVICE_SWI(0x413c, 0x81b5)},	/* Dell Wireless 5811e QDL */
 	{DEVICE_SWI(0x413c, 0x81b6)},	/* Dell Wireless 5811e QDL */
+	{DEVICE_SWI(0x413c, 0x81cb)},	/* Dell Wireless 5816e QDL */
+	{DEVICE_SWI(0x413c, 0x81cc)},	/* Dell Wireless 5816e */
 	{DEVICE_SWI(0x413c, 0x81cf)},   /* Dell Wireless 5819 */
 	{DEVICE_SWI(0x413c, 0x81d0)},   /* Dell Wireless 5819 */
 	{DEVICE_SWI(0x413c, 0x81d1)},   /* Dell Wireless 5818 */
@@ -192,6 +196,10 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 	__u8 nintf;
 	__u8 ifnum;
 	int altsetting = -1;
+
+	/* we only support vendor specific functions */
+	if (intf->desc.bInterfaceClass != USB_CLASS_VENDOR_SPEC)
+		goto done;
 
 	nintf = serial->dev->actconfig->desc.bNumInterfaces;
 	dev_dbg(dev, "Num Interfaces = %d\n", nintf);
@@ -312,29 +320,39 @@ static int qcprobe(struct usb_serial *serial, const struct usb_device_id *id)
 		break;
 	case QCSERIAL_HWI:
 		/*
-		 * Huawei layout:
-		 * 0: AT-capable modem port
-		 * 1: DM/DIAG
-		 * 2: AT-capable modem port
-		 * 3: CCID-compatible PCSC interface
-		 * 4: QMI/net
-		 * 5: NMEA
+		 * Huawei devices map functions by subclass + protocol
+		 * instead of interface numbers. The protocol identify
+		 * a specific function, while the subclass indicate a
+		 * specific firmware source
+		 *
+		 * This is a blacklist of functions known to be
+		 * non-serial.  The rest are assumed to be serial and
+		 * will be handled by this driver
 		 */
-		switch (ifnum) {
-		case 0:
-		case 2:
-			dev_dbg(dev, "Modem port found\n");
-			break;
-		case 1:
-			dev_dbg(dev, "DM/DIAG interface found\n");
-			break;
-		case 5:
-			dev_dbg(dev, "NMEA GPS interface found\n");
-			break;
-		default:
-			/* don't claim any unsupported interface */
+		switch (intf->desc.bInterfaceProtocol) {
+			/* QMI combined (qmi_wwan) */
+		case 0x07:
+		case 0x37:
+		case 0x67:
+			/* QMI data (qmi_wwan) */
+		case 0x08:
+		case 0x38:
+		case 0x68:
+			/* QMI control (qmi_wwan) */
+		case 0x09:
+		case 0x39:
+		case 0x69:
+			/* NCM like (huawei_cdc_ncm) */
+		case 0x16:
+		case 0x46:
+		case 0x76:
 			altsetting = -1;
 			break;
+		default:
+			dev_dbg(dev, "Huawei type serial port found (%02x/%02x/%02x)\n",
+				intf->desc.bInterfaceClass,
+				intf->desc.bInterfaceSubClass,
+				intf->desc.bInterfaceProtocol);
 		}
 		break;
 	default:

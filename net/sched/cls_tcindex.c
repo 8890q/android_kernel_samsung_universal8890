@@ -253,6 +253,29 @@ tcindex_set_parms(struct net *net, struct tcf_proto *tp, unsigned long base,
 	cp->fall_through = p->fall_through;
 	cp->tp = tp;
 
+	if (tb[TCA_TCINDEX_HASH])
+		cp->hash = nla_get_u32(tb[TCA_TCINDEX_HASH]);
+
+	if (tb[TCA_TCINDEX_MASK])
+		cp->mask = nla_get_u16(tb[TCA_TCINDEX_MASK]);
+
+	if (tb[TCA_TCINDEX_SHIFT]) {
+		cp->shift = nla_get_u32(tb[TCA_TCINDEX_SHIFT]);
+		if (cp->shift > 16) {
+			err = -EINVAL;
+			goto errout;
+		}
+	}
+	if (!cp->hash) {
+		/* Hash not specified, use perfect hash if the upper limit
+		 * of the hashing index is below the threshold.
+		 */
+		if ((cp->mask >> cp->shift) < PERFECT_HASH_THRESHOLD)
+			cp->hash = (cp->mask >> cp->shift) + 1;
+		else
+			cp->hash = DEFAULT_HASH_SIZE;
+	}
+
 	if (p->perfect) {
 		int i;
 
@@ -260,7 +283,8 @@ tcindex_set_parms(struct net *net, struct tcf_proto *tp, unsigned long base,
 				      sizeof(*r) * cp->hash, GFP_KERNEL);
 		if (!cp->perfect)
 			goto errout;
-		for (i = 0; i < cp->hash; i++)
+		cp->alloc_hash = cp->hash;
+		for (i = 0; i < min(cp->hash, p->hash); i++)
 			tcf_exts_init(&cp->perfect[i].exts,
 				      TCA_TCINDEX_ACT, TCA_TCINDEX_POLICE);
 		balloc = 1;
@@ -271,15 +295,6 @@ tcindex_set_parms(struct net *net, struct tcf_proto *tp, unsigned long base,
 	tcindex_filter_result_init(&cr);
 	if (old_r)
 		cr.res = r->res;
-
-	if (tb[TCA_TCINDEX_HASH])
-		cp->hash = nla_get_u32(tb[TCA_TCINDEX_HASH]);
-
-	if (tb[TCA_TCINDEX_MASK])
-		cp->mask = nla_get_u16(tb[TCA_TCINDEX_MASK]);
-
-	if (tb[TCA_TCINDEX_SHIFT])
-		cp->shift = nla_get_u32(tb[TCA_TCINDEX_SHIFT]);
 
 	err = -EBUSY;
 
@@ -297,16 +312,6 @@ tcindex_set_parms(struct net *net, struct tcf_proto *tp, unsigned long base,
 	err = -EINVAL;
 	if (tb[TCA_TCINDEX_FALL_THROUGH])
 		cp->fall_through = nla_get_u32(tb[TCA_TCINDEX_FALL_THROUGH]);
-
-	if (!cp->hash) {
-		/* Hash not specified, use perfect hash if the upper limit
-		 * of the hashing index is below the threshold.
-		 */
-		if ((cp->mask >> cp->shift) < PERFECT_HASH_THRESHOLD)
-			cp->hash = (cp->mask >> cp->shift) + 1;
-		else
-			cp->hash = DEFAULT_HASH_SIZE;
-	}
 
 	if (!cp->perfect && !cp->h)
 		cp->alloc_hash = cp->hash;
@@ -368,22 +373,20 @@ tcindex_set_parms(struct net *net, struct tcf_proto *tp, unsigned long base,
 		tcf_bind_filter(tp, &cr.res, base);
 	}
 
-	if (old_r)
-		tcf_exts_change(tp, &r->exts, &e);
-	else
-		tcf_exts_change(tp, &cr.exts, &e);
-
 	if (old_r && old_r != r)
 		tcindex_filter_result_init(old_r);
 
 	oldp = p;
 	r->res = cr.res;
+	tcf_exts_change(tp, &r->exts, &e);
+
 	rcu_assign_pointer(tp->root, cp);
 
 	if (r == &new_filter_result) {
 		struct tcindex_filter *nfp;
 		struct tcindex_filter __rcu **fp;
 
+		f->result.res = r->res;
 		tcf_exts_change(tp, &f->result.exts, &r->exts);
 
 		fp = cp->h + (handle % cp->hash);

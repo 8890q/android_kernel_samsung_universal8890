@@ -518,10 +518,12 @@ static struct tag_ref *get_tag_ref(tag_t full_tag,
 
 	DR_DEBUG("qtaguid: get_tag_ref(0x%llx)\n",
 		 full_tag);
+
 	tr_entry = lookup_tag_ref(full_tag, &utd_entry);
 	BUG_ON(IS_ERR_OR_NULL(utd_entry));
 	if (!tr_entry)
 		tr_entry = new_tag_ref(full_tag, utd_entry);
+
 
 	if (utd_res)
 		*utd_res = utd_entry;
@@ -1066,18 +1068,6 @@ static struct sock_tag *get_sock_stat_nl(const struct sock *sk)
 	return sock_tag_tree_search(&sock_tag_tree, sk);
 }
 
-static struct sock_tag *get_sock_stat(const struct sock *sk)
-{
-	struct sock_tag *sock_tag_entry;
-	MT_DEBUG("qtaguid: get_sock_stat(sk=%p)\n", sk);
-	if (!sk)
-		return NULL;
-	spin_lock_bh(&sock_tag_list_lock);
-	sock_tag_entry = get_sock_stat_nl(sk);
-	spin_unlock_bh(&sock_tag_list_lock);
-	return sock_tag_entry;
-}
-
 static int ipx_proto(const struct sk_buff *skb,
 		     struct xt_action_param *par)
 {
@@ -1314,12 +1304,15 @@ static void if_tag_stat_update(const char *ifname, uid_t uid,
 	 * Look for a tagged sock.
 	 * It will have an acct_uid.
 	 */
-	sock_tag_entry = get_sock_stat(sk);
+	spin_lock_bh(&sock_tag_list_lock);
+	sock_tag_entry = sk ? get_sock_stat_nl(sk) : NULL;
 	if (sock_tag_entry) {
 		tag = sock_tag_entry->tag;
 		acct_tag = get_atag_from_tag(tag);
 		uid_tag = get_utag_from_tag(tag);
-	} else {
+	}
+	spin_unlock_bh(&sock_tag_list_lock);
+	if (!sock_tag_entry) {
 		acct_tag = make_atag_from_value(0);
 		tag = combine_atag_with_uid(acct_tag, uid);
 		uid_tag = make_tag_from_uid(uid);
@@ -2309,6 +2302,7 @@ static int ctrl_cmd_tag(const char *input)
 		sock_tag_entry->sk = el_socket->sk;
 		sock_tag_entry->pid = current->tgid;
 		sock_tag_entry->tag = combine_atag_with_uid(acct_tag, uid_int);
+
 		pqd_entry = proc_qtu_data_tree_search(
 			&proc_qtu_data_tree, current->tgid);
 		/*
@@ -2327,6 +2321,7 @@ static int ctrl_cmd_tag(const char *input)
 			list_add(&sock_tag_entry->list,
 				 &pqd_entry->sock_tag_list);
 
+
 		sock_tag_tree_insert(sock_tag_entry, &sock_tag_tree);
 		atomic64_inc(&qtu_events.sockets_tagged);
 	}
@@ -2338,6 +2333,7 @@ static int ctrl_cmd_tag(const char *input)
 		 atomic_read(&el_socket->sk->sk_refcnt));
 	sockfd_put(el_socket);
 	return 0;
+
 
 err_put:
 	CT_DEBUG("qtaguid: ctrl_tag(%s): done. ...->sk_refcnt=%d\n",

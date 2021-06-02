@@ -442,23 +442,27 @@ static unsigned long lookup_memtype(u64 paddr)
  * On failure, returns non-zero
  */
 int io_reserve_memtype(resource_size_t start, resource_size_t end,
-			unsigned long *type)
+			enum page_cache_mode *type)
 {
 	resource_size_t size = end - start;
-	unsigned long req_type = *type;
-	unsigned long new_type;
+	enum page_cache_mode req_type = *type;
+	enum page_cache_mode new_type;
+	unsigned long new_prot;
 	int ret;
 
 	WARN_ON_ONCE(iomem_map_sanity_check(start, size));
 
-	ret = reserve_memtype(start, end, req_type, &new_type);
+	ret = reserve_memtype(start, end, cachemode2protval(req_type),
+				&new_prot);
 	if (ret)
 		goto out_err;
+
+	new_type = pgprot2cachemode(__pgprot(new_prot));
 
 	if (!is_new_memtype_allowed(start, size, req_type, new_type))
 		goto out_free;
 
-	if (kernel_map_sync_memtype(start, size, new_type) < 0)
+	if (kernel_map_sync_memtype(start, size, new_prot) < 0)
 		goto out_free;
 
 	*type = new_type;
@@ -480,6 +484,20 @@ void io_free_memtype(resource_size_t start, resource_size_t end)
 {
 	free_memtype(start, end);
 }
+
+int arch_io_reserve_memtype_wc(resource_size_t start, resource_size_t size)
+{
+	enum page_cache_mode type = _PAGE_CACHE_MODE_WC;
+
+	return io_reserve_memtype(start, start + size, &type);
+}
+EXPORT_SYMBOL(arch_io_reserve_memtype_wc);
+
+void arch_io_free_memtype_wc(resource_size_t start, resource_size_t size)
+{
+	io_free_memtype(start, start + size);
+}
+EXPORT_SYMBOL(arch_io_free_memtype_wc);
 
 pgprot_t phys_mem_access_prot(struct file *file, unsigned long pfn,
 				unsigned long size, pgprot_t vma_prot)
@@ -505,11 +523,8 @@ static inline int range_is_allowed(unsigned long pfn, unsigned long size)
 		return 1;
 
 	while (cursor < to) {
-		if (!devmem_is_allowed(pfn)) {
-			printk(KERN_INFO "Program %s tried to access /dev/mem between [mem %#010Lx-%#010Lx]\n",
-				current->comm, from, to - 1);
+		if (!devmem_is_allowed(pfn))
 			return 0;
-		}
 		cursor += PAGE_SIZE;
 		pfn++;
 	}

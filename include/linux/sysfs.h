@@ -200,6 +200,9 @@ int __must_check sysfs_create_files(struct kobject *kobj,
 				   const struct attribute **attr);
 int __must_check sysfs_chmod_file(struct kobject *kobj,
 				  const struct attribute *attr, umode_t mode);
+struct kernfs_node *sysfs_break_active_protection(struct kobject *kobj,
+						  const struct attribute *attr);
+void sysfs_unbreak_active_protection(struct kernfs_node *kn);
 void sysfs_remove_file_ns(struct kobject *kobj, const struct attribute *attr,
 			  const void *ns);
 bool sysfs_remove_file_self(struct kobject *kobj, const struct attribute *attr);
@@ -256,6 +259,11 @@ static inline void sysfs_enable_ns(struct kernfs_node *kn)
 	return kernfs_enable_ns(kn);
 }
 
+__printf(2, 3)
+int sysfs_emit(char *buf, const char *fmt, ...);
+__printf(3, 4)
+int sysfs_emit_at(char *buf, int at, const char *fmt, ...);
+
 #else /* CONFIG_SYSFS */
 
 static inline int sysfs_create_dir_ns(struct kobject *kobj, const void *ns)
@@ -297,6 +305,17 @@ static inline int sysfs_chmod_file(struct kobject *kobj,
 				   const struct attribute *attr, umode_t mode)
 {
 	return 0;
+}
+
+static inline struct kernfs_node *
+sysfs_break_active_protection(struct kobject *kobj,
+			      const struct attribute *attr)
+{
+	return NULL;
+}
+
+static inline void sysfs_unbreak_active_protection(struct kernfs_node *kn)
+{
 }
 
 static inline void sysfs_remove_file_ns(struct kobject *kobj,
@@ -432,6 +451,17 @@ static inline void sysfs_enable_ns(struct kernfs_node *kn)
 {
 }
 
+__printf(2, 3)
+static inline int sysfs_emit(char *buf, const char *fmt, ...)
+{
+	return 0;
+}
+
+__printf(3, 4)
+static inline int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
+{
+	return 0;
+}
 #endif /* CONFIG_SYSFS */
 
 static inline int __must_check sysfs_create_file(struct kobject *kobj,

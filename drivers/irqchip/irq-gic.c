@@ -290,7 +290,7 @@ static void __exception_irq_entry gic_handle_irq(struct pt_regs *regs)
 
 		dmb(ish);
 
-		if (likely(irqnr > 15 && irqnr < 1021)) {
+		if (likely(irqnr > 15 && irqnr < 1020)) {
 			handle_domain_irq(gic->domain, irqnr, regs);
 			continue;
 		}

@@ -43,7 +43,7 @@ static void init_c3(struct cpuinfo_x86 *c)
 		/* store Centaur Extended Feature Flags as
 		 * word 5 of the CPU capability bit array
 		 */
-		c->x86_capability[5] = cpuid_edx(0xC0000001);
+		c->x86_capability[CPUID_C000_0001_EDX] = cpuid_edx(0xC0000001);
 	}
 #ifdef CONFIG_X86_32
 	/* Cyrix III family needs CX8 & PGE explicitly enabled. */
@@ -134,7 +134,7 @@ static void init_centaur(struct cpuinfo_x86 *c)
 			clear_cpu_cap(c, X86_FEATURE_TSC);
 			break;
 		case 8:
-			switch (c->x86_mask) {
+			switch (c->x86_stepping) {
 			default:
 			name = "2";
 				break;
@@ -209,7 +209,7 @@ centaur_size_cache(struct cpuinfo_x86 *c, unsigned int size)
 	 *  - Note, it seems this may only be in engineering samples.
 	 */
 	if ((c->x86 == 6) && (c->x86_model == 9) &&
-				(c->x86_mask == 1) && (size == 65))
+				(c->x86_stepping == 1) && (size == 65))
 		size -= 1;
 	return size;
 }

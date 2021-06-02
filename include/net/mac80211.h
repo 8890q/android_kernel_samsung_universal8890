@@ -829,7 +829,7 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  * @RX_FLAG_DECRYPTED: This frame was decrypted in hardware.
  * @RX_FLAG_MMIC_STRIPPED: the Michael MIC is stripped off this frame,
  *	verification has been done by the hardware.
- * @RX_FLAG_IV_STRIPPED: The IV/ICV are stripped from this frame.
+ * @RX_FLAG_IV_STRIPPED: The IV and ICV are stripped from this frame.
  *	If this flag is set, the stack cannot do any replay detection
  *	hence the driver or hardware will have to do that.
  * @RX_FLAG_FAILED_FCS_CRC: Set this flag if the FCS check failed on
@@ -879,6 +879,8 @@ ieee80211_tx_info_clear_status(struct ieee80211_tx_info *info)
  *	subframes share the same sequence number. Reported subframes can be
  *	either regular MSDU or singly A-MSDUs. Subframes must not be
  *	interleaved with other frames.
+ * @RX_FLAG_ICV_STRIPPED: The ICV is stripped from this frame. CRC checking must
+ *	be done in the hardware.
  */
 enum mac80211_rx_flags {
 	RX_FLAG_MMIC_ERROR		= BIT(0),
@@ -908,6 +910,7 @@ enum mac80211_rx_flags {
 	RX_FLAG_10MHZ			= BIT(28),
 	RX_FLAG_5MHZ			= BIT(29),
 	RX_FLAG_AMSDU_MORE		= BIT(30),
+	RX_FLAG_ICV_STRIPPED		= BIT_ULL(34),
 };
 
 #define RX_FLAG_STBC_SHIFT		26
@@ -1406,6 +1409,9 @@ struct ieee80211_sta_rates {
  * @supp_rates: Bitmap of supported rates (per band)
  * @ht_cap: HT capabilities of this STA; restricted to our own capabilities
  * @vht_cap: VHT capabilities of this STA; restricted to our own capabilities
+ * @max_rx_aggregation_subframes: maximal amount of frames in a single AMPDU
+ *	that this station is allowed to transmit to us.
+ *	Can be modified by driver.
  * @wme: indicates whether the STA supports QoS/WME.
  * @drv_priv: data area for driver use, will always be aligned to
  *	sizeof(void *), size is determined in hw information.
@@ -1427,6 +1433,7 @@ struct ieee80211_sta {
 	u16 aid;
 	struct ieee80211_sta_ht_cap ht_cap;
 	struct ieee80211_sta_vht_cap vht_cap;
+	u8 max_rx_aggregation_subframes;
 	bool wme;
 	u8 uapsd_queues;
 	u8 max_sp;
@@ -1573,6 +1580,10 @@ struct ieee80211_tx_control {
  *	a virtual monitor interface when monitor interfaces are the only
  *	active interfaces.
  *
+ * @IEEE80211_HW_NO_AUTO_VIF: The driver would like for no wlanX to
+ *	be created.  It is expected user-space will create vifs as
+ *	desired (and thus have them named as desired).
+ *
  * @IEEE80211_HW_QUEUE_CONTROL: The driver wants to control per-interface
  *	queue mapping in order to use different queues (not just one per AC)
  *	for different virtual interfaces. See the doc section on HW queue
@@ -1602,6 +1613,12 @@ struct ieee80211_tx_control {
  *
  * @IEEE80211_SINGLE_HW_SCAN_ON_ALL_BANDS: The HW supports scanning on all bands
  *	in one command, mac80211 doesn't have to run separate scans per band.
+ *
+ * @IEEE80211_HW_NEEDS_UNIQUE_STA_ADDR: Hardware (or driver) requires that each
+ *	station has a unique address, i.e. each station entry can be identified
+ *	by just its MAC address; this prevents, for example, the same station
+ *	from connecting to two virtual AP interfaces at the same time.
+ *
  */
 enum ieee80211_hw_flags {
 	IEEE80211_HW_HAS_RATE_CONTROL			= 1<<0,
@@ -1619,7 +1636,8 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_SUPPORTS_DYNAMIC_PS		= 1<<12,
 	IEEE80211_HW_MFP_CAPABLE			= 1<<13,
 	IEEE80211_HW_WANT_MONITOR_VIF			= 1<<14,
-	/* free slots */
+	IEEE80211_HW_NO_AUTO_VIF			= 1<<15,
+	/* free slot */
 	IEEE80211_HW_SUPPORTS_UAPSD			= 1<<17,
 	IEEE80211_HW_REPORTS_TX_ACK_STATUS		= 1<<18,
 	IEEE80211_HW_CONNECTION_MONITOR			= 1<<19,
@@ -1634,6 +1652,7 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_CHANCTX_STA_CSA			= 1<<28,
 	IEEE80211_HW_SUPPORTS_CLONED_SKBS		= 1<<29,
 	IEEE80211_SINGLE_HW_SCAN_ON_ALL_BANDS		= 1<<30,
+	IEEE80211_HW_NEEDS_UNIQUE_STA_ADDR		= 1<<31,
 };
 
 /**
@@ -2632,9 +2651,11 @@ enum ieee80211_roc_type {
  * 	ieee80211_ampdu_mlme_action. Starting sequence number (@ssn)
  * 	is the first frame we expect to perform the action on. Notice
  * 	that TX/RX_STOP can pass NULL for this parameter.
- *	The @buf_size parameter is only valid when the action is set to
- *	%IEEE80211_AMPDU_TX_OPERATIONAL and indicates the peer's reorder
- *	buffer size (number of subframes) for this session -- the driver
+ *	The @buf_size parameter is valid only when the action is set to
+ *	%IEEE80211_AMPDU_RX_START or %IEEE80211_AMPDU_TX_OPERATIONAL and
+ *	indicates the reorder buffer size (number of subframes) for this
+ *	session.
+ *	When the action is set to %IEEE80211_AMPDU_TX_OPERATIONAL the driver
  *	may neither send aggregates containing more subframes than this
  *	nor send aggregates in a way that lost frames would exceed the
  *	buffer size. If just limiting the aggregate size, this would be
@@ -3039,7 +3060,27 @@ struct ieee80211_ops {
 };
 
 /**
- * ieee80211_alloc_hw -  Allocate a new hardware device
+ * ieee80211_alloc_hw_nm - Allocate a new hardware device
+ *
+ * This must be called once for each hardware device. The returned pointer
+ * must be used to refer to this device when calling other functions.
+ * mac80211 allocates a private data area for the driver pointed to by
+ * @priv in &struct ieee80211_hw, the size of this area is given as
+ * @priv_data_len.
+ *
+ * @priv_data_len: length of private data
+ * @ops: callbacks for this device
+ * @requested_name: Requested name for this device.
+ *	NULL is valid value, and means use the default naming (phy%d)
+ *
+ * Return: A pointer to the new hardware device, or %NULL on error.
+ */
+struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
+					   const struct ieee80211_ops *ops,
+					   const char *requested_name);
+
+/**
+ * ieee80211_alloc_hw - Allocate a new hardware device
  *
  * This must be called once for each hardware device. The returned pointer
  * must be used to refer to this device when calling other functions.
@@ -3052,8 +3093,12 @@ struct ieee80211_ops {
  *
  * Return: A pointer to the new hardware device, or %NULL on error.
  */
+static inline
 struct ieee80211_hw *ieee80211_alloc_hw(size_t priv_data_len,
-					const struct ieee80211_ops *ops);
+					const struct ieee80211_ops *ops)
+{
+	return ieee80211_alloc_hw_nm(priv_data_len, ops, NULL);
+}
 
 /**
  * ieee80211_register_hw - Register hardware device
@@ -3368,7 +3413,7 @@ static inline int ieee80211_sta_ps_transition_ni(struct ieee80211_sta *sta,
  * The TX headroom reserved by mac80211 for its own tx_status functions.
  * This is enough for the radiotap header.
  */
-#define IEEE80211_TX_STATUS_HEADROOM	14
+#define IEEE80211_TX_STATUS_HEADROOM	ALIGN(14, 4)
 
 /**
  * ieee80211_sta_set_buffered - inform mac80211 about driver-buffered frames

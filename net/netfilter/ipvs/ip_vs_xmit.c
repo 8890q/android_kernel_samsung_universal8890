@@ -435,7 +435,7 @@ __ip_vs_get_out_rt_v6(int skb_af, struct sk_buff *skb, struct ip_vs_dest *dest,
 				goto err_unreach;
 			}
 			rt = (struct rt6_info *) dst;
-			cookie = rt->rt6i_node ? rt->rt6i_node->fn_sernum : 0;
+			cookie = rt6_get_cookie(rt);
 			__ip_vs_dst_set(dest, dest_dst, &rt->dst, cookie);
 			spin_unlock_bh(&dest->dst_lock);
 			IP_VS_DBG(10, "new dst %pI6, src %pI6, refcnt=%d\n",
@@ -806,7 +806,7 @@ ip_vs_nat_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
 
 	/* From world but DNAT to loopback address? */
 	if (local && skb->dev && !(skb->dev->flags & IFF_LOOPBACK) &&
-	    ipv6_addr_type(&rt->rt6i_dst.addr) & IPV6_ADDR_LOOPBACK) {
+	    ipv6_addr_type(&cp->daddr.in6) & IPV6_ADDR_LOOPBACK) {
 		IP_VS_DBG_RL_PKT(1, AF_INET6, pp, skb, 0,
 				 "ip_vs_nat_xmit_v6(): "
 				 "stopping DNAT to loopback address");
@@ -951,7 +951,8 @@ int
 ip_vs_tunnel_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
 		  struct ip_vs_protocol *pp, struct ip_vs_iphdr *ipvsh)
 {
-	struct netns_ipvs *ipvs = net_ipvs(skb_net(skb));
+	struct net *net = skb_net(skb);
+	struct netns_ipvs *ipvs = net_ipvs(net);
 	struct rtable *rt;			/* Route to the other host */
 	__be32 saddr;				/* Source for tunnel */
 	struct net_device *tdev;		/* Device to other host */
@@ -1018,7 +1019,7 @@ ip_vs_tunnel_xmit(struct sk_buff *skb, struct ip_vs_conn *cp,
 	iph->daddr		=	cp->daddr.ip;
 	iph->saddr		=	saddr;
 	iph->ttl		=	ttl;
-	ip_select_ident(skb, NULL);
+	ip_select_ident(net, skb, NULL);
 
 	/* Another hack: avoid icmp_send in ip_fragment */
 	skb->ignore_df = 1;
@@ -1372,7 +1373,7 @@ ip_vs_icmp_xmit_v6(struct sk_buff *skb, struct ip_vs_conn *cp,
 
 	/* From world but DNAT to loopback address? */
 	if (local && skb->dev && !(skb->dev->flags & IFF_LOOPBACK) &&
-	    ipv6_addr_type(&rt->rt6i_dst.addr) & IPV6_ADDR_LOOPBACK) {
+	    ipv6_addr_type(&cp->daddr.in6) & IPV6_ADDR_LOOPBACK) {
 		IP_VS_DBG(1, "%s(): "
 			  "stopping DNAT to loopback %pI6\n",
 			  __func__, &cp->daddr.in6);

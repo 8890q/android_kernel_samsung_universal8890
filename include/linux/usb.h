@@ -97,6 +97,41 @@ enum usb_interface_condition {
 	USB_INTERFACE_UNBINDING,
 };
 
+int __must_check
+usb_find_common_endpoints(struct usb_host_interface *alt,
+		struct usb_endpoint_descriptor **bulk_in,
+		struct usb_endpoint_descriptor **bulk_out,
+		struct usb_endpoint_descriptor **int_in,
+		struct usb_endpoint_descriptor **int_out);
+
+static inline int __must_check
+usb_find_bulk_in_endpoint(struct usb_host_interface *alt,
+		struct usb_endpoint_descriptor **bulk_in)
+{
+	return usb_find_common_endpoints(alt, bulk_in, NULL, NULL, NULL);
+}
+
+static inline int __must_check
+usb_find_bulk_out_endpoint(struct usb_host_interface *alt,
+		struct usb_endpoint_descriptor **bulk_out)
+{
+	return usb_find_common_endpoints(alt, NULL, bulk_out, NULL, NULL);
+}
+
+static inline int __must_check
+usb_find_int_in_endpoint(struct usb_host_interface *alt,
+		struct usb_endpoint_descriptor **int_in)
+{
+	return usb_find_common_endpoints(alt, NULL, NULL, int_in, NULL);
+}
+
+static inline int __must_check
+usb_find_int_out_endpoint(struct usb_host_interface *alt,
+		struct usb_endpoint_descriptor **int_out)
+{
+	return usb_find_common_endpoints(alt, NULL, NULL, NULL, int_out);
+}
+
 /**
  * struct usb_interface - what usb device drivers talk to
  * @altsetting: array of interface structures, one for each alternate
@@ -125,7 +160,6 @@ enum usb_interface_condition {
  * @dev: driver model's view of this device
  * @usb_dev: if an interface is bound to the USB major, this will point
  *	to the sysfs representation for that device.
- * @pm_usage_cnt: PM usage counter for this interface
  * @reset_ws: Used for scheduling resets from atomic context.
  * @resetting_device: USB core reset the device, so use alt setting 0 as
  *	current; needs bandwidth alloc after reset.
@@ -181,7 +215,6 @@ struct usb_interface {
 
 	struct device dev;		/* interface specific device info */
 	struct device *usb_dev;
-	atomic_t pm_usage_cnt;		/* usage counter for autosuspend */
 	struct work_struct reset_ws;	/* for resets in atomic context */
 };
 #define	to_usb_interface(d) container_of(d, struct usb_interface, dev)
@@ -326,14 +359,15 @@ struct usb_host_bos {
 	struct usb_ext_cap_descriptor	*ext_cap;
 	struct usb_ss_cap_descriptor	*ss_cap;
 	struct usb_ss_container_id_descriptor	*ss_id;
+	struct usb_ptm_cap_descriptor	*ptm_cap;
 };
 
 int __usb_get_extra_descriptor(char *buffer, unsigned size,
-	unsigned char type, void **ptr);
+	unsigned char type, void **ptr, size_t min);
 #define usb_get_extra_descriptor(ifpoint, type, ptr) \
 				__usb_get_extra_descriptor((ifpoint)->extra, \
 				(ifpoint)->extralen, \
-				type, (void **)ptr)
+				type, (void **)ptr, sizeof(**(ptr)))
 
 /* ----------------------------------------------------------------------- */
 
@@ -1650,6 +1684,8 @@ static inline int usb_urb_dir_out(struct urb *urb)
 {
 	return (urb->transfer_flags & URB_DIR_MASK) == URB_DIR_OUT;
 }
+
+int usb_urb_ep_type_check(const struct urb *urb);
 
 void *usb_alloc_coherent(struct usb_device *dev, size_t size,
 	gfp_t mem_flags, dma_addr_t *dma);

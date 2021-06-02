@@ -1385,6 +1385,12 @@ static int udf_load_sparable_map(struct super_block *sb,
 			(int)spm->numSparingTables);
 		return -EIO;
 	}
+	if (le32_to_cpu(spm->sizeSparingTable) > sb->s_blocksize) {
+		udf_err(sb, "error loading logical volume descriptor: "
+			"Too big sparing table size (%u)\n",
+			le32_to_cpu(spm->sizeSparingTable));
+		return -EIO;
+	}
 
 	for (i = 0; i < spm->numSparingTables; i++) {
 		loc = le32_to_cpu(spm->locSparingTable[i]);
@@ -2067,8 +2073,9 @@ static int udf_fill_super(struct super_block *sb, void *options, int silent)
 	struct udf_sb_info *sbi;
 
 	uopt.flags = (1 << UDF_FLAG_USE_AD_IN_ICB) | (1 << UDF_FLAG_STRICT);
-	uopt.uid = INVALID_UID;
-	uopt.gid = INVALID_GID;
+	/* By default we'll use overflow[ug]id when UDF inode [ug]id == -1 */
+	uopt.uid = make_kuid(current_user_ns(), overflowuid);
+	uopt.gid = make_kgid(current_user_ns(), overflowgid);
 	uopt.umask = 0;
 	uopt.fmode = UDF_INVALID_MODE;
 	uopt.dmode = UDF_INVALID_MODE;

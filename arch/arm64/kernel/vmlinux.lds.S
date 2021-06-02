@@ -67,8 +67,11 @@ PECOFF_FILE_ALIGNMENT = 0x200;
 #define PECOFF_EDATA_PADDING
 #endif
 
-#ifdef CONFIG_DEBUG_ALIGN_RODATA
+#if defined(CONFIG_DEBUG_ALIGN_RODATA)
 #define ALIGN_DEBUG_RO			. = ALIGN(1<<SECTION_SHIFT);
+#define ALIGN_DEBUG_RO_MIN(min)		ALIGN_DEBUG_RO
+#elif defined(CONFIG_DEBUG_RODATA)
+#define ALIGN_DEBUG_RO			. = ALIGN(1<<PAGE_SHIFT);
 #define ALIGN_DEBUG_RO_MIN(min)		ALIGN_DEBUG_RO
 #else
 #define ALIGN_DEBUG_RO
@@ -228,6 +231,7 @@ SECTIONS
 	. += IDMAP_DIR_SIZE;
 	swapper_pg_dir = .;
 	. += SWAPPER_DIR_SIZE;
+
 #ifdef CONFIG_ARM64_SW_TTBR0_PAN
 	reserved_ttbr0 = .;
 	. += RESERVED_TTBR0_SIZE;
@@ -237,6 +241,7 @@ SECTIONS
 	. += PAGE_SIZE;
 #endif
 #endif
+
 	_end = .;
 
 	STABS_DEBUG

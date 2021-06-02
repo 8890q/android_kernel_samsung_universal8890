@@ -120,13 +120,12 @@ typedef struct user_fpsimd_state elf_fpregset_t;
 #define ELF_EXEC_PAGESIZE	PAGE_SIZE
 
 /*
- * This is the location that an ET_DYN program is loaded if exec'ed.  Typical
- * use of this is to invoke "./ld.so someprog" to test out a new version of
- * the loader.  We need to make sure that it is out of the way of the program
- * that it will "exec", and that there is sufficient room for the brk.
+ * This is the base location for PIE (ET_DYN with INTERP) loads. On
+ * 64-bit, this is above 4GB to leave the entire 32-bit address
+ * space open for things that want to use the area for 32-bit pointers.
  */
 extern unsigned long randomize_et_dyn(unsigned long base);
-#define ELF_ET_DYN_BASE	(2 * TASK_SIZE_64 / 3)
+#define ELF_ET_DYN_BASE		(2 * TASK_SIZE_64 / 3)
 
 /*
  * When the program starts, a1 contains a pointer to a function to be
@@ -137,6 +136,7 @@ extern unsigned long randomize_et_dyn(unsigned long base);
 
 #define SET_PERSONALITY(ex)		clear_thread_flag(TIF_32BIT);
 
+/* update AT_VECTOR_SIZE_ARCH if the number of NEW_AUX_ENT entries changes */
 #define ARCH_DLINFO							\
 do {									\
 	NEW_AUX_ENT(AT_SYSINFO_EHDR,					\
@@ -161,15 +161,16 @@ struct mm_struct;
 extern unsigned long arch_randomize_brk(struct mm_struct *mm);
 #define arch_randomize_brk arch_randomize_brk
 
-#ifdef CONFIG_COMPAT
-
 #ifdef __AARCH64EB__
 #define COMPAT_ELF_PLATFORM		("v8b")
 #else
 #define COMPAT_ELF_PLATFORM		("v8l")
 #endif
 
-#define COMPAT_ELF_ET_DYN_BASE		(2 * TASK_SIZE_32 / 3)
+#ifdef CONFIG_COMPAT
+
+/* PIE load location for compat arm. Must match ARM ELF_ET_DYN_BASE. */
+#define COMPAT_ELF_ET_DYN_BASE		0x000400000UL
 
 /* AArch32 registers. */
 #define COMPAT_ELF_NGREG		18

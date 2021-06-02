@@ -2689,12 +2689,14 @@ static int nf_tables_newset(struct sock *nlsk, struct sk_buff *skb,
 
 	err = nft_trans_set_add(&ctx, NFT_MSG_NEWSET, set);
 	if (err < 0)
-		goto err2;
+		goto err3;
 
 	list_add_tail_rcu(&set->list, &table->sets);
 	table->use++;
 	return 0;
 
+err3:
+	ops->destroy(set);
 err2:
 	kfree(set);
 err1:
@@ -3156,6 +3158,7 @@ static int nft_add_set_elem(struct nft_ctx *ctx, struct nft_set *set,
 		dreg = nft_type_to_reg(set->dtype);
 		list_for_each_entry(binding, &set->bindings, list) {
 			struct nft_ctx bind_ctx = {
+				.net	= ctx->net,
 				.afi	= ctx->afi,
 				.table	= ctx->table,
 				.chain	= (struct nft_chain *)binding->chain,

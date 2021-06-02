@@ -264,10 +264,10 @@ static int add_new_comm(struct pevent *pevent, const char *comm, int pid)
 		errno = ENOMEM;
 		return -1;
 	}
+	pevent->cmdlines = cmdlines;
 
 	cmdlines[pevent->cmdline_count].comm = strdup(comm);
 	if (!cmdlines[pevent->cmdline_count].comm) {
-		free(cmdlines);
 		errno = ENOMEM;
 		return -1;
 	}
@@ -278,7 +278,6 @@ static int add_new_comm(struct pevent *pevent, const char *comm, int pid)
 		pevent->cmdline_count++;
 
 	qsort(cmdlines, pevent->cmdline_count, sizeof(*cmdlines), cmdline_cmp);
-	pevent->cmdlines = cmdlines;
 
 	return 0;
 }
@@ -2065,7 +2064,7 @@ eval_type_str(unsigned long long val, const char *type, int pointer)
 		return val & 0xffffffff;
 
 	if (strcmp(type, "u64") == 0 ||
-	    strcmp(type, "s64"))
+	    strcmp(type, "s64") == 0)
 		return val;
 
 	if (strcmp(type, "s8") == 0)
@@ -2283,7 +2282,7 @@ static int arg_num_eval(struct print_arg *arg, long long *val)
 static char *arg_eval (struct print_arg *arg)
 {
 	long long val;
-	static char buf[20];
+	static char buf[24];
 
 	switch (arg->type) {
 	case PRINT_ATOM:
@@ -4345,13 +4344,14 @@ static void pretty_print(struct trace_seq *s, void *data, int size, struct event
 				else
 					ls = 2;
 
-				if (*(ptr+1) == 'F' ||
-				    *(ptr+1) == 'f') {
+				if (isalnum(ptr[1]))
 					ptr++;
+
+				if (*ptr == 'F' || *ptr == 'f' ||
+				    *ptr == 'S' || *ptr == 's') {
 					show_func = *ptr;
-				} else if (*(ptr+1) == 'M' || *(ptr+1) == 'm') {
-					print_mac_arg(s, *(ptr+1), data, size, event, arg);
-					ptr++;
+				} else if (*ptr == 'M' || *ptr == 'm') {
+					print_mac_arg(s, *ptr, data, size, event, arg);
 					arg = arg->next;
 					break;
 				}

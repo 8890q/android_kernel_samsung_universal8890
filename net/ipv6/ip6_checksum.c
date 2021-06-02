@@ -73,15 +73,23 @@ int udp6_csum_init(struct sk_buff *skb, struct udphdr *uh, int proto)
 		err = udplite_checksum_init(skb, uh);
 		if (err)
 			return err;
+
+		if (UDP_SKB_CB(skb)->partial_cov) {
+			skb->csum = ip6_compute_pseudo(skb, proto);
+			return 0;
+		}
 	}
 
 	/* To support RFC 6936 (allow zero checksum in UDP/IPV6 for tunnels)
 	 * we accept a checksum of zero here. When we find the socket
 	 * for the UDP packet we'll check if that socket allows zero checksum
 	 * for IPv6 (set by socket option).
+	 *
+	 * Note, we are only interested in != 0 or == 0, thus the
+	 * force to int.
 	 */
-	return skb_checksum_init_zero_check(skb, proto, uh->check,
-					   ip6_compute_pseudo);
+	return (__force int)skb_checksum_init_zero_check(skb, proto, uh->check,
+							 ip6_compute_pseudo);
 }
 EXPORT_SYMBOL(udp6_csum_init);
 

@@ -1509,11 +1509,18 @@ static int emac_devioctl(struct net_device *ndev, struct ifreq *ifrq, int cmd)
 
 	/* TODO: Add phy read and write and private statistics get feature */
 
-	return phy_mii_ioctl(priv->phydev, ifrq, cmd);
+	if (priv->phydev)
+		return phy_mii_ioctl(priv->phydev, ifrq, cmd);
+	else
+		return -EOPNOTSUPP;
 }
 
 static int match_first_device(struct device *dev, void *data)
 {
+	if (dev->parent && dev->parent->of_node)
+		return of_device_is_compatible(dev->parent->of_node,
+					       "ti,davinci_mdio");
+
 	return !strncmp(dev_name(dev), "davinci_mdio", 12);
 }
 
@@ -1843,8 +1850,6 @@ davinci_emac_of_get_pdata(struct platform_device *pdev, struct emac_priv *priv)
 		pdata->hw_ram_addr = auxdata->hw_ram_addr;
 	}
 
-	pdev->dev.platform_data = pdata;
-
 	return  pdata;
 }
 
@@ -2033,6 +2038,7 @@ static int davinci_emac_remove(struct platform_device *pdev)
 	cpdma_ctlr_destroy(priv->dma);
 
 	unregister_netdev(ndev);
+	of_node_put(priv->phy_node);
 	free_netdev(ndev);
 
 	return 0;

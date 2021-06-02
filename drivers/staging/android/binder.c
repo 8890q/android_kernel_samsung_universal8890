@@ -359,6 +359,7 @@ struct binder_error {
 						 (invariant after initialized)
 
  * @inherit_rt:           inherit RT scheduling policy from caller
+ * @txn_security_ctx:     require sender's security context
  *                        (invariant after initialized)
  * @async_todo:           list of async work items
  *                        (protected by @proc->inner_lock)
@@ -603,6 +604,7 @@ enum {
  *                        (protected by @proc->inner_lock)
  * @todo:                 list of work to do for this thread
  *                        (protected by @proc->inner_lock)
+
  * @return_error:         transaction errors reported by this thread
  *                        (only accessed by this thread)
  * @reply_error:          transaction errors reported by target thread
@@ -629,6 +631,7 @@ struct binder_thread {
 	bool looper_need_return; /* can be written by other thread */
 	struct binder_transaction *transaction_stack;
 	struct list_head todo;
+
 	struct binder_error return_error;
 	struct binder_error reply_error;
 	wait_queue_head_t wait;
@@ -817,6 +820,7 @@ static bool binder_worklist_empty(struct binder_proc *proc,
 	return ret;
 }
 
+
 static void
 binder_enqueue_work_ilocked(struct binder_work *work,
 			   struct list_head *target_list)
@@ -831,6 +835,7 @@ binder_enqueue_work_ilocked(struct binder_work *work,
  * @proc:         binder_proc associated with list
  * @work:         struct binder_work to add to list
  * @target_list:  list to add work to
+
  *
  * Adds the work to the specified list. Asserts that work
  * is not already on a list.
@@ -878,14 +883,17 @@ static struct binder_work *binder_dequeue_work_head_ilocked(
 	return w;
 }
 
+
 static void
 binder_defer_work(struct binder_proc *proc, enum binder_deferred_state defer);
 static void binder_free_thread(struct binder_thread *thread);
 static void binder_free_proc(struct binder_proc *proc);
 static void binder_inc_node_tmpref_ilocked(struct binder_node *node);
 
+
 static int task_get_unused_fd_flags(struct binder_proc *proc, int flags)
 {
+
 	unsigned long rlim_cur;
 	unsigned long irqs;
 	int ret;
@@ -899,6 +907,7 @@ static int task_get_unused_fd_flags(struct binder_proc *proc, int flags)
 		ret = -EMFILE;
 		goto err;
 	}
+
 	rlim_cur = task_rlimit(proc->tsk, RLIMIT_NOFILE);
 	unlock_task_sighand(proc->tsk, &irqs);
 
@@ -918,6 +927,7 @@ static void task_fd_install(
 	if (proc->files)
 		__fd_install(proc->files, fd, file);
 	mutex_unlock(&proc->files_lock);
+
 }
 
 /*
@@ -925,6 +935,7 @@ static void task_fd_install(
  */
 static long task_close_fd(struct binder_proc *proc, unsigned int fd)
 {
+
 	int retval;
 
 	mutex_lock(&proc->files_lock);
@@ -1147,6 +1158,7 @@ static void binder_do_set_priority(struct task_struct *task,
 			      task->pid, desired.prio,
 			      to_kernel_prio(policy, priority));
 
+
 	/* Set the actual priority */
 	if (task->policy != policy || is_rt_policy(policy)) {
 		struct sched_param params;
@@ -1301,6 +1313,7 @@ static struct binder_node *binder_init_node_ilocked(
 	node->accept_fds = !!(flags & FLAT_BINDER_FLAG_ACCEPTS_FDS);
 	node->txn_security_ctx = !!(flags & FLAT_BINDER_FLAG_TXN_SECURITY_CTX);
 	node->inherit_rt = !!(flags & FLAT_BINDER_FLAG_INHERIT_RT);
+	node->txn_security_ctx = !!(flags & FLAT_BINDER_FLAG_TXN_SECURITY_CTX);
 	spin_lock_init(&node->lock);
 	INIT_LIST_HEAD(&node->work.entry);
 	INIT_LIST_HEAD(&node->async_todo);
@@ -1364,6 +1377,7 @@ static int binder_inc_node_nilocked(struct binder_node *node, int strong,
 			node->local_strong_refs++;
 		if (!node->has_strong_ref && target_list) {
 			binder_dequeue_work_ilocked(&node->work);
+
 			binder_enqueue_work_ilocked(&node->work, target_list);
 		}
 	} else {
@@ -1375,6 +1389,7 @@ static int binder_inc_node_nilocked(struct binder_node *node, int strong,
 					node->debug_id);
 				return -EINVAL;
 			}
+
 			binder_enqueue_work_ilocked(&node->work, target_list);
 		}
 	}
@@ -2753,6 +2768,7 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 					    node->inherit_rt);
 	} else if (!target_list) {
 		target_list = &proc->todo;
+
 	} else {
 		BUG_ON(target_list != &node->async_todo);
 	}
@@ -2767,6 +2783,7 @@ static bool binder_proc_transaction(struct binder_transaction *t,
 
 	return true;
 }
+
 
 static void binder_transaction(struct binder_proc *proc,
 			       struct binder_thread *thread,
@@ -2884,14 +2901,22 @@ static void binder_transaction(struct binder_proc *proc,
 				return_error_line = __LINE__;
 				goto err_invalid_target_handle;
 			}
+
 		} else {
 			mutex_lock(&context->context_mgr_node_lock);
 			target_node = context->binder_context_mgr_node;
 			if (target_node == NULL) {
+
 				return_error = BR_DEAD_REPLY;
 				mutex_unlock(&context->context_mgr_node_lock);
+			if (target_node && target_proc == proc) {
+				binder_user_error("%d:%d got transaction to context manager from process owning it\n",
+						  proc->pid, thread->pid);
+				return_error = BR_FAILED_REPLY;
+				return_error_param = -EINVAL;
 				return_error_line = __LINE__;
-				goto err_no_context_mgr_node;
+				goto err_invalid_target_handle;
+			}
 			}
 			binder_inc_node(target_node, 1, 0, NULL);
 			mutex_unlock(&context->context_mgr_node_lock);
@@ -3039,6 +3064,29 @@ static void binder_transaction(struct binder_proc *proc,
 	}
 
 
+	if (target_node && target_node->txn_security_ctx) {
+		u32 secid;
+		size_t added_size;
+
+		security_task_getsecid(proc->tsk, &secid);
+		ret = security_secid_to_secctx(secid, &secctx, &secctx_sz);
+		if (ret) {
+			return_error = BR_FAILED_REPLY;
+			return_error_param = ret;
+			return_error_line = __LINE__;
+			goto err_get_secctx_failed;
+		}
+		added_size = ALIGN(secctx_sz, sizeof(u64));
+		extra_buffers_size += added_size;
+		if (extra_buffers_size < added_size) {
+			/* integer overflow of extra_buffers_size */
+			return_error = BR_FAILED_REPLY;
+			return_error_param = EINVAL;
+			return_error_line = __LINE__;
+			goto err_bad_extra_size;
+		}
+	}
+
 	trace_binder_transaction(reply, t, target_node);
 
 	t->buffer = binder_alloc_new_buf(&target_proc->alloc, tr->data_size,
@@ -3055,7 +3103,7 @@ static void binder_transaction(struct binder_proc *proc,
 		t->buffer = NULL;
 		goto err_binder_alloc_buf_failed;
 	}
-		if (secctx) {
+	if (secctx) {
 		size_t buf_offset = ALIGN(tr->data_size, sizeof(void *)) +
 				    ALIGN(tr->offsets_size, sizeof(void *)) +
 				    ALIGN(extra_buffers_size, sizeof(void *)) -
@@ -3270,6 +3318,7 @@ static void binder_transaction(struct binder_proc *proc,
 	t->work.type = BINDER_WORK_TRANSACTION;
 
 	if (reply) {
+
 		binder_inner_proc_lock(target_proc);
 		if (target_thread->is_dead) {
 			binder_inner_proc_unlock(target_proc);
@@ -3285,6 +3334,7 @@ static void binder_transaction(struct binder_proc *proc,
 	} else if (!(t->flags & TF_ONE_WAY)) {
 		BUG_ON(t->buffer->async_transaction != 0);
 		binder_inner_proc_lock(proc);
+
 		t->need_reply = 1;
 		t->from_parent = thread->transaction_stack;
 		thread->transaction_stack = t;
@@ -3298,12 +3348,14 @@ static void binder_transaction(struct binder_proc *proc,
 	} else {
 		BUG_ON(target_node == NULL);
 		BUG_ON(t->buffer->async_transaction != 1);
+
 		if (!binder_proc_transaction(t, target_proc, NULL))
 			goto err_dead_proc_or_thread;
 	}
 	if (target_thread)
 		binder_thread_dec_tmpref(target_thread);
 	binder_proc_dec_tmpref(target_proc);
+
 	/*
 	 * write barrier to synchronize with initialization
 	 * of log entry
@@ -3323,6 +3375,7 @@ err_bad_parent:
 err_copy_data_failed:
 	trace_binder_transaction_failed_buffer_release(t->buffer);
 	binder_transaction_buffer_release(target_proc, t->buffer, offp);
+
 	target_node = NULL;
 	t->buffer->transaction = NULL;
 	binder_alloc_free_buf(&target_proc->alloc, t->buffer);
@@ -3341,13 +3394,13 @@ err_bad_call_stack:
 err_empty_call_stack:
 err_dead_binder:
 err_invalid_target_handle:
-err_no_context_mgr_node:
 	if (target_thread)
 		binder_thread_dec_tmpref(target_thread);
 	if (target_proc)
 		binder_proc_dec_tmpref(target_proc);
 	if (target_node)
 		binder_dec_node(target_node, 1, 0);
+
 
 	binder_debug(BINDER_DEBUG_FAILED_TRANSACTION,
 		     "%d:%d transaction failed %d/%d, size %lld-%lld line %d\n",
@@ -3571,6 +3624,7 @@ static int binder_thread_write(struct binder_proc *proc,
 					proc->pid, thread->pid,
 					(u64)data_ptr);
 				}
+
 				break;
 			}
 			binder_debug(BINDER_DEBUG_FREE_BUFFER,
@@ -4013,6 +4067,7 @@ retry:
 		}
 		w = binder_dequeue_work_head_ilocked(list);
 
+
 		switch (w->type) {
 		case BINDER_WORK_TRANSACTION: {
 			binder_inner_proc_unlock(proc);
@@ -4225,6 +4280,11 @@ retry:
 		}
 				
 
+		tr.secctx = t->security_ctx;
+		if (t->security_ctx) {
+			cmd = BR_TRANSACTION_SEC_CTX;
+			trsize = sizeof(tr);
+		}
 		if (put_user(cmd, (uint32_t __user *)ptr)) {
 			if (t_from)
 				binder_thread_dec_tmpref(t_from);
@@ -4504,7 +4564,17 @@ static int binder_thread_release(struct binder_proc *proc,
 		wake_up_poll(&thread->wait, POLLHUP | POLLFREE);
 	}
 
+
 	binder_inner_proc_unlock(thread->proc);
+
+	/*
+	 * This is needed to avoid races between wake_up_poll() above and
+	 * and ep_remove_waitqueue() called for other reasons (eg the epoll file
+	 * descriptor being closed); ep_remove_waitqueue() holds an RCU read
+	 * lock, so we can be sure it's done after calling synchronize_rcu().
+	 */
+	if (thread->looper & BINDER_LOOPER_STATE_POLL)
+		synchronize_rcu();
 
 	if (send_reply)
 		binder_send_failed_reply(send_reply, BR_DEAD_REPLY);
@@ -4650,6 +4720,42 @@ out:
 	return ret;
 }
 
+static int binder_ioctl_get_node_info_for_ref(struct binder_proc *proc,
+		struct binder_node_info_for_ref *info)
+{
+	struct binder_node *node;
+	struct binder_context *context = proc->context;
+	__u32 handle = info->handle;
+
+	if (info->strong_count || info->weak_count || info->reserved1 ||
+	    info->reserved2 || info->reserved3) {
+		binder_user_error("%d BINDER_GET_NODE_INFO_FOR_REF: only handle may be non-zero.",
+				  proc->pid);
+		return -EINVAL;
+	}
+
+	/* This ioctl may only be used by the context manager */
+	mutex_lock(&context->context_mgr_node_lock);
+	if (!context->binder_context_mgr_node ||
+		context->binder_context_mgr_node->proc != proc) {
+		mutex_unlock(&context->context_mgr_node_lock);
+		return -EPERM;
+	}
+	mutex_unlock(&context->context_mgr_node_lock);
+
+	node = binder_get_node_from_ref(proc, handle, true, NULL);
+	if (!node)
+		return -EINVAL;
+
+	info->strong_count = node->local_strong_refs +
+		node->internal_strong_refs;
+	info->weak_count = node->local_weak_refs;
+
+	binder_put_node(node);
+
+	return 0;
+}
+
 static int binder_ioctl_get_node_debug_info(struct binder_proc *proc,
 				struct binder_node_debug_info *info)
 {
@@ -4755,6 +4861,25 @@ static long binder_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			ret = -EINVAL;
 			goto err;
 		}
+		break;
+	}
+	case BINDER_GET_NODE_INFO_FOR_REF: {
+		struct binder_node_info_for_ref info;
+
+		if (copy_from_user(&info, ubuf, sizeof(info))) {
+			ret = -EFAULT;
+			goto err;
+		}
+
+		ret = binder_ioctl_get_node_info_for_ref(proc, &info);
+		if (ret < 0)
+			goto err;
+
+		if (copy_to_user(ubuf, &info, sizeof(info))) {
+			ret = -EFAULT;
+			goto err;
+		}
+
 		break;
 	}
 	case BINDER_GET_NODE_DEBUG_INFO: {

@@ -100,7 +100,7 @@ static void __usbhsf_pkt_del(struct usbhs_pkt *pkt)
 	list_del_init(&pkt->node);
 }
 
-static struct usbhs_pkt *__usbhsf_pkt_get(struct usbhs_pipe *pipe)
+struct usbhs_pkt *__usbhsf_pkt_get(struct usbhs_pipe *pipe)
 {
 	if (list_empty(&pipe->list))
 		return NULL;
@@ -141,6 +141,8 @@ struct usbhs_pkt *usbhs_pkt_pop(struct usbhs_pipe *pipe, struct usbhs_pkt *pkt)
 			usbhsf_fifo_clear(pipe, fifo);
 			usbhsf_dma_unmap(pkt);
 		}
+
+		usbhs_pipe_running(pipe, 0);
 
 		__usbhsf_pkt_del(pkt);
 	}

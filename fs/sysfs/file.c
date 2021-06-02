@@ -17,6 +17,7 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/seq_file.h>
+#include <linux/mm.h>
 
 #include "sysfs.h"
 #include "../kernfs/kernfs-internal.h"
@@ -357,6 +358,50 @@ int sysfs_chmod_file(struct kobject *kobj, const struct attribute *attr,
 EXPORT_SYMBOL_GPL(sysfs_chmod_file);
 
 /**
+ * sysfs_break_active_protection - break "active" protection
+ * @kobj: The kernel object @attr is associated with.
+ * @attr: The attribute to break the "active" protection for.
+ *
+ * With sysfs, just like kernfs, deletion of an attribute is postponed until
+ * all active .show() and .store() callbacks have finished unless this function
+ * is called. Hence this function is useful in methods that implement self
+ * deletion.
+ */
+struct kernfs_node *sysfs_break_active_protection(struct kobject *kobj,
+						  const struct attribute *attr)
+{
+	struct kernfs_node *kn;
+
+	kobject_get(kobj);
+	kn = kernfs_find_and_get(kobj->sd, attr->name);
+	if (kn)
+		kernfs_break_active_protection(kn);
+	return kn;
+}
+EXPORT_SYMBOL_GPL(sysfs_break_active_protection);
+
+/**
+ * sysfs_unbreak_active_protection - restore "active" protection
+ * @kn: Pointer returned by sysfs_break_active_protection().
+ *
+ * Undo the effects of sysfs_break_active_protection(). Since this function
+ * calls kernfs_put() on the kernfs node that corresponds to the 'attr'
+ * argument passed to sysfs_break_active_protection() that attribute may have
+ * been removed between the sysfs_break_active_protection() and
+ * sysfs_unbreak_active_protection() calls, it is not safe to access @kn after
+ * this function has returned.
+ */
+void sysfs_unbreak_active_protection(struct kernfs_node *kn)
+{
+	struct kobject *kobj = kn->parent->priv;
+
+	kernfs_unbreak_active_protection(kn);
+	kernfs_put(kn);
+	kobject_put(kobj);
+}
+EXPORT_SYMBOL_GPL(sysfs_unbreak_active_protection);
+
+/**
  * sysfs_remove_file_ns - remove an object attribute with a custom ns tag
  * @kobj: object we're acting for
  * @attr: attribute descriptor
@@ -454,3 +499,57 @@ void sysfs_remove_bin_file(struct kobject *kobj,
 	kernfs_remove_by_name(kobj->sd, attr->attr.name);
 }
 EXPORT_SYMBOL_GPL(sysfs_remove_bin_file);
+
+/**
+ *	sysfs_emit - scnprintf equivalent, aware of PAGE_SIZE buffer.
+ *	@buf:	start of PAGE_SIZE buffer.
+ *	@fmt:	format
+ *	@...:	optional arguments to @format
+ *
+ *
+ * Returns number of characters written to @buf.
+ */
+int sysfs_emit(char *buf, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf || offset_in_page(buf),
+		 "invalid sysfs_emit: buf:%p\n", buf))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf, PAGE_SIZE, fmt, args);
+	va_end(args);
+
+	return len;
+}
+EXPORT_SYMBOL_GPL(sysfs_emit);
+
+/**
+ *	sysfs_emit_at - scnprintf equivalent, aware of PAGE_SIZE buffer.
+ *	@buf:	start of PAGE_SIZE buffer.
+ *	@at:	offset in @buf to start write in bytes
+ *		@at must be >= 0 && < PAGE_SIZE
+ *	@fmt:	format
+ *	@...:	optional arguments to @fmt
+ *
+ *
+ * Returns number of characters written starting at &@buf[@at].
+ */
+int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf || offset_in_page(buf) || at < 0 || at >= PAGE_SIZE,
+		 "invalid sysfs_emit_at: buf:%p at:%d\n", buf, at))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf + at, PAGE_SIZE - at, fmt, args);
+	va_end(args);
+
+	return len;
+}
+EXPORT_SYMBOL_GPL(sysfs_emit_at);

@@ -108,6 +108,8 @@ int __init ima_init_crypto(void)
 		       hash_algo_name[ima_hash_algo], rc);
 		return rc;
 	}
+	pr_info("Allocated hash algorithm: %s\n",
+		hash_algo_name[ima_hash_algo]);
 	return 0;
 }
 
@@ -325,8 +327,11 @@ static int ima_calc_file_hash_atfm(struct file *file,
 		/* read buffer */
 		rbuf_len = min_t(loff_t, i_size - offset, rbuf_size[active]);
 		rc = ima_kernel_read(file, offset, rbuf[active], rbuf_len);
-		if (rc != rbuf_len)
+		if (rc != rbuf_len) {
+			if (rc >= 0)
+				rc = -EINVAL;
 			goto out3;
+		}
 
 		if (rbuf[1] && offset) {
 			/* Using two buffers, and it is not the first
@@ -579,6 +584,8 @@ static int __init ima_calc_boot_aggregate_tfm(char *digest,
 		ima_pcrread(i, pcr_i);
 		/* now accumulate with current aggregate */
 		rc = crypto_shash_update(shash, pcr_i, TPM_DIGEST_SIZE);
+		if (rc != 0)
+			return rc;
 	}
 	if (!rc)
 		crypto_shash_final(shash, digest);

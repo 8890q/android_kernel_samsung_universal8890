@@ -974,14 +974,14 @@ static unsigned int s3c24xx_serial_getclk(struct s3c24xx_uart_port *ourport,
 	struct s3c24xx_uart_info *info = ourport->info;
 	struct clk *clk;
 	unsigned long rate;
-	unsigned int cnt, baud, quot, clk_sel, best_quot = 0;
+	unsigned int cnt, baud, quot, best_quot = 0;
 	char clkname[MAX_CLK_NAME_LENGTH];
 	int calc_deviation, deviation = (1 << 30) - 1;
 
-	clk_sel = (ourport->cfg->clk_sel) ? ourport->cfg->clk_sel :
-			ourport->info->def_clk_sel;
 	for (cnt = 0; cnt < info->num_clks; cnt++) {
-		if (!(clk_sel & (1 << cnt)))
+		/* Keep selected clock if provided */
+		if (ourport->cfg->clk_sel &&
+			!(ourport->cfg->clk_sel & (1 << cnt)))
 			continue;
 
 		snprintf(clkname, sizeof(clkname), "sclk_uart%d", ourport->port.line);
@@ -1555,9 +1555,11 @@ static int s3c24xx_serial_init_port(struct s3c24xx_uart_port *ourport,
 		ourport->tx_irq = ret + 1;
 	}
 
-	ret = platform_get_irq(platdev, 1);
-	if (ret > 0)
-		ourport->tx_irq = ret;
+	if (!s3c24xx_serial_has_interrupt_mask(port)) {
+		ret = platform_get_irq(platdev, 1);
+		if (ret > 0)
+			ourport->tx_irq = ret;
+	}
 
 #if defined(CONFIG_PM_RUNTIME) && defined(CONFIG_SND_SAMSUNG_AUDSS)
 	if (ourport->domain == DOMAIN_AUD)
@@ -1929,8 +1931,6 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	probe_index++;
-
 	dbg("%s: initialising port %p...\n", __func__, ourport);
 
 #ifdef CONFIG_ARM_EXYNOS_DEVFREQ
@@ -2081,6 +2081,8 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to create sysfs file.\n");
 
 	ourport->dbg_mode = 0;
+
+	probe_index++;
 
 	return 0;
 }

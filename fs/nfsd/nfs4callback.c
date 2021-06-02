@@ -616,6 +616,14 @@ int set_callback_cred(void)
 	return 0;
 }
 
+void cleanup_callback_cred(void)
+{
+	if (callback_cred) {
+		put_rpccred(callback_cred);
+		callback_cred = NULL;
+	}
+}
+
 static struct rpc_cred *get_backchannel_cred(struct nfs4_client *clp, struct rpc_clnt *client, struct nfsd4_session *ses)
 {
 	if (clp->cl_minorversion == 0) {
@@ -941,6 +949,8 @@ static void nfsd4_process_cb_update(struct nfsd4_callback *cb)
 	err = setup_callback_client(clp, &conn, ses);
 	if (err) {
 		nfsd4_mark_cb_down(clp, err);
+		if (c)
+			svc_xprt_put(c->cn_xprt);
 		return;
 	}
 	/* Yay, the callback channel's back! Restart any callbacks: */

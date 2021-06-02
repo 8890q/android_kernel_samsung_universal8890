@@ -3531,9 +3531,6 @@ RTY_SEND_CMD:
 				if ((ptr[3] & 0x1E) != 0x04)
 					TRACE_RET(chip, STATUS_FAIL);
 
-			} else if (rsp_type == SD_RSP_TYPE_R0) {
-				if ((ptr[3] & 0x1E) != 0x03)
-					TRACE_RET(chip, STATUS_FAIL);
 			}
 		}
 	}
@@ -4296,7 +4293,7 @@ int sd_execute_write_data(struct scsi_cmnd *srb, struct rtsx_chip *chip)
 		if (retval != STATUS_SUCCESS)
 			TRACE_GOTO(chip, SD_Execute_Write_Cmd_Failed);
 
-		rtsx_write_register(chip, SD_BYTE_CNT_L, 0xFF, 0x00);
+		retval = rtsx_write_register(chip, SD_BYTE_CNT_L, 0xFF, 0x00);
 		if (retval != STATUS_SUCCESS)
 			TRACE_GOTO(chip, SD_Execute_Write_Cmd_Failed);
 	}

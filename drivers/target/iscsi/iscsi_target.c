@@ -503,8 +503,7 @@ static void iscsit_aborted_task(struct iscsi_conn *conn, struct iscsi_cmd *cmd)
 	bool scsi_cmd = (cmd->iscsi_opcode == ISCSI_OP_SCSI_CMD);
 
 	spin_lock_bh(&conn->cmd_lock);
-	if (!list_empty(&cmd->i_conn_node) &&
-	    !(cmd->se_cmd.transport_state & CMD_T_FABRIC_STOP))
+	if (!list_empty(&cmd->i_conn_node))
 		list_del_init(&cmd->i_conn_node);
 	spin_unlock_bh(&conn->cmd_lock);
 
@@ -997,7 +996,9 @@ int iscsit_setup_scsi_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd,
 		hdr->cmdsn, be32_to_cpu(hdr->data_length), payload_length,
 		conn->cid);
 
-	target_get_sess_cmd(&cmd->se_cmd, true);
+	if (target_get_sess_cmd(&cmd->se_cmd, true) < 0)
+		return iscsit_add_reject_cmd(cmd,
+				ISCSI_REASON_WAITING_FOR_LOGOUT, buf);
 
 	cmd->sense_reason = transport_lookup_cmd_lun(&cmd->se_cmd,
 						     scsilun_to_int(&hdr->lun));
@@ -1116,6 +1117,18 @@ iscsit_get_immediate_data(struct iscsi_cmd *cmd, struct iscsi_scsi_req *hdr,
 	 */
 	if (dump_payload)
 		goto after_immediate_data;
+	/*
+	 * Check for underflow case where both EDTL and immediate data payload
+	 * exceeds what is presented by CDB's TRANSFER LENGTH, and what has
+	 * already been set in target_cmd_size_check() as se_cmd->data_length.
+	 *
+	 * For this special case, fail the command and dump the immediate data
+	 * payload.
+	 */
+	if (cmd->first_burst_len > cmd->se_cmd.data_length) {
+		cmd->sense_reason = TCM_INVALID_CDB_FIELD;
+		goto after_immediate_data;
+	}
 
 	immed_ret = iscsit_handle_immediate_data(cmd, hdr,
 					cmd->first_burst_len);
@@ -1750,7 +1763,6 @@ iscsit_handle_task_mgt_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd,
 	struct iscsi_tmr_req *tmr_req;
 	struct iscsi_tm *hdr;
 	int out_of_order_cmdsn = 0, ret;
-	bool sess_ref = false;
 	u8 function, tcm_function = TMR_UNKNOWN;
 
 	hdr			= (struct iscsi_tm *) buf;
@@ -1792,19 +1804,19 @@ iscsit_handle_task_mgt_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd,
 					     buf);
 	}
 
+	transport_init_se_cmd(&cmd->se_cmd, &lio_target_fabric_configfs->tf_ops,
+			      conn->sess->se_sess, 0, DMA_NONE,
+			      MSG_SIMPLE_TAG, cmd->sense_buffer + 2);
+
+	if (target_get_sess_cmd(&cmd->se_cmd, true) < 0)
+		return iscsit_add_reject_cmd(cmd,
+				ISCSI_REASON_WAITING_FOR_LOGOUT, buf);
+
 	/*
 	 * TASK_REASSIGN for ERL=2 / connection stays inside of
 	 * LIO-Target $FABRIC_MOD
 	 */
 	if (function != ISCSI_TM_FUNC_TASK_REASSIGN) {
-		transport_init_se_cmd(&cmd->se_cmd,
-				      &lio_target_fabric_configfs->tf_ops,
-				      conn->sess->se_sess, 0, DMA_NONE,
-				      MSG_SIMPLE_TAG, cmd->sense_buffer + 2);
-
-		target_get_sess_cmd(&cmd->se_cmd, true);
-		sess_ref = true;
-
 		switch (function) {
 		case ISCSI_TM_FUNC_ABORT_TASK:
 			tcm_function = TMR_ABORT_TASK;
@@ -1943,12 +1955,8 @@ attach:
 	 * For connection recovery, this is also the default action for
 	 * TMR TASK_REASSIGN.
 	 */
-	if (sess_ref) {
-		pr_debug("Handle TMR, using sess_ref=true check\n");
-		target_put_sess_cmd(&cmd->se_cmd);
-	}
-
 	iscsit_add_cmd_to_response_queue(cmd, conn, cmd->i_state);
+	target_put_sess_cmd(&cmd->se_cmd);
 	return 0;
 }
 EXPORT_SYMBOL(iscsit_handle_task_mgt_cmd);
@@ -1987,6 +1995,7 @@ iscsit_setup_text_cmd(struct iscsi_conn *conn, struct iscsi_cmd *cmd,
 	cmd->cmd_sn		= be32_to_cpu(hdr->cmdsn);
 	cmd->exp_stat_sn	= be32_to_cpu(hdr->exp_statsn);
 	cmd->data_direction	= DMA_NONE;
+	kfree(cmd->text_in_ptr);
 
 	return 0;
 }
@@ -4201,13 +4210,23 @@ static void iscsit_release_commands_from_conn(struct iscsi_conn *conn)
 	spin_lock_bh(&conn->cmd_lock);
 	list_splice_init(&conn->conn_cmd_list, &tmp_list);
 
-	list_for_each_entry(cmd, &tmp_list, i_conn_node) {
+	list_for_each_entry_safe(cmd, cmd_tmp, &tmp_list, i_conn_node) {
 		struct se_cmd *se_cmd = &cmd->se_cmd;
 
 		if (se_cmd->se_tfo != NULL) {
-			spin_lock(&se_cmd->t_state_lock);
-			se_cmd->transport_state |= CMD_T_FABRIC_STOP;
-			spin_unlock(&se_cmd->t_state_lock);
+			spin_lock_irq(&se_cmd->t_state_lock);
+			if (se_cmd->transport_state & CMD_T_ABORTED) {
+				/*
+				 * LIO's abort path owns the cleanup for this,
+				 * so put it back on the list and let
+				 * aborted_task handle it.
+				 */
+				list_move_tail(&cmd->i_conn_node,
+					       &conn->conn_cmd_list);
+			} else {
+				se_cmd->transport_state |= CMD_T_FABRIC_STOP;
+			}
+			spin_unlock_irq(&se_cmd->t_state_lock);
 		}
 	}
 	spin_unlock_bh(&conn->cmd_lock);
@@ -4363,6 +4382,8 @@ int iscsit_close_connection(
 	 * must wait until they have completed.
 	 */
 	iscsit_check_conn_usage_count(conn);
+	target_sess_cmd_list_set_waiting(sess->se_sess);
+	target_wait_for_sess_cmds(sess->se_sess);
 
 	if (conn->conn_rx_hash.tfm)
 		crypto_free_hash(conn->conn_rx_hash.tfm);
@@ -4824,6 +4845,7 @@ int iscsit_release_sessions_for_tpg(struct iscsi_portal_group *tpg, int force)
 			continue;
 		}
 		atomic_set(&sess->session_reinstatement, 1);
+		atomic_set(&sess->session_fall_back_to_erl0, 1);
 		spin_unlock(&sess->conn_lock);
 
 		list_move_tail(&se_sess->sess_list, &free_list);

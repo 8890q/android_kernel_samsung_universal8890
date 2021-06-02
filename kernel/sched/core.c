@@ -32,7 +32,7 @@
 #include <linux/init.h>
 #include <linux/uaccess.h>
 #include <linux/highmem.h>
-#include <asm/mmu_context.h>
+#include <linux/mmu_context.h>
 #include <linux/interrupt.h>
 #include <linux/capability.h>
 #include <linux/completion.h>
@@ -656,7 +656,7 @@ void resched_cpu(int cpu)
 
 	if (!raw_spin_trylock_irqsave(&rq->lock, flags))
 		return;
-	resched_curr(rq);
+		resched_curr(rq);
 	raw_spin_unlock_irqrestore(&rq->lock, flags);
 }
 
@@ -2450,7 +2450,7 @@ context_switch(struct rq *rq, struct task_struct *prev,
 		atomic_inc(&oldmm->mm_count);
 		enter_lazy_tlb(oldmm, next);
 	} else
-		switch_mm(oldmm, mm, next);
+		switch_mm_irqs_off(oldmm, mm, next);
 
 	if (!prev->mm) {
 		prev->active_mm = NULL;
@@ -3263,7 +3263,8 @@ void rt_mutex_setprio(struct task_struct *p, int prio)
 	if (dl_prio(prio)) {
 		struct task_struct *pi_task = rt_mutex_get_top_task(p);
 		if (!dl_prio(p->normal_prio) ||
-		    (pi_task && dl_entity_preempt(&pi_task->dl, &p->dl))) {
+		    (pi_task && dl_prio(pi_task->prio) &&
+		     dl_entity_preempt(&pi_task->dl, &p->dl))) {
 			p->dl.dl_boosted = 1;
 			p->dl.dl_throttled = 0;
 			enqueue_flag = ENQUEUE_REPLENISH;
@@ -3606,7 +3607,7 @@ static bool check_same_owner(struct task_struct *p)
 
 static int __sched_setscheduler(struct task_struct *p,
 				const struct sched_attr *attr,
-				bool user)
+				bool user, bool pi)
 {
 	int newprio = dl_policy(attr->sched_policy) ? MAX_DL_PRIO - 1 :
 		      MAX_RT_PRIO - 1 - attr->sched_priority;
@@ -3617,8 +3618,8 @@ static int __sched_setscheduler(struct task_struct *p,
 	struct rq *rq;
 	int reset_on_fork;
 
-	/* may grab non-irq protected spin_locks */
-	BUG_ON(in_interrupt());
+	/* The pi code expects interrupts enabled */
+	BUG_ON(pi && in_interrupt());
 recheck:
 	/* double check policy once rq lock held */
 	if (policy < 0) {
@@ -3792,18 +3793,20 @@ change:
 	p->sched_reset_on_fork = reset_on_fork;
 	oldprio = p->prio;
 
-	/*
-	 * Take priority boosted tasks into account. If the new
-	 * effective priority is unchanged, we just store the new
-	 * normal parameters and do not touch the scheduler class and
-	 * the runqueue. This will be done when the task deboost
-	 * itself.
-	 */
-	new_effective_prio = rt_mutex_get_effective_prio(p, newprio);
-	if (new_effective_prio == oldprio) {
-		__setscheduler_params(p, attr);
-		task_rq_unlock(rq, p, &flags);
-		return 0;
+	if (pi) {
+		/*
+		 * Take priority boosted tasks into account. If the new
+		 * effective priority is unchanged, we just store the new
+		 * normal parameters and do not touch the scheduler class and
+		 * the runqueue. This will be done when the task deboost
+		 * itself.
+		 */
+		new_effective_prio = rt_mutex_get_effective_prio(p, newprio);
+		if (new_effective_prio == oldprio) {
+			__setscheduler_params(p, attr);
+			task_rq_unlock(rq, p, &flags);
+			return 0;
+		}
 	}
 
 	queued = task_on_rq_queued(p);
@@ -3837,7 +3840,8 @@ change:
 	check_class_changed(rq, p, prev_class, oldprio);
 	task_rq_unlock(rq, p, &flags);
 
-	rt_mutex_adjust_pi(p);
+	if (pi)
+		rt_mutex_adjust_pi(p);
 
 	return 0;
 }
@@ -3858,7 +3862,7 @@ static int _sched_setscheduler(struct task_struct *p, int policy,
 		attr.sched_policy = policy;
 	}
 
-	return __sched_setscheduler(p, &attr, check);
+	return __sched_setscheduler(p, &attr, check, true);
 }
 /**
  * sched_setscheduler - change the scheduling policy and/or RT priority of a thread.
@@ -3879,7 +3883,7 @@ EXPORT_SYMBOL_GPL(sched_setscheduler);
 
 int sched_setattr(struct task_struct *p, const struct sched_attr *attr)
 {
-	return __sched_setscheduler(p, attr, true);
+	return __sched_setscheduler(p, attr, true, true);
 }
 EXPORT_SYMBOL_GPL(sched_setattr);
 
@@ -7128,17 +7132,16 @@ static int cpuset_cpu_active(struct notifier_block *nfb, unsigned long action,
 		 * operation in the resume sequence, just build a single sched
 		 * domain, ignoring cpusets.
 		 */
-		num_cpus_frozen--;
-		if (likely(num_cpus_frozen)) {
-			partition_sched_domains(1, NULL, NULL);
+		partition_sched_domains(1, NULL, NULL);
+		if (--num_cpus_frozen)
 			break;
-		}
 
 		/*
 		 * This is the last CPU online operation. So fall through and
 		 * restore the original sched domains by considering the
 		 * cpuset configurations.
 		 */
+		cpuset_force_rebuild();
 
 	case CPU_ONLINE:
 	case CPU_DOWN_FAILED:
@@ -7465,32 +7468,15 @@ EXPORT_SYMBOL(__might_sleep);
 #endif
 
 #ifdef CONFIG_MAGIC_SYSRQ
-static void normalize_task(struct rq *rq, struct task_struct *p)
-{
-	const struct sched_class *prev_class = p->sched_class;
-	struct sched_attr attr = {
-		.sched_policy = SCHED_NORMAL,
-	};
-	int old_prio = p->prio;
-	int queued;
-
-	queued = task_on_rq_queued(p);
-	if (queued)
-		dequeue_task(rq, p, 0);
-	__setscheduler(rq, p, &attr);
-	if (queued) {
-		enqueue_task(rq, p, 0);
-		resched_curr(rq);
-	}
-
-	check_class_changed(rq, p, prev_class, old_prio);
-}
-
 void normalize_rt_tasks(void)
 {
 	struct task_struct *g, *p;
-	unsigned long flags;
-	struct rq *rq;
+	struct sched_attr attr = {
+		.sched_policy = SCHED_NORMAL,
+	};
+
+
+
 
 	read_lock(&tasklist_lock);
 	for_each_process_thread(g, p) {
@@ -7517,9 +7503,8 @@ void normalize_rt_tasks(void)
 			continue;
 		}
 
-		rq = task_rq_lock(p, &flags);
-		normalize_task(rq, p);
-		task_rq_unlock(rq, p, &flags);
+		__sched_setscheduler(p, &attr, false, false);
+
 	}
 	read_unlock(&tasklist_lock);
 }
@@ -8059,8 +8044,9 @@ int sched_rr_handler(struct ctl_table *table, int write,
 	/* make sure that internally we keep jiffies */
 	/* also, writing zero resets timeslice to default */
 	if (!ret && write) {
-		sched_rr_timeslice = sched_rr_timeslice <= 0 ?
-			RR_TIMESLICE : msecs_to_jiffies(sched_rr_timeslice);
+		sched_rr_timeslice =
+			sysctl_sched_rr_timeslice <= 0 ? RR_TIMESLICE :
+			msecs_to_jiffies(sysctl_sched_rr_timeslice);
 	}
 	mutex_unlock(&mutex);
 	return ret;
@@ -8129,10 +8115,6 @@ static int cpu_cgroup_can_attach(struct cgroup_subsys_state *css,
 #ifdef CONFIG_RT_GROUP_SCHED
 		if (!sched_rt_can_attach(css_tg(css), task))
 			return -EINVAL;
-#else
-		/* We don't support RT-tasks being in separate groups */
-		if (task->sched_class != &fair_sched_class)
-			return -EINVAL;
 #endif
 	}
 	return 0;
@@ -8166,6 +8148,8 @@ static void cpu_cgroup_exit(struct cgroup_subsys_state *css,
 static int cpu_shares_write_u64(struct cgroup_subsys_state *css,
 				struct cftype *cftype, u64 shareval)
 {
+	if (shareval > scale_load_down(ULONG_MAX))
+		shareval = MAX_SHARES;
 	return sched_group_set_shares(css_tg(css), scale_load(shareval));
 }
 
@@ -8267,8 +8251,10 @@ int tg_set_cfs_quota(struct task_group *tg, long cfs_quota_us)
 	period = ktime_to_ns(tg->cfs_bandwidth.period);
 	if (cfs_quota_us < 0)
 		quota = RUNTIME_INF;
-	else
+	else if ((u64)cfs_quota_us <= U64_MAX / NSEC_PER_USEC)
 		quota = (u64)cfs_quota_us * NSEC_PER_USEC;
+	else
+		return -EINVAL;
 
 	return tg_set_cfs_bandwidth(tg, period, quota);
 }
@@ -8289,6 +8275,9 @@ long tg_get_cfs_quota(struct task_group *tg)
 int tg_set_cfs_period(struct task_group *tg, long cfs_period_us)
 {
 	u64 quota, period;
+
+	if ((u64)cfs_period_us > U64_MAX / NSEC_PER_USEC)
+		return -EINVAL;
 
 	period = (u64)cfs_period_us * NSEC_PER_USEC;
 	quota = tg->cfs_bandwidth.quota;

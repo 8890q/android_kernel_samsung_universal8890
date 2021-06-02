@@ -134,7 +134,8 @@ static void __reset_isolation_suitable(struct zone *zone)
 
 	zone->compact_cached_migrate_pfn[0] = start_pfn;
 	zone->compact_cached_migrate_pfn[1] = start_pfn;
-	zone->compact_cached_free_pfn = end_pfn;
+	zone->compact_cached_free_pfn =
+			round_down(zone_end_pfn(zone) - 1, pageblock_nr_pages);
 	zone->compact_blockskip_flush = false;
 
 	/* Walk the zone and mark every pageblock as suitable for isolation */
@@ -496,13 +497,17 @@ unsigned long
 isolate_freepages_range(struct compact_control *cc,
 			unsigned long start_pfn, unsigned long end_pfn)
 {
-	unsigned long isolated, pfn, block_end_pfn;
+	unsigned long isolated, pfn, block_start_pfn, block_end_pfn;
 	LIST_HEAD(freelist);
 
 	pfn = start_pfn;
+	block_start_pfn = pfn & ~(pageblock_nr_pages - 1);
+	if (block_start_pfn < cc->zone->zone_start_pfn)
+		block_start_pfn = cc->zone->zone_start_pfn;
 	block_end_pfn = ALIGN(pfn + 1, pageblock_nr_pages);
 
 	for (; pfn < end_pfn; pfn += isolated,
+				block_start_pfn = block_end_pfn,
 				block_end_pfn += pageblock_nr_pages) {
 		/* Protect pfn from changing by isolate_freepages_block */
 		unsigned long isolate_start_pfn = pfn;
@@ -515,11 +520,13 @@ isolate_freepages_range(struct compact_control *cc,
 		 * scanning range to right one.
 		 */
 		if (pfn >= block_end_pfn) {
+			block_start_pfn = pfn & ~(pageblock_nr_pages - 1);
 			block_end_pfn = ALIGN(pfn + 1, pageblock_nr_pages);
 			block_end_pfn = min(block_end_pfn, end_pfn);
 		}
 
-		if (!pageblock_pfn_to_page(pfn, block_end_pfn, cc->zone))
+		if (!pageblock_pfn_to_page(block_start_pfn,
+					block_end_pfn, cc->zone))
 			break;
 
 		isolated = isolate_freepages_block(cc, &isolate_start_pfn,
@@ -797,18 +804,23 @@ unsigned long
 isolate_migratepages_range(struct compact_control *cc, unsigned long start_pfn,
 							unsigned long end_pfn)
 {
-	unsigned long pfn, block_end_pfn;
+	unsigned long pfn, block_start_pfn, block_end_pfn;
 
 	/* Scan block by block. First and last block may be incomplete */
 	pfn = start_pfn;
+	block_start_pfn = pfn & ~(pageblock_nr_pages - 1);
+	if (block_start_pfn < cc->zone->zone_start_pfn)
+		block_start_pfn = cc->zone->zone_start_pfn;
 	block_end_pfn = ALIGN(pfn + 1, pageblock_nr_pages);
 
 	for (; pfn < end_pfn; pfn = block_end_pfn,
+				block_start_pfn = block_end_pfn,
 				block_end_pfn += pageblock_nr_pages) {
 
 		block_end_pfn = min(block_end_pfn, end_pfn);
 
-		if (!pageblock_pfn_to_page(pfn, block_end_pfn, cc->zone))
+		if (!pageblock_pfn_to_page(block_start_pfn,
+					block_end_pfn, cc->zone))
 			continue;
 
 		pfn = isolate_migratepages_block(cc, pfn, block_end_pfn,
@@ -1006,7 +1018,9 @@ typedef enum {
 static isolate_migrate_t isolate_migratepages(struct zone *zone,
 					struct compact_control *cc)
 {
-	unsigned long low_pfn, end_pfn;
+	unsigned long block_start_pfn;
+	unsigned long block_end_pfn;
+	unsigned long low_pfn;
 	struct page *page;
 	const isolate_mode_t isolate_mode =
 		(cc->mode == MIGRATE_ASYNC ? ISOLATE_ASYNC_MIGRATE : 0);
@@ -1016,16 +1030,21 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 	 * initialized by compact_zone()
 	 */
 	low_pfn = cc->migrate_pfn;
+	block_start_pfn = cc->migrate_pfn & ~(pageblock_nr_pages - 1);
+	if (block_start_pfn < zone->zone_start_pfn)
+		block_start_pfn = zone->zone_start_pfn;
 
 	/* Only scan within a pageblock boundary */
-	end_pfn = ALIGN(low_pfn + 1, pageblock_nr_pages);
+	block_end_pfn = ALIGN(low_pfn + 1, pageblock_nr_pages);
 
 	/*
 	 * Iterate over whole pageblocks until we find the first suitable.
 	 * Do not cross the free scanner.
 	 */
-	for (; end_pfn <= cc->free_pfn;
-			low_pfn = end_pfn, end_pfn += pageblock_nr_pages) {
+	for (; block_end_pfn <= cc->free_pfn;
+			low_pfn = block_end_pfn,
+			block_start_pfn = block_end_pfn,
+			block_end_pfn += pageblock_nr_pages) {
 
 		/*
 		 * This can potentially iterate a massively long zone with
@@ -1036,7 +1055,8 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 						&& compact_should_abort(cc))
 			break;
 
-		page = pageblock_pfn_to_page(low_pfn, end_pfn, zone);
+		page = pageblock_pfn_to_page(block_start_pfn, block_end_pfn,
+									zone);
 		if (!page)
 			continue;
 
@@ -1056,8 +1076,8 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 			continue;
 
 		/* Perform the isolation */
-		low_pfn = isolate_migratepages_block(cc, low_pfn, end_pfn,
-								isolate_mode);
+		low_pfn = isolate_migratepages_block(cc, low_pfn,
+						     block_end_pfn, isolate_mode);
 
 		if (!low_pfn || cc->contended) {
 			acct_isolated(zone, cc);
@@ -1078,7 +1098,7 @@ static isolate_migrate_t isolate_migratepages(struct zone *zone,
 	 * the same pageblock as the free scanner, make the scanners fully
 	 * meet so that compact_finished() terminates compaction.
 	 */
-	cc->migrate_pfn = (end_pfn <= cc->free_pfn) ? low_pfn : cc->free_pfn;
+	cc->migrate_pfn = (block_end_pfn <= cc->free_pfn) ? low_pfn : cc->free_pfn;
 
 	return cc->nr_migratepages ? ISOLATE_SUCCESS : ISOLATE_NONE;
 }
@@ -1225,11 +1245,11 @@ static int compact_zone(struct zone *zone, struct compact_control *cc)
 	 */
 	cc->migrate_pfn = zone->compact_cached_migrate_pfn[sync];
 	cc->free_pfn = zone->compact_cached_free_pfn;
-	if (cc->free_pfn < start_pfn || cc->free_pfn > end_pfn) {
-		cc->free_pfn = end_pfn & ~(pageblock_nr_pages-1);
+	if (cc->free_pfn < start_pfn || cc->free_pfn >= end_pfn) {
+		cc->free_pfn = round_down(end_pfn - 1, pageblock_nr_pages);
 		zone->compact_cached_free_pfn = cc->free_pfn;
 	}
-	if (cc->migrate_pfn < start_pfn || cc->migrate_pfn > end_pfn) {
+	if (cc->migrate_pfn < start_pfn || cc->migrate_pfn >= end_pfn) {
 		cc->migrate_pfn = start_pfn;
 		zone->compact_cached_migrate_pfn[0] = cc->migrate_pfn;
 		zone->compact_cached_migrate_pfn[1] = cc->migrate_pfn;

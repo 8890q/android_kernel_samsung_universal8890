@@ -134,6 +134,12 @@ static void sysrq_handle_crash(int key)
 {
 	char *killer = NULL;
 
+	/* we need to release the RCU read lock here,
+	 * otherwise we get an annoying
+	 * 'BUG: sleeping function called from invalid context'
+	 * complaint from the kernel before the panic.
+	 */
+	rcu_read_unlock();
 	panic_on_oops = 1;	/* force panic */
 	wmb();
 	*killer = 1;
@@ -525,7 +531,6 @@ void __handle_sysrq(int key, bool check_mask)
 	 */
 	orig_log_level = console_loglevel;
 	console_loglevel = CONSOLE_LOGLEVEL_DEFAULT;
-	printk(KERN_INFO "SysRq : ");
 
         op_p = __sysrq_get_key_op(key);
         if (op_p) {
@@ -534,14 +539,15 @@ void __handle_sysrq(int key, bool check_mask)
 		 * should not) and is the invoked operation enabled?
 		 */
 		if (!check_mask || sysrq_on_mask(op_p->enable_mask)) {
-			printk("%s\n", op_p->action_msg);
+			pr_info("%s\n", op_p->action_msg);
 			console_loglevel = orig_log_level;
 			op_p->handler(key);
 		} else {
-			printk("This sysrq operation is disabled.\n");
+			pr_info("This sysrq operation is disabled.\n");
+			console_loglevel = orig_log_level;
 		}
 	} else {
-		printk("HELP : ");
+		pr_info("HELP : ");
 		/* Only print the help msg once per handler */
 		for (i = 0; i < ARRAY_SIZE(sysrq_key_table); i++) {
 			if (sysrq_key_table[i]) {
@@ -933,8 +939,8 @@ static const struct input_device_id sysrq_ids[] = {
 	{
 		.flags = INPUT_DEVICE_ID_MATCH_EVBIT |
 				INPUT_DEVICE_ID_MATCH_KEYBIT,
-		.evbit = { BIT_MASK(EV_KEY) },
-		.keybit = { BIT_MASK(KEY_LEFTALT) },
+		.evbit = { [BIT_WORD(EV_KEY)] = BIT_MASK(EV_KEY) },
+		.keybit = { [BIT_WORD(KEY_LEFTALT)] = BIT_MASK(KEY_LEFTALT) },
 	},
 	{ },
 };

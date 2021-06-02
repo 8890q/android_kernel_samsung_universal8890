@@ -2234,18 +2234,18 @@ static void s3c_hsotg_core_init(struct s3c_hsotg *hsotg)
 	writel(s3c_hsotg_ep0_mps(hsotg->eps[0].ep.maxpacket) |
 	       DXEPCTL_USBACTEP, hsotg->regs + DIEPCTL0);
 
-	s3c_hsotg_enqueue_setup(hsotg);
-
-	dev_dbg(hsotg->dev, "EP0: DIEPCTL0=0x%08x, DOEPCTL0=0x%08x\n",
-		readl(hsotg->regs + DIEPCTL0),
-		readl(hsotg->regs + DOEPCTL0));
-
 	/* clear global NAKs */
 	writel(DCTL_CGOUTNAK | DCTL_CGNPINNAK,
 	       hsotg->regs + DCTL);
 
 	/* must be at-least 3ms to allow bus to see disconnect */
 	mdelay(3);
+
+	s3c_hsotg_enqueue_setup(hsotg);
+
+	dev_dbg(hsotg->dev, "EP0: DIEPCTL0=0x%08x, DOEPCTL0=0x%08x\n",
+		readl(hsotg->regs + DIEPCTL0),
+		readl(hsotg->regs + DOEPCTL0));
 
 	/* remove the soft-disconnect and let's go */
 	__bic32(hsotg->regs + DCTL, DCTL_SFTDISCON);
@@ -2590,7 +2590,7 @@ error:
  * s3c_hsotg_ep_disable - disable given endpoint
  * @ep: The endpoint to disable.
  */
-static int s3c_hsotg_ep_disable(struct usb_ep *ep)
+static int s3c_hsotg_ep_disable_force(struct usb_ep *ep, bool force)
 {
 	struct s3c_hsotg_ep *hs_ep = our_ep(ep);
 	struct s3c_hsotg *hsotg = hs_ep->parent;
@@ -2611,7 +2611,7 @@ static int s3c_hsotg_ep_disable(struct usb_ep *ep)
 
 	spin_lock_irqsave(&hsotg->lock, flags);
 	/* terminate all requests with shutdown */
-	kill_all_requests(hsotg, hs_ep, -ESHUTDOWN, false);
+	kill_all_requests(hsotg, hs_ep, -ESHUTDOWN, force);
 
 	hsotg->fifo_map &= ~(1<<hs_ep->fifo_index);
 	hs_ep->fifo_index = 0;
@@ -2632,6 +2632,10 @@ static int s3c_hsotg_ep_disable(struct usb_ep *ep)
 	return 0;
 }
 
+static int s3c_hsotg_ep_disable(struct usb_ep *ep)
+{
+	return s3c_hsotg_ep_disable_force(ep, false);
+}
 /**
  * on_list - check request is on the given endpoint
  * @ep: The endpoint to check.
@@ -2933,7 +2937,7 @@ static int s3c_hsotg_udc_stop(struct usb_gadget *gadget,
 
 	/* all endpoints should be shutdown */
 	for (ep = 1; ep < hsotg->num_of_eps; ep++)
-		s3c_hsotg_ep_disable(&hsotg->eps[ep].ep);
+		s3c_hsotg_ep_disable_force(&hsotg->eps[ep].ep, true);
 
 	spin_lock_irqsave(&hsotg->lock, flags);
 

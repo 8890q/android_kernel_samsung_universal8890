@@ -3768,7 +3768,7 @@ static int rbd_init_disk(struct rbd_device *rbd_dev)
 
 	/* set io sizes to object size */
 	segment_size = rbd_obj_bytes(&rbd_dev->header);
-	blk_queue_max_hw_sectors(q, segment_size / SECTOR_SIZE);
+	blk_queue_max_hw_sectors(q, USHRT_MAX);
 	blk_queue_max_segment_size(q, segment_size);
 	blk_queue_io_min(q, segment_size);
 	blk_queue_io_opt(q, segment_size);
@@ -3945,6 +3945,9 @@ static ssize_t rbd_image_refresh(struct device *dev,
 {
 	struct rbd_device *rbd_dev = dev_to_rbd_dev(dev);
 	int ret;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
 
 	ret = rbd_dev_refresh(rbd_dev);
 	if (ret)
@@ -5410,6 +5413,9 @@ static ssize_t do_rbd_add(struct bus_type *bus,
 	bool read_only;
 	int rc = -ENOMEM;
 
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
+
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
 
@@ -5552,6 +5558,9 @@ static ssize_t do_rbd_remove(struct bus_type *bus,
 	unsigned long ul;
 	bool already = false;
 	int ret;
+
+	if (!capable(CAP_SYS_ADMIN))
+		return -EPERM;
 
 	ret = kstrtoul(buf, 10, &ul);
 	if (ret)

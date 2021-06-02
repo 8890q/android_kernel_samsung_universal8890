@@ -180,7 +180,9 @@ extern int register_hmp_task_migration_notifier(struct notifier_block *nb);
 #endif
 
 extern void calc_global_load(unsigned long ticks);
+
 extern void update_cpu_load_nohz(void);
+
 
 extern unsigned long get_parent_ip(unsigned long addr);
 
@@ -272,6 +274,7 @@ extern char ___assert_task_state[1 - 2*!!(
 
 /* Task command name length */
 #define TASK_COMM_LEN 16
+
 
 #include <linux/spinlock.h>
 
@@ -389,6 +392,7 @@ extern signed long schedule_timeout_killable(signed long timeout);
 extern signed long schedule_timeout_uninterruptible(signed long timeout);
 asmlinkage void schedule(void);
 extern void schedule_preempt_disabled(void);
+
 
 struct nsproxy;
 struct user_namespace;
@@ -879,6 +883,7 @@ enum cpu_idle_type {
 #define SCHED_POWER_SHIFT	10
 #define SCHED_POWER_SCALE	(1L << SCHED_POWER_SHIFT)
 
+
 /*
  * sched-domains (multiprocessor balancing) declarations:
  */
@@ -1047,6 +1052,7 @@ bool cpus_share_cache(int this_cpu, int that_cpu);
 typedef const struct cpumask *(*sched_domain_mask_f)(int cpu);
 typedef int (*sched_domain_flags_f)(void);
 
+
 #define SDTL_OVERLAP	0x01
 
 struct sd_data {
@@ -1058,6 +1064,7 @@ struct sd_data {
 struct sched_domain_topology_level {
 	sched_domain_mask_f mask;
 	sched_domain_flags_f sd_flags;
+
 	int		    flags;
 	int		    numa_level;
 	struct sd_data      data;
@@ -1137,6 +1144,7 @@ struct sched_avg {
 	 * These sums represent an infinite geometric series and so are bound
 	 * above by 1024/(1-y).  Thus we only need a u32 to store them for all
 	 * choices of y < 1-2^(-32)*1024.
+
 	 */
 	u32 runnable_avg_sum, runnable_avg_period;
 	u32 remainder;
@@ -1189,6 +1197,7 @@ struct sched_statistics {
 	u64			nr_wakeups_idle;
 };
 #endif
+
 
 struct sched_entity {
 	struct load_weight	load;		/* for load-balancing */
@@ -1304,6 +1313,13 @@ enum perf_event_task_context {
 };
 
 struct task_struct {
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	/*
+	 * For reasons of header soup (see current_thread_info()), this
+	 * must be the first element of task_struct.
+	 */
+	struct thread_info thread_info;
+#endif
 	volatile long state;	/* -1 unrunnable, 0 runnable, >0 stopped */
 	void *stack;
 	atomic_t usage;
@@ -1313,6 +1329,10 @@ struct task_struct {
 #ifdef CONFIG_SMP
 	struct llist_node wake_entry;
 	int on_cpu;
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	unsigned int cpu;	/* current CPU */
+#endif
+
 	struct task_struct *last_wakee;
 	unsigned long wakee_flips;
 	unsigned long wakee_flip_decay_ts;
@@ -1326,6 +1346,7 @@ struct task_struct {
 	const struct sched_class *sched_class;
 	struct sched_entity se;
 	struct sched_rt_entity rt;
+
 #ifdef CONFIG_CGROUP_SCHED
 	struct task_group *sched_task_group;
 #endif
@@ -1374,7 +1395,7 @@ struct task_struct {
 	unsigned brk_randomized:1;
 #endif
 	/* per-thread vma caching */
-	u32 vmacache_seqnum;
+	u64 vmacache_seqnum;
 	struct vm_area_struct *vmacache[VMACACHE_SIZE];
 #if defined(SPLIT_RSS_COUNTING)
 	struct task_rss_stat	rss_stat;
@@ -1522,8 +1543,8 @@ struct task_struct {
 	struct seccomp seccomp;
 
 /* Thread group tracking */
-   	u32 parent_exec_id;
-   	u32 self_exec_id;
+	u64 parent_exec_id;
+	u64 self_exec_id;
 /* Protection of (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed,
  * mempolicy */
 	spinlock_t alloc_lock;
@@ -1612,6 +1633,8 @@ struct task_struct {
 #endif
 	struct list_head pi_state_list;
 	struct futex_pi_state *pi_state_cache;
+	struct mutex futex_exit_mutex;
+	unsigned int futex_state;
 #endif
 #ifdef CONFIG_PERF_EVENTS
 	struct perf_event_context *perf_event_ctxp[perf_nr_task_contexts];
@@ -1992,7 +2015,6 @@ extern int task_free_unregister(struct notifier_block *n);
  * Per process flags
  */
 #define PF_EXITING	0x00000004	/* getting shut down */
-#define PF_EXITPIDONE	0x00000008	/* pi exit done on shut down */
 #define PF_VCPU		0x00000010	/* I'm a virtual CPU */
 #define PF_WQ_WORKER	0x00000020	/* I'm a workqueue worker */
 #define PF_FORKNOEXEC	0x00000040	/* forked but didn't exec */
@@ -2332,7 +2354,9 @@ void yield(void);
 extern struct exec_domain	default_exec_domain;
 
 union thread_union {
+#ifndef CONFIG_THREAD_INFO_IN_TASK
 	struct thread_info thread_info;
+#endif
 	unsigned long stack[THREAD_SIZE/sizeof(long)];
 };
 
@@ -2520,8 +2544,10 @@ extern struct mm_struct *get_task_mm(struct task_struct *task);
  * succeeds.
  */
 extern struct mm_struct *mm_access(struct task_struct *task, unsigned int mode);
-/* Remove the current tasks stale references to the old mm_struct */
-extern void mm_release(struct task_struct *, struct mm_struct *);
+/* Remove the current tasks stale references to the old mm_struct on exit() */
+extern void exit_mm_release(struct task_struct *, struct mm_struct *);
+/* Remove the current tasks stale references to the old mm_struct on exec() */
+extern void exec_mm_release(struct task_struct *, struct mm_struct *);
 
 extern int copy_thread(unsigned long, unsigned long, unsigned long,
 			struct task_struct *);
@@ -2548,7 +2574,12 @@ static inline void set_task_comm(struct task_struct *tsk, const char *from)
 {
 	__set_task_comm(tsk, from, false);
 }
-extern char *get_task_comm(char *to, struct task_struct *tsk);
+
+extern char *__get_task_comm(char *to, size_t len, struct task_struct *tsk);
+#define get_task_comm(buf, tsk) ({			\
+	BUILD_BUG_ON(sizeof(buf) != TASK_COMM_LEN);	\
+	__get_task_comm(buf, sizeof(buf), tsk);		\
+})
 
 #ifdef CONFIG_SMP
 void scheduler_ipi(void);
@@ -2718,10 +2749,34 @@ static inline void threadgroup_lock(struct task_struct *tsk) {}
 static inline void threadgroup_unlock(struct task_struct *tsk) {}
 #endif
 
-#ifndef __HAVE_THREAD_FUNCTIONS
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+
+static inline struct thread_info *task_thread_info(struct task_struct *task)
+{
+	return &task->thread_info;
+}
+
+/*
+ * When accessing the stack of a non-current task that might exit, use
+ * try_get_task_stack() instead.  task_stack_page will return a pointer
+ * that could get freed out from under you.
+ */
+static inline void *task_stack_page(const struct task_struct *task)
+{
+	return task->stack;
+}
+
+#define setup_thread_stack(new,old)	do { } while(0)
+
+static inline unsigned long *end_of_stack(const struct task_struct *task)
+{
+	return task->stack;
+}
+
+#elif !defined(__HAVE_THREAD_FUNCTIONS)
 
 #define task_thread_info(task)	((struct thread_info *)(task)->stack)
-#define task_stack_page(task)	((task)->stack)
+#define task_stack_page(task)	((void *)(task)->stack)
 
 static inline void setup_thread_stack(struct task_struct *p, struct task_struct *org)
 {
@@ -2748,6 +2803,14 @@ static inline unsigned long *end_of_stack(struct task_struct *p)
 }
 
 #endif
+
+static inline void *try_get_task_stack(struct task_struct *tsk)
+{
+	return task_stack_page(tsk);
+}
+
+static inline void put_task_stack(struct task_struct *tsk) {}
+
 #define task_stack_end_corrupted(task) \
 		(*(end_of_stack(task)) != STACK_END_MAGIC)
 
@@ -3024,7 +3087,11 @@ static inline void ptrace_signal_wake_up(struct task_struct *t, bool resume)
 
 static inline unsigned int task_cpu(const struct task_struct *p)
 {
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+	return p->cpu;
+#else
 	return task_thread_info(p)->cpu;
+#endif
 }
 
 static inline int task_node(const struct task_struct *p)

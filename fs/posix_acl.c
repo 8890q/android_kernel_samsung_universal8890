@@ -596,12 +596,15 @@ EXPORT_SYMBOL_GPL(posix_acl_create);
 
 /**
  * posix_acl_update_mode  -  update mode in set_acl
+ * @inode: target inode
+ * @mode_p: mode (pointer) for update
+ * @acl: acl pointer
  *
  * Update the file mode when setting an ACL: compute the new file permission
  * bits based on the ACL.  In addition, if the ACL is equivalent to the new
- * file mode, set *acl to NULL to indicate that no ACL should be set.
+ * file mode, set *@acl to NULL to indicate that no ACL should be set.
  *
- * As with chmod, clear the setgit bit if the caller is not in the owning group
+ * As with chmod, clear the setgid bit if the caller is not in the owning group
  * or capable of CAP_FSETID (see inode_change_ok).
  *
  * Called from set_acl inode operations.
@@ -904,11 +907,10 @@ int simple_set_acl(struct inode *inode, struct posix_acl *acl, int type)
 	int error;
 
 	if (type == ACL_TYPE_ACCESS) {
-		error = posix_acl_equiv_mode(acl, &inode->i_mode);
-		if (error < 0)
-			return 0;
-		if (error == 0)
-			acl = NULL;
+		error = posix_acl_update_mode(inode,
+				&inode->i_mode, &acl);
+		if (error)
+			return error;
 	}
 
 	inode->i_ctime = CURRENT_TIME;

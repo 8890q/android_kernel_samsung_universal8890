@@ -10,7 +10,8 @@
 
 static int sk_diag_dump_name(struct sock *sk, struct sk_buff *nlskb)
 {
-	struct unix_address *addr = unix_sk(sk)->addr;
+	/* might or might not have unix_table_lock */
+	struct unix_address *addr = smp_load_acquire(&unix_sk(sk)->addr);
 
 	if (!addr)
 		return 0;
@@ -219,7 +220,7 @@ done:
 	return skb->len;
 }
 
-static struct sock *unix_lookup_by_ino(int ino)
+static struct sock *unix_lookup_by_ino(unsigned int ino)
 {
 	int i;
 	struct sock *sk;

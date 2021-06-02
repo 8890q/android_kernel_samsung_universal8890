@@ -414,6 +414,9 @@ static int aead_set_sh_desc(struct crypto_aead *aead)
 	if (!ctx->authsize)
 		return 0;
 
+	if (!ctx->authsize)
+		return 0;
+
 	/* NULL encryption / decryption */
 	if (!ctx->enckeylen)
 		return aead_null_set_sh_desc(aead);
@@ -1135,6 +1138,7 @@ static void init_aead_job(u32 *sh_desc, dma_addr_t ptr,
 	} else {
 		if (!edesc->dst_nents) {
 			dst_dma = sg_dma_address(req->dst);
+			out_options = 0;
 		} else {
 			dst_dma = edesc->sec4_sg_dma +
 				  sec4_sg_index *

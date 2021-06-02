@@ -18,12 +18,11 @@
 #include <linux/errno.h>
 #include <linux/init.h>
 #include <linux/skbuff.h>
-#include <linux/jhash.h>
+#include <linux/siphash.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <net/netlink.h>
 #include <net/pkt_sched.h>
-#include <net/flow_keys.h>
 #include <net/red.h>
 
 
@@ -121,7 +120,7 @@ struct sfq_sched_data {
 	u8		headdrop;
 	u8		maxdepth;	/* limit of packets per flow */
 
-	u32		perturbation;
+	siphash_key_t 	perturbation;
 	u8		cur_depth;	/* depth of longest slot */
 	u8		flags;
 	unsigned short  scaled_quantum; /* SFQ_ALLOT_SIZE(quantum) */
@@ -156,30 +155,10 @@ static inline struct sfq_head *sfq_dep_head(struct sfq_sched_data *q, sfq_index 
 	return &q->dep[val - SFQ_MAX_FLOWS];
 }
 
-/*
- * In order to be able to quickly rehash our queue when timer changes
- * q->perturbation, we store flow_keys in skb->cb[]
- */
-struct sfq_skb_cb {
-       struct flow_keys        keys;
-};
-
-static inline struct sfq_skb_cb *sfq_skb_cb(const struct sk_buff *skb)
-{
-	qdisc_cb_private_validate(skb, sizeof(struct sfq_skb_cb));
-	return (struct sfq_skb_cb *)qdisc_skb_cb(skb)->data;
-}
-
 static unsigned int sfq_hash(const struct sfq_sched_data *q,
 			     const struct sk_buff *skb)
 {
-	const struct flow_keys *keys = &sfq_skb_cb(skb)->keys;
-	unsigned int hash;
-
-	hash = jhash_3words((__force u32)keys->dst,
-			    (__force u32)keys->src ^ keys->ip_proto,
-			    (__force u32)keys->ports, q->perturbation);
-	return hash & (q->divisor - 1);
+	return skb_get_hash_perturb(skb, &q->perturbation) & (q->divisor - 1);
 }
 
 static unsigned int sfq_classify(struct sk_buff *skb, struct Qdisc *sch,
@@ -196,10 +175,8 @@ static unsigned int sfq_classify(struct sk_buff *skb, struct Qdisc *sch,
 		return TC_H_MIN(skb->priority);
 
 	fl = rcu_dereference_bh(q->filter_list);
-	if (!fl) {
-		skb_flow_dissect(skb, &sfq_skb_cb(skb)->keys);
+	if (!fl)
 		return sfq_hash(q, skb) + 1;
-	}
 
 	*qerr = NET_XMIT_SUCCESS | __NET_XMIT_BYPASS;
 	result = tc_classify(skb, fl, &res);
@@ -457,6 +434,7 @@ congestion_drop:
 		qdisc_drop(head, sch);
 
 		slot_queue_add(slot, skb);
+		qdisc_tree_reduce_backlog(sch, 0, delta);
 		return NET_XMIT_CN;
 	}
 
@@ -488,8 +466,10 @@ enqueue:
 	/* Return Congestion Notification only if we dropped a packet
 	 * from this flow.
 	 */
-	if (qlen != slot->qlen)
+	if (qlen != slot->qlen) {
+		qdisc_tree_reduce_backlog(sch, 0, dropped - qdisc_pkt_len(skb));
 		return NET_XMIT_CN;
+	}
 
 	/* As we dropped a packet, better let upper stack know this */
 	qdisc_tree_reduce_backlog(sch, 1, dropped);
@@ -627,9 +607,11 @@ static void sfq_perturbation(unsigned long arg)
 	struct Qdisc *sch = (struct Qdisc *)arg;
 	struct sfq_sched_data *q = qdisc_priv(sch);
 	spinlock_t *root_lock = qdisc_lock(qdisc_root_sleeping(sch));
+	siphash_key_t nkey;
 
+	get_random_bytes(&nkey, sizeof(nkey));
 	spin_lock(root_lock);
-	q->perturbation = prandom_u32();
+	q->perturbation = nkey;
 	if (!q->filter_list && q->tail)
 		sfq_rehash(sch);
 	spin_unlock(root_lock);
@@ -652,6 +634,18 @@ static int sfq_change(struct Qdisc *sch, struct nlattr *opt)
 		ctl_v1 = nla_data(opt);
 	if (ctl->divisor &&
 	    (!is_power_of_2(ctl->divisor) || ctl->divisor > 65536))
+		return -EINVAL;
+
+	/* slot->allot is a short, make sure quantum is not too big. */
+	if (ctl->quantum) {
+		unsigned int scaled = SFQ_ALLOT_SIZE(ctl->quantum);
+
+		if (scaled <= 0 || scaled > SHRT_MAX)
+			return -EINVAL;
+	}
+
+	if (ctl_v1 && !red_check_params(ctl_v1->qth_min, ctl_v1->qth_max,
+					ctl_v1->Wlog, ctl_v1->Scell_log, NULL))
 		return -EINVAL;
 	if (ctl_v1 && ctl_v1->qth_min) {
 		p = kmalloc(sizeof(*p), GFP_KERNEL);
@@ -698,7 +692,7 @@ static int sfq_change(struct Qdisc *sch, struct nlattr *opt)
 	del_timer(&q->perturb_timer);
 	if (q->perturb_period) {
 		mod_timer(&q->perturb_timer, jiffies + q->perturb_period);
-		q->perturbation = prandom_u32();
+		get_random_bytes(&q->perturbation, sizeof(q->perturbation));
 	}
 	sch_tree_unlock(sch);
 	kfree(p);
@@ -754,7 +748,7 @@ static int sfq_init(struct Qdisc *sch, struct nlattr *opt)
 	q->quantum = psched_mtu(qdisc_dev(sch));
 	q->scaled_quantum = SFQ_ALLOT_SIZE(q->quantum);
 	q->perturb_period = 0;
-	q->perturbation = prandom_u32();
+	get_random_bytes(&q->perturbation, sizeof(q->perturbation));
 
 	if (opt) {
 		int err = sfq_change(sch, opt);
@@ -765,9 +759,10 @@ static int sfq_init(struct Qdisc *sch, struct nlattr *opt)
 	q->ht = sfq_alloc(sizeof(q->ht[0]) * q->divisor);
 	q->slots = sfq_alloc(sizeof(q->slots[0]) * q->maxflows);
 	if (!q->ht || !q->slots) {
-		sfq_destroy(sch);
+		/* Note: sfq_destroy() will be called by our caller */
 		return -ENOMEM;
 	}
+
 	for (i = 0; i < q->divisor; i++)
 		q->ht[i] = SFQ_EMPTY_SLOT;
 

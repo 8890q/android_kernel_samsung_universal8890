@@ -35,6 +35,7 @@
 #include <linux/etherdevice.h>
 
 #include <linux/mlx4/cmd.h>
+#include <linux/mlx4/qp.h>
 #include <linux/export.h>
 
 #include "mlx4.h"
@@ -985,16 +986,21 @@ int mlx4_flow_attach(struct mlx4_dev *dev,
 	if (IS_ERR(mailbox))
 		return PTR_ERR(mailbox);
 
+	if (!mlx4_qp_lookup(dev, rule->qpn)) {
+		mlx4_err_rule(dev, "QP doesn't exist\n", rule);
+		ret = -EINVAL;
+		goto out;
+	}
+
 	trans_rule_ctrl_to_hw(rule, mailbox->buf);
 
 	size += sizeof(struct mlx4_net_trans_rule_hw_ctrl);
 
 	list_for_each_entry(cur, &rule->list, list) {
 		ret = parse_trans_rule(dev, cur, mailbox->buf + size);
-		if (ret < 0) {
-			mlx4_free_cmd_mailbox(dev, mailbox);
-			return ret;
-		}
+		if (ret < 0)
+			goto out;
+
 		size += ret;
 	}
 
@@ -1006,6 +1012,7 @@ int mlx4_flow_attach(struct mlx4_dev *dev,
 	else if (ret)
 		mlx4_err_rule(dev, "Fail to register network rule\n", rule);
 
+out:
 	mlx4_free_cmd_mailbox(dev, mailbox);
 
 	return ret;
@@ -1087,7 +1094,7 @@ int mlx4_qp_attach_common(struct mlx4_dev *dev, struct mlx4_qp *qp, u8 gid[16],
 	struct mlx4_cmd_mailbox *mailbox;
 	struct mlx4_mgm *mgm;
 	u32 members_count;
-	int index, prev;
+	int index = -1, prev;
 	int link = 0;
 	int i;
 	int err;
@@ -1166,7 +1173,7 @@ int mlx4_qp_attach_common(struct mlx4_dev *dev, struct mlx4_qp *qp, u8 gid[16],
 		goto out;
 
 out:
-	if (prot == MLX4_PROT_ETH) {
+	if (prot == MLX4_PROT_ETH && index != -1) {
 		/* manage the steering entry for promisc mode */
 		if (new_entry)
 			new_steering_entry(dev, port, steer, index, qp->qpn);
@@ -1435,7 +1442,12 @@ EXPORT_SYMBOL_GPL(mlx4_multicast_detach);
 int mlx4_flow_steer_promisc_add(struct mlx4_dev *dev, u8 port,
 				u32 qpn, enum mlx4_net_trans_promisc_mode mode)
 {
-	struct mlx4_net_trans_rule rule;
+	struct mlx4_net_trans_rule rule = {
+		.queue_mode = MLX4_NET_TRANS_Q_FIFO,
+		.exclusive = 0,
+		.allow_loopback = 1,
+	};
+
 	u64 *regid_p;
 
 	switch (mode) {
@@ -1456,7 +1468,7 @@ int mlx4_flow_steer_promisc_add(struct mlx4_dev *dev, u8 port,
 	rule.port = port;
 	rule.qpn = qpn;
 	INIT_LIST_HEAD(&rule.list);
-	mlx4_err(dev, "going promisc on %x\n", port);
+	mlx4_info(dev, "going promisc on %x\n", port);
 
 	return  mlx4_flow_attach(dev, &rule, regid_p);
 }

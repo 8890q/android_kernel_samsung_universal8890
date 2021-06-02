@@ -237,6 +237,7 @@ struct MPT3SAS_TARGET {
  * @eedp_enable: eedp support enable bit
  * @eedp_type: 0(type_1), 1(type_2), 2(type_3)
  * @eedp_block_length: block size
+ * @ata_command_pending: SATL passthrough outstanding for device
  */
 struct MPT3SAS_DEVICE {
 	struct MPT3SAS_TARGET *sas_target;
@@ -245,6 +246,17 @@ struct MPT3SAS_DEVICE {
 	u8	configured_lun;
 	u8	block;
 	u8	tlr_snoop_check;
+	/*
+	 * Bug workaround for SATL handling: the mpt2/3sas firmware
+	 * doesn't return BUSY or TASK_SET_FULL for subsequent
+	 * commands while a SATL pass through is in operation as the
+	 * spec requires, it simply does nothing with them until the
+	 * pass through completes, causing them possibly to timeout if
+	 * the passthrough is a long executing command (like format or
+	 * secure erase).  This variable allows us to do the right
+	 * thing while a SATL command is pending.
+	 */
+	unsigned long ata_command_pending;
 };
 
 #define MPT3_CMD_NOT_USED	0x8000	/* free */
@@ -454,6 +466,7 @@ struct chain_tracker {
  * @scmd: scsi request pointer
  * @cb_idx: callback index
  * @tracker_list: list of free request (ioc->free_list)
+ * @msix_io: IO's msix
  */
 struct scsiio_tracker {
 	u16	smid;
@@ -461,6 +474,7 @@ struct scsiio_tracker {
 	u8	cb_idx;
 	struct list_head chain_list;
 	struct list_head tracker_list;
+	u16     msix_io;
 };
 
 /**
@@ -986,7 +1000,8 @@ void mpt3sas_base_put_smid_scsi_io(struct MPT3SAS_ADAPTER *ioc, u16 smid,
 	u16 handle);
 void mpt3sas_base_put_smid_fast_path(struct MPT3SAS_ADAPTER *ioc, u16 smid,
 	u16 handle);
-void mpt3sas_base_put_smid_hi_priority(struct MPT3SAS_ADAPTER *ioc, u16 smid);
+void mpt3sas_base_put_smid_hi_priority(struct MPT3SAS_ADAPTER *ioc,
+	u16 smid, u16 msix_task);
 void mpt3sas_base_put_smid_default(struct MPT3SAS_ADAPTER *ioc, u16 smid);
 void mpt3sas_base_initialize_callback_handler(void);
 u8 mpt3sas_base_register_callback_handler(MPT_CALLBACK cb_func);

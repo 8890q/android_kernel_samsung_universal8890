@@ -658,8 +658,8 @@ static struct section_perm ro_perms[] = {
 		.start  = (unsigned long)_stext,
 		.end    = (unsigned long)__init_begin,
 #ifdef CONFIG_ARM_LPAE
-		.mask   = ~PMD_SECT_RDONLY,
-		.prot   = PMD_SECT_RDONLY,
+		.mask   = ~(L_PMD_SECT_RDONLY | PMD_SECT_AP2),
+		.prot   = L_PMD_SECT_RDONLY | PMD_SECT_AP2,
 #else
 		.mask   = ~(PMD_SECT_APX | PMD_SECT_AP_WRITE),
 		.prot   = PMD_SECT_APX | PMD_SECT_AP_WRITE,
@@ -734,18 +734,28 @@ static inline void fix_kernmem_perms(void)
 }
 
 #ifdef CONFIG_DEBUG_RODATA
+
+static int kernel_set_to_readonly __read_mostly;
+
 void mark_rodata_ro(void)
 {
+	kernel_set_to_readonly = 1;
 	set_section_perms(ro_perms, prot);
 }
 
 void set_kernel_text_rw(void)
 {
+	if (!kernel_set_to_readonly)
+		return;
+
 	set_section_perms(ro_perms, clear);
 }
 
 void set_kernel_text_ro(void)
 {
+	if (!kernel_set_to_readonly)
+		return;
+
 	set_section_perms(ro_perms, prot);
 }
 #endif /* CONFIG_DEBUG_RODATA */

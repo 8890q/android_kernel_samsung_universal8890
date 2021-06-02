@@ -333,6 +333,9 @@ struct usb_config_descriptor {
 
 /*-------------------------------------------------------------------------*/
 
+/* USB String descriptors can contain at most 126 characters. */
+#define USB_MAX_STRING_LEN	126
+
 /* USB_DT_STRING: String descriptor */
 struct usb_string_descriptor {
 	__u8  bLength;
@@ -855,6 +858,24 @@ struct usb_ss_container_id_descriptor {
 } __attribute__((packed));
 
 #define USB_DT_USB_SS_CONTN_ID_SIZE	20
+
+/*
+ * Precision time measurement capability descriptor: advertised by devices and
+ * hubs that support PTM
+ */
+#define	USB_PTM_CAP_TYPE	0xb
+struct usb_ptm_cap_descriptor {
+	__u8  bLength;
+	__u8  bDescriptorType;
+	__u8  bDevCapabilityType;
+} __attribute__((packed));
+
+/*
+ * The size of the descriptor for the Sublink Speed Attribute Count
+ * (SSAC) specified in bmAttributes[4:0].
+ */
+#define USB_DT_USB_SSP_CAP_SIZE(ssac)	(16 + ssac * 4)
+
 /*-------------------------------------------------------------------------*/
 
 /* USB_DT_WIRELESS_ENDPOINT_COMP:  companion descriptor associated with
@@ -914,6 +935,7 @@ enum usb_device_speed {
 	USB_SPEED_HIGH,				/* usb 2.0 */
 	USB_SPEED_WIRELESS,			/* wireless (usb 2.5) */
 	USB_SPEED_SUPER,			/* usb 3.0 */
+	USB_SPEED_SUPER_PLUS,			/* usb 3.1 */
 };
 
 

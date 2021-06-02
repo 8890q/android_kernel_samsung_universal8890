@@ -271,7 +271,7 @@ static inline unsigned long __sdfat_init_name_hash(const struct dentry *unused)
 #endif
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 21)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 140)
        /* EMPTY */
 #else /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 21) */
 static inline void inode_lock(struct inode *inode)

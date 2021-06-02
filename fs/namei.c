@@ -40,6 +40,9 @@
 #include "internal.h"
 #include "mount.h"
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/namei.h>
+
 /* [Feb-1997 T. Schoebel-Theuer]
  * Fundamental changes in the pathname lookup mechanisms (namei)
  * were necessary because of omirr.  The reason is that omirr needs
@@ -621,6 +624,81 @@ static inline int d_revalidate(struct dentry *dentry, unsigned int flags)
 	return dentry->d_op->d_revalidate(dentry, flags);
 }
 
+#define INIT_PATH_SIZE 64
+
+static void success_walk_trace(struct nameidata *nd)
+{
+	struct path *pt = &nd->path;
+	struct inode *i = nd->inode;
+	char buf[INIT_PATH_SIZE], *try_buf;
+	int cur_path_size;
+	char *p;
+
+	/* When eBPF/ tracepoint is disabled, keep overhead low. */
+	if (!trace_inodepath_enabled())
+		return;
+
+	/* First try stack allocated buffer. */
+	try_buf = buf;
+	cur_path_size = INIT_PATH_SIZE;
+
+	while (cur_path_size <= PATH_MAX) {
+		/* Free previous heap allocation if we are now trying
+		 * a second or later heap allocation.
+		 */
+		if (try_buf != buf)
+			kfree(try_buf);
+
+		/* All but the first alloc are on the heap. */
+		if (cur_path_size != INIT_PATH_SIZE) {
+			try_buf = kmalloc(cur_path_size, GFP_KERNEL);
+			if (!try_buf) {
+				try_buf = buf;
+				sprintf(try_buf, "error:buf_alloc_failed");
+				break;
+			}
+		}
+
+		p = d_path(pt, try_buf, cur_path_size);
+
+		if (!IS_ERR(p)) {
+			char *end = mangle_path(try_buf, p, "\n");
+
+			if (end) {
+				try_buf[end - try_buf] = 0;
+				break;
+			} else {
+				/* On mangle errors, double path size
+				 * till PATH_MAX.
+				 */
+				cur_path_size = cur_path_size << 1;
+				continue;
+			}
+		}
+
+		if (PTR_ERR(p) == -ENAMETOOLONG) {
+			/* If d_path complains that name is too long,
+			 * then double path size till PATH_MAX.
+			 */
+			cur_path_size = cur_path_size << 1;
+			continue;
+		}
+
+		sprintf(try_buf, "error:d_path_failed_%lu",
+			-1 * PTR_ERR(p));
+		break;
+	}
+
+	if (cur_path_size > PATH_MAX)
+		sprintf(try_buf, "error:d_path_name_too_long");
+
+	trace_inodepath(i, try_buf);
+
+	if (try_buf != buf)
+		kfree(try_buf);
+	return;
+}
+
 /**
  * complete_walk - successful completion of path walk
  * @nd:  pointer nameidata
@@ -659,15 +737,21 @@ static int complete_walk(struct nameidata *nd)
 		rcu_read_unlock();
 	}
 
-	if (likely(!(nd->flags & LOOKUP_JUMPED)))
+	if (likely(!(nd->flags & LOOKUP_JUMPED))) {
+		success_walk_trace(nd);
 		return 0;
+	}
 
-	if (likely(!(dentry->d_flags & DCACHE_OP_WEAK_REVALIDATE)))
+	if (likely(!(dentry->d_flags & DCACHE_OP_WEAK_REVALIDATE))) {
+		success_walk_trace(nd);
 		return 0;
+	}
 
 	status = dentry->d_op->d_weak_revalidate(dentry, nd->flags);
-	if (status > 0)
+	if (status > 0) {
+		success_walk_trace(nd);
 		return 0;
+	}
 
 	if (!status)
 		status = -ESTALE;
@@ -738,6 +822,8 @@ static inline void put_link(struct nameidata *nd, struct path *link, void *cooki
 
 int sysctl_protected_symlinks __read_mostly = 0;
 int sysctl_protected_hardlinks __read_mostly = 0;
+int sysctl_protected_fifos __read_mostly;
+int sysctl_protected_regular __read_mostly;
 
 /**
  * may_follow_link - Check symlink following for unsafe situations
@@ -759,6 +845,7 @@ static inline int may_follow_link(struct path *link, struct nameidata *nd)
 {
 	const struct inode *inode;
 	const struct inode *parent;
+	kuid_t puid;
 
 	if (!sysctl_protected_symlinks)
 		return 0;
@@ -774,7 +861,8 @@ static inline int may_follow_link(struct path *link, struct nameidata *nd)
 		return 0;
 
 	/* Allowed if parent directory and link owner match. */
-	if (uid_eq(parent->i_uid, inode->i_uid))
+	puid = parent->i_uid;
+	if (uid_valid(puid) && uid_eq(puid, inode->i_uid))
 		return 0;
 
 	audit_log_link_denied("follow_link", link);
@@ -850,6 +938,45 @@ static int may_linkat(struct path *link)
 
 	audit_log_link_denied("linkat", link);
 	return -EPERM;
+}
+
+/**
+ * may_create_in_sticky - Check whether an O_CREAT open in a sticky directory
+ *			  should be allowed, or not, on files that already
+ *			  exist.
+ * @dir: the sticky parent directory
+ * @inode: the inode of the file to open
+ *
+ * Block an O_CREAT open of a FIFO (or a regular file) when:
+ *   - sysctl_protected_fifos (or sysctl_protected_regular) is enabled
+ *   - the file already exists
+ *   - we are in a sticky directory
+ *   - we don't own the file
+ *   - the owner of the directory doesn't own the file
+ *   - the directory is world writable
+ * If the sysctl_protected_fifos (or sysctl_protected_regular) is set to 2
+ * the directory doesn't have to be world writable: being group writable will
+ * be enough.
+ *
+ * Returns 0 if the open is allowed, -ve on error.
+ */
+static int may_create_in_sticky(struct dentry * const dir,
+				struct inode * const inode)
+{
+	if ((!sysctl_protected_fifos && S_ISFIFO(inode->i_mode)) ||
+	    (!sysctl_protected_regular && S_ISREG(inode->i_mode)) ||
+	    likely(!(dir->d_inode->i_mode & S_ISVTX)) ||
+	    uid_eq(inode->i_uid, dir->d_inode->i_uid) ||
+	    uid_eq(current_fsuid(), inode->i_uid))
+		return 0;
+
+	if (likely(dir->d_inode->i_mode & 0002) ||
+	    (dir->d_inode->i_mode & 0020 &&
+	     ((sysctl_protected_fifos >= 2 && S_ISFIFO(inode->i_mode)) ||
+	      (sysctl_protected_regular >= 2 && S_ISREG(inode->i_mode))))) {
+		return -EACCES;
+	}
+	return 0;
 }
 
 static __always_inline int
@@ -1891,6 +2018,9 @@ static int path_init(int dfd, const char *name, unsigned int flags,
 		     struct nameidata *nd, struct file **fp)
 {
 	int retval = 0;
+
+	if (!*name)
+		flags &= ~LOOKUP_RCU;
 
 	nd->last_type = LAST_ROOT; /* if there are only slashes... */
 	nd->flags = flags | LOOKUP_JUMPED;
@@ -3114,9 +3244,16 @@ finish_open:
 		return error;
 	}
 	audit_inode(name, nd->path.dentry, 0);
-	error = -EISDIR;
-	if ((open_flag & O_CREAT) && d_is_dir(nd->path.dentry))
-		goto out;
+
+	if (open_flag & O_CREAT) {
+		error = -EISDIR;
+		if (d_is_dir(nd->path.dentry))
+			goto out;
+		error = may_create_in_sticky(dir,
+					     d_backing_inode(nd->path.dentry));
+		if (unlikely(error))
+			goto out;
+	}
 	error = -ENOTDIR;
 	if ((nd->flags & LOOKUP_DIRECTORY) && !d_can_lookup(nd->path.dentry))
 		goto out;
@@ -4238,7 +4375,11 @@ int vfs_rename2(struct vfsmount *mnt,
 	unsigned max_links = new_dir->i_sb->s_max_links;
 	struct name_snapshot old_name;
 
-	if (source == target)
+	/*
+	 * Check source == target.
+	 * On overlayfs need to look at underlying inodes.
+	 */
+	if (vfs_select_inode(old_dentry, 0) == vfs_select_inode(new_dentry, 0))
 		return 0;
 
 	error = may_delete(mnt, old_dir, old_dentry, is_dir);

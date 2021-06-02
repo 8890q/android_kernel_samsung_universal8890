@@ -39,7 +39,9 @@
 static struct {
 	seqcount_t		seq;
 	struct timekeeper	timekeeper;
-} tk_core ____cacheline_aligned;
+} tk_core ____cacheline_aligned = {
+	.seq = SEQCNT_ZERO(tk_core.seq),
+};
 
 static DEFINE_RAW_SPINLOCK(timekeeper_lock);
 static struct timekeeper shadow_timekeeper;
@@ -321,8 +323,10 @@ u64 notrace ktime_get_mono_fast_ns(void)
 	do {
 		seq = raw_read_seqcount(&tk_fast_mono.seq);
 		tkr = tk_fast_mono.base + (seq & 0x01);
-		now = ktime_to_ns(tkr->base) + timekeeping_get_ns(tkr);
+		now = ktime_to_ns(tkr->base);
 
+		now += clocksource_delta(tkr->read(tkr->clock),
+					 tkr->cycle_last, tkr->mask);
 	} while (read_seqcount_retry(&tk_fast_mono.seq, seq));
 	return now;
 }
@@ -411,7 +415,6 @@ EXPORT_SYMBOL_GPL(pvclock_gtod_unregister_notifier);
  */
 static inline void tk_update_ktime_data(struct timekeeper *tk)
 {
-	u64 seconds;
 	s64 nsec;
 
 	/*
@@ -427,9 +430,7 @@ static inline void tk_update_ktime_data(struct timekeeper *tk)
 	tk->tkr_mono.base = ns_to_ktime(nsec);
 
 	/* Update the monotonic raw base */
-	seconds = tk->raw_sec;
-	nsec = (u32)(tk->tkr_raw.xtime_nsec >> tk->tkr_raw.shift);
-	tk->tkr_raw.base = ns_to_ktime(seconds * NSEC_PER_SEC + nsec);
+	tk->tkr_raw.base = ns_to_ktime(tk->raw_sec * NSEC_PER_SEC);
 }
 
 /* must hold timekeeper_lock */
@@ -648,6 +649,36 @@ void ktime_get_ts64(struct timespec64 *ts)
 }
 EXPORT_SYMBOL_GPL(ktime_get_ts64);
 
+/**
+ * ktime_get_real_seconds - Get the seconds portion of CLOCK_REALTIME
+ *
+ * Returns the wall clock seconds since 1970. This replaces the
+ * get_seconds() interface which is not y2038 safe on 32bit systems.
+ *
+ * For 64bit systems the fast access to tk->xtime_sec is preserved. On
+ * 32bit systems the access must be protected with the sequence
+ * counter to provide "atomic" access to the 64bit tk->xtime_sec
+ * value.
+ */
+time64_t ktime_get_real_seconds(void)
+{
+	struct timekeeper *tk = &tk_core.timekeeper;
+	time64_t seconds;
+	unsigned int seq;
+
+	if (IS_ENABLED(CONFIG_64BIT))
+		return tk->xtime_sec;
+
+	do {
+		seq = read_seqcount_begin(&tk_core.seq);
+		seconds = tk->xtime_sec;
+
+	} while (read_seqcount_retry(&tk_core.seq, seq));
+
+	return seconds;
+}
+EXPORT_SYMBOL_GPL(ktime_get_real_seconds);
+
 #ifdef CONFIG_NTP_PPS
 
 /**
@@ -762,7 +793,7 @@ int timekeeping_inject_offset(struct timespec *ts)
 	struct timespec64 ts64, tmp;
 	int ret = 0;
 
-	if ((unsigned long)ts->tv_nsec >= NSEC_PER_SEC)
+	if (!timespec_inject_offset_valid(ts))
 		return -EINVAL;
 
 	ts64 = timespec_to_timespec64(*ts);

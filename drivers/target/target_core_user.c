@@ -536,7 +536,14 @@ static unsigned int tcmu_handle_completions(struct tcmu_dev *udev)
 		struct tcmu_cmd_entry *entry = (void *) mb + CMDR_OFF + udev->cmdr_last_cleaned;
 		struct tcmu_cmd *cmd;
 
-		tcmu_flush_dcache_range(entry, sizeof(*entry));
+		/*
+		 * Flush max. up to end of cmd ring since current entry might
+		 * be a padding that is shorter than sizeof(*entry)
+		 */
+		size_t ring_left = head_to_end(udev->cmdr_last_cleaned,
+					       udev->cmdr_size);
+		tcmu_flush_dcache_range(entry, ring_left < sizeof(*entry) ?
+					ring_left : sizeof(*entry));
 
 		if (tcmu_hdr_get_op(&entry->hdr) == TCMU_OP_PAD) {
 			UPDATE_HEAD(udev->cmdr_last_cleaned, tcmu_hdr_get_len(&entry->hdr), udev->cmdr_size);
@@ -846,7 +853,7 @@ static int tcmu_configure_device(struct se_device *dev)
 	info->version = "1";
 
 	info->mem[0].name = "tcm-user command & data buffer";
-	info->mem[0].addr = (phys_addr_t) udev->mb_addr;
+	info->mem[0].addr = (phys_addr_t)(uintptr_t)udev->mb_addr;
 	info->mem[0].size = TCMU_RING_SIZE;
 	info->mem[0].memtype = UIO_MEM_VIRTUAL;
 

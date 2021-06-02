@@ -28,6 +28,7 @@
 #include <linux/module.h>
 #include <linux/hyperv.h>
 #include <linux/uio.h>
+#include <linux/interrupt.h>
 
 #include "hyperv_vmbus.h"
 
@@ -71,7 +72,7 @@ int vmbus_open(struct vmbus_channel *newchannel, u32 send_ringbuffer_size,
 	struct vmbus_channel_msginfo *open_info = NULL;
 	void *in, *out;
 	unsigned long flags;
-	int ret, t, err = 0;
+	int ret, err = 0;
 
 	spin_lock_irqsave(&newchannel->sc_lock, flags);
 	if (newchannel->state == CHANNEL_OPEN_STATE) {
@@ -170,11 +171,7 @@ int vmbus_open(struct vmbus_channel *newchannel, u32 send_ringbuffer_size,
 		goto error1;
 	}
 
-	t = wait_for_completion_timeout(&open_info->waitevent, 5*HZ);
-	if (t == 0) {
-		err = -ETIMEDOUT;
-		goto error1;
-	}
+	wait_for_completion(&open_info->waitevent);
 
 
 	if (open_info->response.open_result.status)
@@ -362,7 +359,7 @@ int vmbus_establish_gpadl(struct vmbus_channel *channel, void *kbuffer,
 	struct vmbus_channel_gpadl_header *gpadlmsg;
 	struct vmbus_channel_gpadl_body *gpadl_body;
 	struct vmbus_channel_msginfo *msginfo = NULL;
-	struct vmbus_channel_msginfo *submsginfo;
+	struct vmbus_channel_msginfo *submsginfo, *tmp;
 	u32 msgcount;
 	struct list_head *curr;
 	u32 next_gpadl_handle;
@@ -424,6 +421,13 @@ cleanup:
 	list_del(&msginfo->msglistentry);
 	spin_unlock_irqrestore(&vmbus_connection.channelmsg_lock, flags);
 
+	if (msgcount > 1) {
+		list_for_each_entry_safe(submsginfo, tmp, &msginfo->submsglist,
+			 msglistentry) {
+			kfree(submsginfo);
+		}
+	}
+
 	kfree(msginfo);
 	return ret;
 }
@@ -484,7 +488,20 @@ static void reset_channel_cb(void *arg)
 static int vmbus_close_internal(struct vmbus_channel *channel)
 {
 	struct vmbus_channel_close_channel *msg;
+	struct tasklet_struct *tasklet;
 	int ret;
+
+	/*
+	 * process_chn_event(), running in the tasklet, can race
+	 * with vmbus_close_internal() in the case of SMP guest, e.g., when
+	 * the former is accessing channel->inbound.ring_buffer, the latter
+	 * could be freeing the ring_buffer pages.
+	 *
+	 * To resolve the race, we can serialize them by disabling the
+	 * tasklet when the latter is running here.
+	 */
+	tasklet = hv_context.event_dpc[channel->target_cpu];
+	tasklet_disable(tasklet);
 
 	channel->state = CHANNEL_OPEN_STATE;
 	channel->sc_creation_callback = NULL;
@@ -513,7 +530,7 @@ static int vmbus_close_internal(struct vmbus_channel *channel)
 		 * If we failed to post the close msg,
 		 * it is perhaps better to leak memory.
 		 */
-		return ret;
+		goto out;
 	}
 
 	/* Tear down the gpadl for the channel's ring buffer */
@@ -526,7 +543,7 @@ static int vmbus_close_internal(struct vmbus_channel *channel)
 			 * If we failed to teardown gpadl,
 			 * it is perhaps better to leak memory.
 			 */
-			return ret;
+			goto out;
 		}
 	}
 
@@ -536,6 +553,9 @@ static int vmbus_close_internal(struct vmbus_channel *channel)
 
 	free_pages((unsigned long)channel->ringbuffer_pages,
 		get_order(channel->ringbuffer_pagecount * PAGE_SIZE));
+
+out:
+	tasklet_enable(tasklet);
 
 	return ret;
 }

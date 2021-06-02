@@ -584,11 +584,16 @@ again:
 		spin_unlock(&parent->d_lock);
 		goto again;
 	}
-	rcu_read_unlock();
-	if (parent != dentry)
+	if (parent != dentry) {
 		spin_lock_nested(&dentry->d_lock, DENTRY_D_LOCK_NESTED);
-	else
+		if (unlikely(dentry->d_lockref.count < 0)) {
+			spin_unlock(&parent->d_lock);
+			parent = NULL;
+		}
+	} else {
 		parent = NULL;
+	}
+	rcu_read_unlock();
 	return parent;
 }
 
@@ -1101,15 +1106,11 @@ static enum lru_status dentry_lru_isolate_shrink(struct list_head *item,
  */
 void shrink_dcache_sb(struct super_block *sb)
 {
-	long freed;
-
 	do {
 		LIST_HEAD(dispose);
 
-		freed = list_lru_walk(&sb->s_dentry_lru,
+		list_lru_walk(&sb->s_dentry_lru,
 			dentry_lru_isolate_shrink, &dispose, 1024);
-
-		this_cpu_sub(nr_dentry_unused, freed);
 		shrink_dentry_list(&dispose);
 		cond_resched();
 	} while (list_lru_count(&sb->s_dentry_lru) > 0);
@@ -1302,8 +1303,11 @@ int d_set_mounted(struct dentry *dentry)
 	}
 	spin_lock(&dentry->d_lock);
 	if (!d_unlinked(dentry)) {
-		dentry->d_flags |= DCACHE_MOUNTED;
-		ret = 0;
+		ret = -EBUSY;
+		if (!d_mountpoint(dentry)) {
+			dentry->d_flags |= DCACHE_MOUNTED;
+			ret = 0;
+		}
 	}
  	spin_unlock(&dentry->d_lock);
 out:
@@ -1457,7 +1461,7 @@ static void check_and_drop(void *_data)
 {
 	struct detach_data *data = _data;
 
-	if (!data->mountpoint && !data->select.found)
+	if (!data->mountpoint && list_empty(&data->select.dispose))
 		__d_drop(data->select.start);
 }
 
@@ -1499,17 +1503,15 @@ void d_invalidate(struct dentry *dentry)
 
 		d_walk(dentry, &data, detach_and_collect, check_and_drop);
 
-		if (data.select.found)
+		if (!list_empty(&data.select.dispose))
 			shrink_dentry_list(&data.select.dispose);
+		else if (!data.mountpoint)
+			return;
 
 		if (data.mountpoint) {
 			detach_mounts(data.mountpoint);
 			dput(data.mountpoint);
 		}
-
-		if (!data.mountpoint && !data.select.found)
-			break;
-
 		cond_resched();
 	}
 }
@@ -1846,10 +1848,12 @@ struct dentry *d_make_root(struct inode *root_inode)
 		static const struct qstr name = QSTR_INIT("/", 1);
 
 		res = __d_alloc(root_inode->i_sb, &name);
-		if (res)
+		if (res) {
+			res->d_flags |= DCACHE_RCUACCESS;
 			d_instantiate(res, root_inode);
-		else
+		} else {
 			iput(root_inode);
+		}
 	}
 	return res;
 }
@@ -1865,6 +1869,28 @@ static struct dentry * __d_find_any_alias(struct inode *inode)
 	__dget(alias);
 	return alias;
 }
+
+/*
+ * This should be equivalent to d_instantiate() + unlock_new_inode(),
+ * with lockdep-related part of unlock_new_inode() done before
+ * anything else.  Use that instead of open-coding d_instantiate()/
+ * unlock_new_inode() combinations.
+ */
+void d_instantiate_new(struct dentry *entry, struct inode *inode)
+{
+	BUG_ON(!hlist_unhashed(&entry->d_u.d_alias));
+	BUG_ON(!inode);
+	lockdep_annotate_inode_mutex_key(inode);
+	spin_lock(&inode->i_lock);
+	__d_instantiate(entry, inode);
+	WARN_ON(!(inode->i_state & I_NEW));
+	inode->i_state &= ~I_NEW;
+	smp_mb();
+	wake_up_bit(&inode->i_state, __I_NEW);
+	spin_unlock(&inode->i_lock);
+	security_d_instantiate(entry, inode);
+}
+EXPORT_SYMBOL(d_instantiate_new);
 
 /**
  * d_find_any_alias - find any alias for a given inode

@@ -19,7 +19,7 @@
 #include <net/if_inet6.h>
 #include <net/ndisc.h>
 #include <net/flow.h>
-#include <net/flow_keys.h>
+#include <net/flow_dissector.h>
 #include <net/snmp.h>
 
 #define SIN6_LEN_RFC2133	24
@@ -691,7 +691,10 @@ static inline int ipv6_addr_diff(const struct in6_addr *a1, const struct in6_add
 	return __ipv6_addr_diff(a1, a2, sizeof(struct in6_addr));
 }
 
-void ipv6_proxy_select_ident(struct sk_buff *skb);
+__be32 ipv6_select_ident(struct net *net,
+			 const struct in6_addr *daddr,
+			 const struct in6_addr *saddr);
+void ipv6_proxy_select_ident(struct net *net, struct sk_buff *skb);
 
 int ip6_dst_hoplimit(struct dst_entry *dst);
 
@@ -716,10 +719,12 @@ static inline void ip6_set_txhash(struct sock *sk)
 	struct ipv6_pinfo *np = inet6_sk(sk);
 	struct flow_keys keys;
 
-	keys.src = (__force __be32)ipv6_addr_hash(&np->saddr);
-	keys.dst = (__force __be32)ipv6_addr_hash(&sk->sk_v6_daddr);
-	keys.port16[0] = inet->inet_sport;
-	keys.port16[1] = inet->inet_dport;
+	memset(&keys, 0, sizeof(keys));
+
+	keys.addrs.src = (__force __be32)ipv6_addr_hash(&np->saddr);
+	keys.addrs.dst = (__force __be32)ipv6_addr_hash(&sk->sk_v6_daddr);
+	keys.ports.port16[0] = inet->inet_sport;
+	keys.ports.port16[1] = inet->inet_dport;
 
 	sk->sk_txhash = flow_hash_from_keys(&keys);
 }
@@ -809,7 +814,7 @@ int ip6_push_pending_frames(struct sock *sk);
 void ip6_flush_pending_frames(struct sock *sk);
 
 int ip6_dst_lookup(struct sock *sk, struct dst_entry **dst, struct flowi6 *fl6);
-struct dst_entry *ip6_dst_lookup_flow(struct sock *sk, struct flowi6 *fl6,
+struct dst_entry *ip6_dst_lookup_flow(struct net *net, struct sock *sk, struct flowi6 *fl6,
 				      const struct in6_addr *final_dst);
 struct dst_entry *ip6_sk_dst_lookup_flow(struct sock *sk, struct flowi6 *fl6,
 					 const struct in6_addr *final_dst);
@@ -871,6 +876,8 @@ int compat_ipv6_setsockopt(struct sock *sk, int level, int optname,
 int compat_ipv6_getsockopt(struct sock *sk, int level, int optname,
 			   char __user *optval, int __user *optlen);
 
+int __ip6_datagram_connect(struct sock *sk, struct sockaddr *addr,
+			   int addr_len);
 int ip6_datagram_connect(struct sock *sk, struct sockaddr *addr, int addr_len);
 int ip6_datagram_connect_v6_only(struct sock *sk, struct sockaddr *addr,
 				 int addr_len);

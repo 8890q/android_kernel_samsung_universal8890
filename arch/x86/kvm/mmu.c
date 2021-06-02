@@ -3306,10 +3306,13 @@ static int kvm_arch_setup_async_pf(struct kvm_vcpu *vcpu, gva_t gva, gfn_t gfn)
 	return kvm_setup_async_pf(vcpu, gva, gfn_to_hva(vcpu->kvm, gfn), &arch);
 }
 
-static bool can_do_async_pf(struct kvm_vcpu *vcpu)
+bool kvm_can_do_async_pf(struct kvm_vcpu *vcpu)
 {
 	if (unlikely(!irqchip_in_kernel(vcpu->kvm) ||
 		     kvm_event_needs_reinjection(vcpu)))
+		return false;
+
+	if (is_guest_mode(vcpu))
 		return false;
 
 	return kvm_x86_ops->interrupt_allowed(vcpu);
@@ -3325,7 +3328,7 @@ static bool try_async_pf(struct kvm_vcpu *vcpu, bool prefault, gfn_t gfn,
 	if (!async)
 		return false; /* *pfn has correct page already */
 
-	if (!prefault && can_do_async_pf(vcpu)) {
+	if (!prefault && kvm_can_do_async_pf(vcpu)) {
 		trace_kvm_try_async_get_page(gva, gfn);
 		if (kvm_find_async_pf_gfn(vcpu, gfn)) {
 			trace_kvm_async_pf_doublefault(gva, gfn);
@@ -3531,7 +3534,7 @@ static void reset_rsvds_bits_mask(struct kvm_vcpu *vcpu,
 		context->rsvd_bits_mask[0][3] = exb_bit_rsvd |
 			nonleaf_bit8_rsvd | rsvd_bits(7, 7) | rsvd_bits(maxphyaddr, 51);
 		context->rsvd_bits_mask[0][2] = exb_bit_rsvd |
-			nonleaf_bit8_rsvd | gbpages_bit_rsvd | rsvd_bits(maxphyaddr, 51);
+			gbpages_bit_rsvd | rsvd_bits(maxphyaddr, 51);
 		context->rsvd_bits_mask[0][1] = exb_bit_rsvd |
 			rsvd_bits(maxphyaddr, 51);
 		context->rsvd_bits_mask[0][0] = exb_bit_rsvd |
@@ -3939,9 +3942,9 @@ static void mmu_pte_write_flush_tlb(struct kvm_vcpu *vcpu, bool zap_page,
 }
 
 static u64 mmu_pte_write_fetch_gpte(struct kvm_vcpu *vcpu, gpa_t *gpa,
-				    const u8 *new, int *bytes)
+				    int *bytes)
 {
-	u64 gentry;
+	u64 gentry = 0;
 	int r;
 
 	/*
@@ -3953,22 +3956,12 @@ static u64 mmu_pte_write_fetch_gpte(struct kvm_vcpu *vcpu, gpa_t *gpa,
 		/* Handle a 32-bit guest writing two halves of a 64-bit gpte */
 		*gpa &= ~(gpa_t)7;
 		*bytes = 8;
-		r = kvm_read_guest(vcpu->kvm, *gpa, &gentry, 8);
-		if (r)
-			gentry = 0;
-		new = (const u8 *)&gentry;
 	}
 
-	switch (*bytes) {
-	case 4:
-		gentry = *(const u32 *)new;
-		break;
-	case 8:
-		gentry = *(const u64 *)new;
-		break;
-	default:
-		gentry = 0;
-		break;
+	if (*bytes == 4 || *bytes == 8) {
+		r = kvm_vcpu_read_guest_atomic(vcpu, *gpa, &gentry, *bytes);
+		if (r)
+			gentry = 0;
 	}
 
 	return gentry;
@@ -4077,8 +4070,6 @@ void kvm_mmu_pte_write(struct kvm_vcpu *vcpu, gpa_t gpa,
 
 	pgprintk("%s: gpa %llx bytes %d\n", __func__, gpa, bytes);
 
-	gentry = mmu_pte_write_fetch_gpte(vcpu, &gpa, new, &bytes);
-
 	/*
 	 * No need to care whether allocation memory is successful
 	 * or not since pte prefetch is skiped if it does not have
@@ -4087,6 +4078,9 @@ void kvm_mmu_pte_write(struct kvm_vcpu *vcpu, gpa_t gpa,
 	mmu_topup_memory_caches(vcpu);
 
 	spin_lock(&vcpu->kvm->mmu_lock);
+
+	gentry = mmu_pte_write_fetch_gpte(vcpu, &gpa, &bytes);
+
 	++vcpu->kvm->stat.mmu_pte_write;
 	kvm_mmu_audit(vcpu, AUDIT_PRE_PTE_WRITE);
 

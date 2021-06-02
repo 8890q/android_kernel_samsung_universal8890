@@ -243,11 +243,41 @@ static int uvc_v4l2_try_format(struct uvc_streaming *stream,
 	if (ret < 0)
 		goto done;
 
+	/* After the probe, update fmt with the values returned from
+	 * negotiation with the device. Some devices return invalid bFormatIndex
+	 * and bFrameIndex values, in which case we can only assume they have
+	 * accepted the requested format as-is.
+	 */
+	for (i = 0; i < stream->nformats; ++i) {
+		if (probe->bFormatIndex == stream->format[i].index) {
+			format = &stream->format[i];
+			break;
+		}
+	}
+
+	if (i == stream->nformats)
+		uvc_trace(UVC_TRACE_FORMAT,
+			  "Unknown bFormatIndex %u, using default\n",
+			  probe->bFormatIndex);
+
+	for (i = 0; i < format->nframes; ++i) {
+		if (probe->bFrameIndex == format->frame[i].bFrameIndex) {
+			frame = &format->frame[i];
+			break;
+		}
+	}
+
+	if (i == format->nframes)
+		uvc_trace(UVC_TRACE_FORMAT,
+			  "Unknown bFrameIndex %u, using default\n",
+			  probe->bFrameIndex);
+
 	fmt->fmt.pix.width = frame->wWidth;
 	fmt->fmt.pix.height = frame->wHeight;
 	fmt->fmt.pix.field = V4L2_FIELD_NONE;
 	fmt->fmt.pix.bytesperline = format->bpp * frame->wWidth / 8;
 	fmt->fmt.pix.sizeimage = probe->dwMaxVideoFrameSize;
+	fmt->fmt.pix.pixelformat = format->fcc;
 	fmt->fmt.pix.colorspace = format->colorspace;
 	fmt->fmt.pix.priv = 0;
 
@@ -1279,45 +1309,42 @@ static int uvc_v4l2_put_xu_query(const struct uvc_xu_control_query *kp,
 static long uvc_v4l2_compat_ioctl32(struct file *file,
 		     unsigned int cmd, unsigned long arg)
 {
+	struct uvc_fh *handle = file->private_data;
 	union {
 		struct uvc_xu_control_mapping xmap;
 		struct uvc_xu_control_query xqry;
 	} karg;
 	void __user *up = compat_ptr(arg);
-	mm_segment_t old_fs;
 	long ret;
 
 	switch (cmd) {
 	case UVCIOC_CTRL_MAP32:
-		cmd = UVCIOC_CTRL_MAP;
 		ret = uvc_v4l2_get_xu_mapping(&karg.xmap, up);
+		if (ret)
+			return ret;
+		ret = uvc_ioctl_ctrl_map(handle->chain, &karg.xmap);
+		if (ret)
+			return ret;
+		ret = uvc_v4l2_put_xu_mapping(&karg.xmap, up);
+		if (ret)
+			return ret;
+
 		break;
 
 	case UVCIOC_CTRL_QUERY32:
-		cmd = UVCIOC_CTRL_QUERY;
 		ret = uvc_v4l2_get_xu_query(&karg.xqry, up);
+		if (ret)
+			return ret;
+		ret = uvc_xu_ctrl_query(handle->chain, &karg.xqry);
+		if (ret)
+			return ret;
+		ret = uvc_v4l2_put_xu_query(&karg.xqry, up);
+		if (ret)
+			return ret;
 		break;
 
 	default:
 		return -ENOIOCTLCMD;
-	}
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = uvc_v4l2_ioctl(file, cmd, (unsigned long)&karg);
-	set_fs(old_fs);
-
-	if (ret < 0)
-		return ret;
-
-	switch (cmd) {
-	case UVCIOC_CTRL_MAP:
-		ret = uvc_v4l2_put_xu_mapping(&karg.xmap, up);
-		break;
-
-	case UVCIOC_CTRL_QUERY:
-		ret = uvc_v4l2_put_xu_query(&karg.xqry, up);
-		break;
 	}
 
 	return ret;

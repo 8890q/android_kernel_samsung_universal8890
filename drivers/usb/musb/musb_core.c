@@ -1700,6 +1700,7 @@ musb_vbus_show(struct device *dev, struct device_attribute *attr, char *buf)
 	unsigned long	val;
 	int		vbus;
 
+	pm_runtime_get_sync(dev);
 	spin_lock_irqsave(&musb->lock, flags);
 	val = musb->a_wait_bcon;
 	/* FIXME get_vbus_status() is normally #defined as false...
@@ -1707,6 +1708,7 @@ musb_vbus_show(struct device *dev, struct device_attribute *attr, char *buf)
 	 */
 	vbus = musb_platform_get_vbus_status(musb);
 	spin_unlock_irqrestore(&musb->lock, flags);
+	pm_runtime_put_sync(dev);
 
 	return sprintf(buf, "Vbus %s, timeout %lu msec\n",
 			vbus ? "on" : "off", val);
@@ -1952,6 +1954,9 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 	/* be sure interrupts are disabled before connecting ISR */
 	musb_platform_disable(musb);
 	musb_generic_disable(musb);
+
+	/* MUSB_POWER_SOFTCONN might be already set, JZ4740 does this. */
+	musb_writeb(musb->mregs, MUSB_POWER, 0);
 
 	/* Init IRQ workqueue before request_irq */
 	INIT_WORK(&musb->irq_work, musb_irq_work);
@@ -2220,7 +2225,8 @@ static void musb_restore_context(struct musb *musb)
 	musb_writew(musb_base, MUSB_INTRTXE, musb->intrtxe);
 	musb_writew(musb_base, MUSB_INTRRXE, musb->intrrxe);
 	musb_writeb(musb_base, MUSB_INTRUSBE, musb->context.intrusbe);
-	musb_writeb(musb_base, MUSB_DEVCTL, musb->context.devctl);
+	if (musb->context.devctl & MUSB_DEVCTL_SESSION)
+		musb_writeb(musb_base, MUSB_DEVCTL, musb->context.devctl);
 
 	for (i = 0; i < musb->config->num_eps; ++i) {
 		struct musb_hw_ep	*hw_ep;

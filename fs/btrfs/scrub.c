@@ -843,11 +843,6 @@ static int scrub_handle_errored_block(struct scrub_block *sblock_to_check)
 	csum = sblock_to_check->pagev[0]->csum;
 	dev = sblock_to_check->pagev[0]->dev;
 
-	if (sctx->is_dev_replace && !is_metadata && !have_csum) {
-		sblocks_for_recheck = NULL;
-		goto nodatasum_case;
-	}
-
 	/*
 	 * read all mirrors one after the other. This includes to
 	 * re-read the extent or metadata block that failed (that was
@@ -962,10 +957,17 @@ static int scrub_handle_errored_block(struct scrub_block *sblock_to_check)
 		goto out;
 	}
 
-	if (!is_metadata && !have_csum) {
+	/*
+	 * NOTE: Even for nodatasum case, it's still possible that it's a
+	 * compressed data extent, thus scrub_fixup_nodatasum(), which write
+	 * inode page cache onto disk, could cause serious data corruption.
+	 *
+	 * So here we could only read from disk, and hope our recovery could
+	 * reach disk before the newer write.
+	 */
+	if (0 && !is_metadata && !have_csum) {
 		struct scrub_fixup_nodatasum *fixup_nodatasum;
 
-nodatasum_case:
 		WARN_ON(sctx->is_dev_replace);
 
 		/*
@@ -2207,7 +2209,7 @@ static int scrub_extent(struct scrub_ctx *sctx, u64 logical, u64 len,
 			have_csum = scrub_find_csum(sctx, logical, l, csum);
 			if (have_csum == 0)
 				++sctx->stat.no_csum;
-			if (sctx->is_dev_replace && !have_csum) {
+			if (0 && sctx->is_dev_replace && !have_csum) {
 				ret = copy_nocow_pages(sctx, logical, l,
 						       mirror_num,
 						      physical_for_dev_replace);
@@ -2628,7 +2630,7 @@ static noinline_for_stack int scrub_chunk(struct scrub_ctx *sctx,
 	if (!em)
 		return -EINVAL;
 
-	map = (struct map_lookup *)em->bdev;
+	map = em->map_lookup;
 	if (em->start != chunk_offset)
 		goto out;
 

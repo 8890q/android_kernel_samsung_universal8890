@@ -415,6 +415,9 @@ static void pump_transfers(unsigned long data)
 
 	cr0 = chip->cr0;
 
+	/* Ensure dw->rx and dw->rx_end are visible */
+	smp_mb();
+
 	/* Handle per transfer options for bpw and speed */
 	if (transfer->speed_hz) {
 		speed = chip->speed_hz;
@@ -653,6 +656,8 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 	dws->dma_addr = (dma_addr_t)(dws->paddr + 0x60);
 	snprintf(dws->name, sizeof(dws->name), "dw_spi%d", dws->bus_num);
 
+	spi_master_set_devdata(master, dws);
+
 	ret = devm_request_irq(dev, dws->irq, dw_spi_irq, IRQF_SHARED,
 			dws->name, dws);
 	if (ret < 0) {
@@ -683,8 +688,7 @@ int dw_spi_add_host(struct device *dev, struct dw_spi *dws)
 
 	tasklet_init(&dws->pump_transfers, pump_transfers, (unsigned long)dws);
 
-	spi_master_set_devdata(master, dws);
-	ret = devm_spi_register_master(dev, master);
+	ret = spi_register_master(master);
 	if (ret) {
 		dev_err(&master->dev, "problem registering spi master\n");
 		goto err_dma_exit;
@@ -708,6 +712,8 @@ void dw_spi_remove_host(struct dw_spi *dws)
 	if (!dws)
 		return;
 	dw_spi_debugfs_remove(dws);
+
+	spi_unregister_master(dws->master);
 
 	if (dws->dma_ops && dws->dma_ops->dma_exit)
 		dws->dma_ops->dma_exit(dws);

@@ -300,7 +300,7 @@ struct drm_dp_resource_status_notify {
 
 struct drm_dp_query_payload_ack_reply {
 	u8 port_number;
-	u8 allocated_pbn;
+	u16 allocated_pbn;
 };
 
 struct drm_dp_sideband_msg_req_body {
@@ -441,9 +441,7 @@ struct drm_dp_mst_topology_mgr {
 	   the mstb tx_slots and txmsg->state once they are queued */
 	struct mutex qlock;
 	struct list_head tx_msg_downq;
-	struct list_head tx_msg_upq;
 	bool tx_down_in_progress;
-	bool tx_up_in_progress;
 
 	/* payload info + lock for it */
 	struct mutex payload_lock;

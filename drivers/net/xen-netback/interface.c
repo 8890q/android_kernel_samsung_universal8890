@@ -605,8 +605,8 @@ err_tx_unbind:
 	queue->tx_irq = 0;
 err_unmap:
 	xenvif_unmap_frontend_rings(queue);
+	netif_napi_del(&queue->napi);
 err:
-	module_put(THIS_MODULE);
 	return err;
 }
 

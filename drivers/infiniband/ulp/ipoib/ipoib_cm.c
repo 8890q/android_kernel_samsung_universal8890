@@ -997,12 +997,14 @@ static int ipoib_cm_rep_handler(struct ib_cm_id *cm_id, struct ib_cm_event *even
 
 	skb_queue_head_init(&skqueue);
 
+	netif_tx_lock_bh(p->dev);
 	spin_lock_irq(&priv->lock);
 	set_bit(IPOIB_FLAG_OPER_UP, &p->flags);
 	if (p->neigh)
 		while ((skb = __skb_dequeue(&p->neigh->queue)))
 			__skb_queue_tail(&skqueue, skb);
 	spin_unlock_irq(&priv->lock);
+	netif_tx_unlock_bh(p->dev);
 
 	while ((skb = __skb_dequeue(&skqueue))) {
 		skb->dev = p->dev;
@@ -1038,8 +1040,6 @@ static struct ib_qp *ipoib_cm_create_tx_qp(struct net_device *dev, struct ipoib_
 
 	tx_qp = ib_create_qp(priv->pd, &attr);
 	if (PTR_ERR(tx_qp) == -EINVAL) {
-		ipoib_warn(priv, "can't use GFP_NOIO for QPs on device %s, using GFP_KERNEL\n",
-			   priv->ca->name);
 		attr.create_flags &= ~IB_QP_CREATE_USE_GFP_NOIO;
 		tx_qp = ib_create_qp(priv->pd, &attr);
 	}
@@ -1303,6 +1303,8 @@ void ipoib_cm_destroy_tx(struct ipoib_cm_tx *tx)
 	}
 }
 
+#define QPN_AND_OPTIONS_OFFSET	4
+
 static void ipoib_cm_tx_start(struct work_struct *work)
 {
 	struct ipoib_dev_priv *priv = container_of(work, struct ipoib_dev_priv,
@@ -1311,6 +1313,7 @@ static void ipoib_cm_tx_start(struct work_struct *work)
 	struct ipoib_neigh *neigh;
 	struct ipoib_cm_tx *p;
 	unsigned long flags;
+	struct ipoib_path *path;
 	int ret;
 
 	struct ib_sa_path_rec pathrec;
@@ -1323,7 +1326,19 @@ static void ipoib_cm_tx_start(struct work_struct *work)
 		p = list_entry(priv->cm.start_list.next, typeof(*p), list);
 		list_del_init(&p->list);
 		neigh = p->neigh;
+
 		qpn = IPOIB_QPN(neigh->daddr);
+		/*
+		 * As long as the search is with these 2 locks,
+		 * path existence indicates its validity.
+		 */
+		path = __path_find(dev, neigh->daddr + QPN_AND_OPTIONS_OFFSET);
+		if (!path) {
+			pr_info("%s ignore not valid path %pI6\n",
+				__func__,
+				neigh->daddr + QPN_AND_OPTIONS_OFFSET);
+			goto free_neigh;
+		}
 		memcpy(&pathrec, &p->path->pathrec, sizeof pathrec);
 
 		spin_unlock_irqrestore(&priv->lock, flags);
@@ -1335,6 +1350,7 @@ static void ipoib_cm_tx_start(struct work_struct *work)
 		spin_lock_irqsave(&priv->lock, flags);
 
 		if (ret) {
+free_neigh:
 			neigh = p->neigh;
 			if (neigh) {
 				neigh->cm = NULL;

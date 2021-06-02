@@ -1952,6 +1952,10 @@ void i40e_vlan_stripping_enable(struct i40e_vsi *vsi)
 	struct i40e_vsi_context ctxt;
 	i40e_status ret;
 
+	/* Don't modify stripping options if a port VLAN is active */
+	if (vsi->info.pvid)
+		return;
+
 	if ((vsi->info.valid_sections &
 	     cpu_to_le16(I40E_AQ_VSI_PROP_VLAN_VALID)) &&
 	    ((vsi->info.port_vlan_flags & I40E_AQ_VSI_PVLAN_MODE_MASK) == 0))
@@ -1979,6 +1983,10 @@ void i40e_vlan_stripping_disable(struct i40e_vsi *vsi)
 {
 	struct i40e_vsi_context ctxt;
 	i40e_status ret;
+
+	/* Don't modify stripping options if a port VLAN is active */
+	if (vsi->info.pvid)
+		return;
 
 	if ((vsi->info.valid_sections &
 	     cpu_to_le16(I40E_AQ_VSI_PROP_VLAN_VALID)) &&
@@ -5976,6 +5984,7 @@ static void i40e_reset_and_rebuild(struct i40e_pf *pf, bool reinit)
 {
 	struct i40e_hw *hw = &pf->hw;
 	i40e_status ret;
+	u32 val;
 	u32 v;
 
 	/* Now we wait for GRST to settle out.
@@ -6098,6 +6107,20 @@ static void i40e_reset_and_rebuild(struct i40e_pf *pf, bool reinit)
 				 "rebuild of Main VSI failed: %d\n", ret);
 			goto end_core_reset;
 		}
+	}
+
+	/* Reconfigure hardware for allowing smaller MSS in the case
+	 * of TSO, so that we avoid the MDD being fired and causing
+	 * a reset in the case of small MSS+TSO.
+	 */
+#define I40E_REG_MSS          0x000E64DC
+#define I40E_REG_MSS_MIN_MASK 0x3FF0000
+#define I40E_64BYTE_MSS       0x400000
+	val = rd32(hw, I40E_REG_MSS);
+	if ((val & I40E_REG_MSS_MIN_MASK) > I40E_64BYTE_MSS) {
+		val &= ~I40E_REG_MSS_MIN_MASK;
+		val |= I40E_64BYTE_MSS;
+		wr32(hw, I40E_REG_MSS, val);
 	}
 
 	/* reinit the misc interrupt */
@@ -7068,6 +7091,7 @@ static int i40e_sw_init(struct i40e_pf *pf)
 {
 	int err = 0;
 	int size;
+	u16 pow;
 
 	pf->msg_enable = netif_msg_init(I40E_DEFAULT_MSG_ENABLE,
 				(NETIF_MSG_DRV|NETIF_MSG_PROBE|NETIF_MSG_LINK));
@@ -7096,6 +7120,11 @@ static int i40e_sw_init(struct i40e_pf *pf)
 	pf->rss_size = 1;
 	pf->rss_size_max = min_t(int, pf->rss_size_max,
 				 pf->hw.func_caps.num_tx_qp);
+
+	/* find the next higher power-of-2 of num cpus */
+	pow = roundup_pow_of_two(num_online_cpus());
+	pf->rss_size_max = min_t(int, pf->rss_size_max, pow);
+
 	if (pf->hw.func_caps.rss) {
 		pf->flags |= I40E_FLAG_RSS_ENABLED;
 		pf->rss_size = min_t(int, pf->rss_size_max, num_online_cpus());
@@ -8932,6 +8961,7 @@ static int i40e_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	u16 link_status;
 	int err = 0;
 	u32 len;
+	u32 val;
 	u32 i;
 
 	err = pci_enable_device_mem(pdev);
@@ -9166,6 +9196,17 @@ static int i40e_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 		}
 	}
 
+	/* Reconfigure hardware for allowing smaller MSS in the case
+	 * of TSO, so that we avoid the MDD being fired and causing
+	 * a reset in the case of small MSS+TSO.
+	 */
+	val = rd32(hw, I40E_REG_MSS);
+	if ((val & I40E_REG_MSS_MIN_MASK) > I40E_64BYTE_MSS) {
+		val &= ~I40E_REG_MSS_MIN_MASK;
+		val |= I40E_64BYTE_MSS;
+		wr32(hw, I40E_REG_MSS, val);
+	}
+
 	/* The main driver is (mostly) up and happy. We need to set this state
 	 * before setting up the misc vector or we get a race and the vector
 	 * ends up disabled forever.
@@ -9398,6 +9439,12 @@ static pci_ers_result_t i40e_pci_error_detected(struct pci_dev *pdev,
 	struct i40e_pf *pf = pci_get_drvdata(pdev);
 
 	dev_info(&pdev->dev, "%s: error %d\n", __func__, error);
+
+	if (!pf) {
+		dev_info(&pdev->dev,
+			 "Cannot recover - error happened during device probe\n");
+		return PCI_ERS_RESULT_DISCONNECT;
+	}
 
 	/* shutdown all operations */
 	if (!test_bit(__I40E_SUSPENDED, &pf->state)) {

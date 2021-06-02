@@ -263,8 +263,11 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
 		buf_size = IEEE80211_MAX_AMPDU_BUF;
 
 	/* make sure the size doesn't exceed the maximum supported by the hw */
-	if (buf_size > local->hw.max_rx_aggregation_subframes)
-		buf_size = local->hw.max_rx_aggregation_subframes;
+	if (buf_size > sta->sta.max_rx_aggregation_subframes)
+		buf_size = sta->sta.max_rx_aggregation_subframes;
+
+	ht_dbg(sta->sdata, "AddBA Req buf_size=%d for %pM\n",
+	       buf_size, sta->sta.addr);
 
 	/* examine state machine */
 	mutex_lock(&sta->ampdu_mlme.mtx);
@@ -313,7 +316,7 @@ void __ieee80211_start_rx_ba_session(struct sta_info *sta,
 		__skb_queue_head_init(&tid_agg_rx->reorder_buf[i]);
 
 	ret = drv_ampdu_action(local, sta->sdata, IEEE80211_AMPDU_RX_START,
-			       &sta->sta, tid, &start_seq_num, 0);
+			       &sta->sta, tid, &start_seq_num, buf_size);
 	ht_dbg(sta->sdata, "Rx A-MPDU request on %pM tid %d result %d\n",
 	       sta->sta.addr, tid, ret);
 	if (ret) {

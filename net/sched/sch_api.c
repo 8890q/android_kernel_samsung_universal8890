@@ -387,7 +387,8 @@ struct qdisc_rate_table *qdisc_get_rtab(struct tc_ratespec *r, struct nlattr *ta
 {
 	struct qdisc_rate_table *rtab;
 
-	if (tab == NULL || r->rate == 0 || r->cell_log == 0 ||
+	if (tab == NULL || r->rate == 0 ||
+	    r->cell_log == 0 || r->cell_log >= 32 ||
 	    nla_len(tab) != TC_RTAB_SIZE)
 		return NULL;
 
@@ -995,6 +996,9 @@ qdisc_create(struct net_device *dev, struct netdev_queue *dev_queue,
 
 		return sch;
 	}
+	/* ops->init() failed, we call ->destroy() like qdisc_create_dflt() */
+	if (ops->destroy)
+		ops->destroy(sch);
 err_out3:
 	dev_put(dev);
 	kfree((char *) sch - sch->padded);
@@ -1840,10 +1844,11 @@ done:
 int tc_classify_compat(struct sk_buff *skb, const struct tcf_proto *tp,
 		       struct tcf_result *res)
 {
-	__be16 protocol = skb->protocol;
 	int err;
 
 	for (; tp; tp = rcu_dereference_bh(tp->next)) {
+		__be16 protocol = skb->protocol;
+
 		if (tp->protocol != protocol &&
 		    tp->protocol != htons(ETH_P_ALL))
 			continue;

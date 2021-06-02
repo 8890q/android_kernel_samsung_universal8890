@@ -35,6 +35,8 @@ enum {
 	USB_MIXER_U8,
 	USB_MIXER_S16,
 	USB_MIXER_U16,
+	USB_MIXER_S32,
+	USB_MIXER_U32,
 };
 
 struct usb_mixer_elem_info {
@@ -54,6 +56,7 @@ struct usb_mixer_elem_info {
 	int cached;
 	int cache_val[MAX_CHANNELS];
 	u8 initialized;
+	u8 min_mute;
 };
 
 int snd_usb_create_mixer(struct snd_usb_audio *chip, int ctrlif,

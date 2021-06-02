@@ -201,6 +201,7 @@ config ENABLE_MUST_CHECK
 config FRAME_WARN
 	int "Warn for stack frames larger than (needs gcc 4.4)"
 	range 0 8192
+	default 2048 if GCC_PLUGIN_LATENT_ENTROPY
 	default 1024 if !64BIT
 	default 2048 if 64BIT
 	help
@@ -499,7 +500,7 @@ config DEBUG_KMEMLEAK_EARLY_LOG_SIZE
 	int "Maximum kmemleak early log entries"
 	depends on DEBUG_KMEMLEAK
 	range 200 40000
-	default 400
+	default 16000
 	help
 	  Kmemleak must track all the memory allocations to avoid
 	  reporting false positives. Since memory may be allocated or
@@ -651,27 +652,6 @@ config DEBUG_STACKOVERFLOW
 source "lib/Kconfig.kmemcheck"
 
 endmenu # "Memory Debugging"
-
-config ARCH_HAS_KCOV
-	bool
-	help
-	  KCOV does not have any arch-specific code, but currently it is enabled
-	  only for x86_64. KCOV requires testing on other archs, and most likely
-	  disabling of instrumentation for some early boot code.
-
-config KCOV
-	bool "Code coverage for fuzzing"
-	depends on ARCH_HAS_KCOV
-	select DEBUG_FS
-	help
-	  KCOV exposes kernel code coverage information in a form suitable
-	  for coverage-guided fuzzing (randomized testing).
-
-	  If RANDOMIZE_BASE is enabled, PC values will not be stable across
-	  different machines and across reboots. If you need stable PC values,
-	  disable RANDOMIZE_BASE.
-
-	  For more details, see Documentation/kcov.txt.
 
 config DEBUG_SHIRQ
 	bool "Debug shared IRQ handlers"
@@ -1646,6 +1626,16 @@ config TEST_RHASHTABLE
 
 	  If unsure, say N.
 
+config TEST_HASH
+	tristate "Perform selftest on hash functions"
+	default n
+	help
+	  Enable this option to test the kernel's siphash (<linux/siphash.h>)
+	  hash functions on boot (or module load).
+
+	  This is intended to help people writing architecture-specific
+	  optimized versions.  If unsure, say N.
+
 endmenu # runtime tests
 
 config PROVIDE_OHCI1394_DMA_INIT
@@ -1765,6 +1755,16 @@ config TEST_UDELAY
 	help
 	  This builds the "udelay_test" module that helps to make sure
 	  that udelay() is working properly.
+
+	  If unsure, say N.
+
+config BUG_ON_DATA_CORRUPTION
+	bool "Trigger a BUG when data corruption is detected"
+	select CONFIG_DEBUG_LIST
+	help
+	  Select this option if the kernel should BUG when it encounters
+	  data corruption in kernel memory structures when they get checked
+	  for validity.
 
 	  If unsure, say N.
 

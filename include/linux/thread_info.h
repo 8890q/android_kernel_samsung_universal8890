@@ -13,6 +13,10 @@
 struct timespec;
 struct compat_timespec;
 
+#ifdef CONFIG_THREAD_INFO_IN_TASK
+#define current_thread_info() ((struct thread_info *)current)
+#endif
+
 /*
  * System call restart block.
  */
@@ -55,11 +59,7 @@ extern long do_no_restart_syscall(struct restart_block *parm);
 
 #ifdef __KERNEL__
 
-#ifdef CONFIG_DEBUG_STACK_USAGE
-# define THREADINFO_GFP		(GFP_KERNEL | __GFP_NOTRACK | __GFP_ZERO)
-#else
-# define THREADINFO_GFP		(GFP_KERNEL | __GFP_NOTRACK)
-#endif
+#define THREADINFO_GFP		(GFP_KERNEL | __GFP_NOTRACK | __GFP_ZERO)
 
 /*
  * flag set/clear/test wrappers

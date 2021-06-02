@@ -204,7 +204,6 @@ static int snd_usb_create_stream(struct snd_usb_audio *chip, int ctrlif, int int
 	if (! snd_usb_parse_audio_interface(chip, interface)) {
 		usb_set_interface(dev, interface, 0); /* reset the current interface */
 		usb_driver_claim_interface(&usb_audio_driver, iface, (void *)-1L);
-		return -EINVAL;
 	}
 
 	return 0;
@@ -593,9 +592,12 @@ snd_usb_audio_probe(struct usb_device *dev,
 
  __error:
 	if (chip) {
+		/* chip->probing is inside the chip->card object,
+		 * reset before memory is possibly returned.
+		 */
+		chip->probing = 0;
 		if (!chip->num_interfaces)
 			snd_card_free(chip->card);
-		chip->probing = 0;
 	}
 	mutex_unlock(&register_mutex);
  __err_val:

@@ -204,7 +204,7 @@ cifs_statfs(struct dentry *dentry, struct kstatfs *buf)
 		rc = server->ops->queryfs(xid, tcon, buf);
 
 	free_xid(xid);
-	return 0;
+	return rc;
 }
 
 static long cifs_fallocate(struct file *file, int mode, loff_t off, loff_t len)
@@ -1226,7 +1226,6 @@ init_cifs(void)
 	GlobalTotalActiveXid = 0;
 	GlobalMaxActiveXid = 0;
 	spin_lock_init(&cifs_tcp_ses_lock);
-	spin_lock_init(&cifs_file_list_lock);
 	spin_lock_init(&GlobalMid_Lock);
 
 	if (cifs_max_pending < 2) {

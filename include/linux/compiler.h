@@ -50,6 +50,22 @@ extern void __chk_io_ptr(const volatile void __iomem *);
 
 #ifdef __KERNEL__
 
+/*
+ * Minimal backport of compiler_attributes.h to add support for __copy
+ * to v4.9.y so that we can use it in init/exit_module to avoid
+ * -Werror=missing-attributes errors on GCC 9.
+ */
+#ifndef __has_attribute
+# define __has_attribute(x) __GCC4_has_attribute_##x
+# define __GCC4_has_attribute___copy__                0
+#endif
+
+#if __has_attribute(__copy__)
+# define __copy(symbol)                 __attribute__((__copy__(symbol)))
+#else
+# define __copy(symbol)
+#endif
+
 #ifdef __GNUC__
 #include <linux/compiler-gcc.h>
 #endif
@@ -105,7 +121,7 @@ void ftrace_likely_update(struct ftrace_branch_data *f, int val, int expect);
 #define unlikely_notrace(x)	__builtin_expect(!!(x), 0)
 
 #define __branch_check__(x, expect) ({					\
-			int ______r;					\
+			long ______r;					\
 			static struct ftrace_branch_data		\
 				__attribute__((__aligned__(4)))		\
 				__attribute__((section("_ftrace_annotated_branch"))) \
@@ -163,6 +179,15 @@ void ftrace_likely_update(struct ftrace_branch_data *f, int val, int expect);
 /* Optimization barrier */
 #ifndef barrier
 # define barrier() __memory_barrier()
+#endif
+
+#ifndef barrier_data
+# define barrier_data(ptr) barrier()
+#endif
+
+/* workaround for GCC PR82365 if needed */
+#ifndef barrier_before_unreachable
+# define barrier_before_unreachable() do { } while (0)
 #endif
 
 /* Unreachable code */
@@ -385,7 +410,7 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 
 /* Is this type a native word size -- useful for atomic operations */
 #ifndef __native_word
-# define __native_word(t) (sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long))
+# define __native_word(t) (sizeof(t) == sizeof(char) || sizeof(t) == sizeof(short) || sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long))
 #endif
 
 /* Compile time object size, -1 for unknown */
@@ -434,7 +459,7 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
  * compiler has support to do so.
  */
 #define compiletime_assert(condition, msg) \
-	_compiletime_assert(condition, msg, __compiletime_assert_, __LINE__)
+	_compiletime_assert(condition, msg, __compiletime_assert_, __COUNTER__)
 
 #define compiletime_assert_atomic_type(t)				\
 	compiletime_assert(__native_word(t),				\
@@ -477,4 +502,11 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 # define __kprobes
 # define nokprobe_inline	inline
 #endif
+
+/*
+ * This is needed in functions which generate the stack canary, see
+ * arch/x86/kernel/smpboot.c::start_secondary() for an example.
+ */
+#define prevent_tail_call_optimization()	mb()
+
 #endif /* __LINUX_COMPILER_H */
