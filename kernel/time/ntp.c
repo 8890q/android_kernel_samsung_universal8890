@@ -39,6 +39,7 @@ static u64			tick_length_base;
 #define MAX_TICKADJ		500LL		/* usecs */
 #define MAX_TICKADJ_SCALED \
 	(((MAX_TICKADJ * NSEC_PER_USEC) << NTP_SCALE_SHIFT) / NTP_INTERVAL_FREQ)
+#define MAX_TAI_OFFSET		100000
 
 /*
  * phase-lock loop variables
@@ -589,7 +590,8 @@ static inline void process_adjtimex_modes(struct timex *txc,
 		time_constant = max(time_constant, 0l);
 	}
 
-	if (txc->modes & ADJ_TAI && txc->constant > 0)
+	if (txc->modes & ADJ_TAI &&
+			txc->constant >= 0 && txc->constant <= MAX_TAI_OFFSET)
 		*time_tai = txc->constant;
 
 	if (txc->modes & ADJ_OFFSET)
@@ -630,8 +632,24 @@ int ntp_validate_timex(struct timex *txc)
 			return -EINVAL;
 	}
 
-	if ((txc->modes & ADJ_SETOFFSET) && (!capable(CAP_SYS_TIME)))
-		return -EPERM;
+	if (txc->modes & ADJ_SETOFFSET) {
+		/* In order to inject time, you gotta be super-user! */
+		if (!capable(CAP_SYS_TIME))
+			return -EPERM;
+
+		if (txc->modes & ADJ_NANO) {
+			struct timespec ts;
+
+			ts.tv_sec = txc->time.tv_sec;
+			ts.tv_nsec = txc->time.tv_usec;
+			if (!timespec_inject_offset_valid(&ts))
+				return -EINVAL;
+
+		} else {
+			if (!timeval_inject_offset_valid(&txc->time))
+				return -EINVAL;
+		}
+	}
 
 	/*
 	 * Check for potential multiplication overflows that can

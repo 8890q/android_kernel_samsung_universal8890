@@ -9,6 +9,37 @@
 #include <net/addrconf.h>
 #include <net/secure_seq.h>
 
+static u32 __ipv6_select_ident(struct net *net,
+			       const struct in6_addr *dst,
+			       const struct in6_addr *src)
+{
+	const struct {
+		struct in6_addr dst;
+		struct in6_addr src;
+	} __aligned(SIPHASH_ALIGNMENT) combined = {
+		.dst = *dst,
+		.src = *src,
+	};
+	u32 hash, id;
+
+	/* Note the following code is not safe, but this is okay. */
+	if (unlikely(siphash_key_is_zero(&net->ipv4.ip_id_key)))
+		get_random_bytes(&net->ipv4.ip_id_key,
+				 sizeof(net->ipv4.ip_id_key));
+
+	hash = siphash(&combined, sizeof(combined), &net->ipv4.ip_id_key);
+
+	/* Treat id of 0 as unset and if we get 0 back from ip_idents_reserve,
+	 * set the hight order instead thus minimizing possible future
+	 * collisions.
+	 */
+	id = ip_idents_reserve(hash, 1);
+	if (unlikely(!id))
+		id = 1 << 31;
+
+	return id;
+}
+
 /* This function exists only for tap drivers that must support broken
  * clients requesting UFO without specifying an IPv6 fragment ID.
  *
@@ -17,12 +48,11 @@
  *
  * The network header must be set before calling this.
  */
-void ipv6_proxy_select_ident(struct sk_buff *skb)
+void ipv6_proxy_select_ident(struct net *net, struct sk_buff *skb)
 {
-	static u32 ip6_proxy_idents_hashrnd __read_mostly;
 	struct in6_addr buf[2];
 	struct in6_addr *addrs;
-	u32 hash, id;
+	u32 id;
 
 	addrs = skb_header_pointer(skb,
 				   skb_network_offset(skb) +
@@ -31,16 +61,21 @@ void ipv6_proxy_select_ident(struct sk_buff *skb)
 	if (!addrs)
 		return;
 
-	net_get_random_once(&ip6_proxy_idents_hashrnd,
-			    sizeof(ip6_proxy_idents_hashrnd));
-
-	hash = __ipv6_addr_jhash(&addrs[1], ip6_proxy_idents_hashrnd);
-	hash = __ipv6_addr_jhash(&addrs[0], hash);
-
-	id = ip_idents_reserve(hash, 1);
+	id = __ipv6_select_ident(net, &addrs[1], &addrs[0]);
 	skb_shinfo(skb)->ip6_frag_id = htonl(id);
 }
 EXPORT_SYMBOL_GPL(ipv6_proxy_select_ident);
+
+__be32 ipv6_select_ident(struct net *net,
+			 const struct in6_addr *daddr,
+			 const struct in6_addr *saddr)
+{
+	u32 id;
+
+	id = __ipv6_select_ident(net, daddr, saddr);
+	return htonl(id);
+}
+EXPORT_SYMBOL(ipv6_select_ident);
 
 int ip6_find_1stfragopt(struct sk_buff *skb, u8 **nexthdr)
 {
@@ -119,6 +154,8 @@ int __ip6_local_out(struct sk_buff *skb)
 		len = 0;
 	ipv6_hdr(skb)->payload_len = htons(len);
 	IP6CB(skb)->nhoff = offsetof(struct ipv6hdr, nexthdr);
+
+	skb->protocol = htons(ETH_P_IPV6);
 
 	return nf_hook(NFPROTO_IPV6, NF_INET_LOCAL_OUT, skb, NULL,
 		       skb_dst(skb)->dev, dst_output);

@@ -1084,8 +1084,27 @@ ppp_get_stats64(struct net_device *dev, struct rtnl_link_stats64 *stats64)
 static struct lock_class_key ppp_tx_busylock;
 static int ppp_dev_init(struct net_device *dev)
 {
+	struct ppp *ppp;
+
 	dev->qdisc_tx_busylock = &ppp_tx_busylock;
+
+	ppp = netdev_priv(dev);
+	/* Let the netdevice take a reference on the ppp file. This ensures
+	 * that ppp_destroy_interface() won't run before the device gets
+	 * unregistered.
+	 */
+	atomic_inc(&ppp->file.refcnt);
+
 	return 0;
+}
+
+static void ppp_dev_priv_destructor(struct net_device *dev)
+{
+	struct ppp *ppp;
+
+	ppp = netdev_priv(dev);
+	if (atomic_dec_and_test(&ppp->file.refcnt))
+		ppp_destroy_interface(ppp);
 }
 
 static const struct net_device_ops ppp_netdev_ops = {
@@ -1105,6 +1124,7 @@ static void ppp_setup(struct net_device *dev)
 	dev->type = ARPHRD_PPP;
 	dev->flags = IFF_POINTOPOINT | IFF_NOARP | IFF_MULTICAST;
 	dev->features |= NETIF_F_NETNS_LOCAL;
+	dev->destructor = ppp_dev_priv_destructor;
 	netif_keep_dst(dev);
 }
 
@@ -2756,6 +2776,7 @@ ppp_create_interface(struct net *net, int unit, int *retp)
 
 out2:
 	mutex_unlock(&pn->all_ppp_mutex);
+	rtnl_unlock();
 	free_netdev(dev);
 out1:
 	*retp = ret;
@@ -2908,6 +2929,15 @@ ppp_connect_channel(struct channel *pch, int unit)
 		goto outl;
 
 	ppp_lock(ppp);
+	spin_lock_bh(&pch->downl);
+	if (!pch->chan) {
+		/* Don't connect unregistered channels */
+		spin_unlock_bh(&pch->downl);
+		ppp_unlock(ppp);
+		ret = -ENOTCONN;
+		goto outl;
+	}
+	spin_unlock_bh(&pch->downl);
 	if (pch->file.hdrlen > ppp->file.hdrlen)
 		ppp->file.hdrlen = pch->file.hdrlen;
 	hdrlen = pch->file.hdrlen + 2;	/* for protocol bytes */

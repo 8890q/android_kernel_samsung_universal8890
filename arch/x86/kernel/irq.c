@@ -96,8 +96,7 @@ int arch_show_interrupts(struct seq_file *p, int prec)
 	seq_printf(p, "  Rescheduling interrupts\n");
 	seq_printf(p, "%*s: ", prec, "CAL");
 	for_each_online_cpu(j)
-		seq_printf(p, "%10u ", irq_stats(j)->irq_call_count -
-					irq_stats(j)->irq_tlb_count);
+		seq_printf(p, "%10u ", irq_stats(j)->irq_call_count);
 	seq_printf(p, "  Function call interrupts\n");
 	seq_printf(p, "%*s: ", prec, "TLB");
 	for_each_online_cpu(j)
@@ -302,6 +301,9 @@ int check_irq_vectors_for_cpu_disable(void)
 		irq = __this_cpu_read(vector_irq[vector]);
 		if (irq >= 0) {
 			desc = irq_to_desc(irq);
+			if (!desc)
+				continue;
+
 			data = irq_desc_get_irq_data(desc);
 			cpumask_copy(&affinity_new, data->affinity);
 			cpu_clear(this_cpu, affinity_new);
@@ -401,6 +403,15 @@ void fixup_irqs(void)
 		}
 
 		chip = irq_data_get_irq_chip(data);
+		/*
+		 * The interrupt descriptor might have been cleaned up
+		 * already, but it is not yet removed from the radix tree
+		 */
+		if (!chip) {
+			raw_spin_unlock(&desc->lock);
+			continue;
+		}
+
 		if (!irqd_can_move_in_process_context(data) && chip->irq_mask)
 			chip->irq_mask(data);
 

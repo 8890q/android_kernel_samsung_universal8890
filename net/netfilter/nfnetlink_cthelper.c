@@ -17,6 +17,7 @@
 #include <linux/types.h>
 #include <linux/list.h>
 #include <linux/errno.h>
+#include <linux/capability.h>
 #include <net/netlink.h>
 #include <net/sock.h>
 
@@ -392,6 +393,9 @@ nfnl_cthelper_new(struct sock *nfnl, struct sk_buff *skb,
 	struct nfnl_cthelper *nlcth;
 	int ret = 0;
 
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
 	if (!tb[NFCTH_NAME] || !tb[NFCTH_TUPLE])
 		return -EINVAL;
 
@@ -595,6 +599,9 @@ nfnl_cthelper_get(struct sock *nfnl, struct sk_buff *skb,
 	struct nfnl_cthelper *nlcth;
 	bool tuple_set = false;
 
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
 	if (nlh->nlmsg_flags & NLM_F_DUMP) {
 		struct netlink_dump_control c = {
 			.dump = nfnl_cthelper_dump_table,
@@ -661,6 +668,9 @@ nfnl_cthelper_del(struct sock *nfnl, struct sk_buff *skb,
 	struct nfnl_cthelper *nlcth, *n;
 	int j = 0, ret;
 
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
+
 	if (tb[NFCTH_NAME])
 		helper_name = nla_data(tb[NFCTH_NAME]);
 
@@ -701,6 +711,8 @@ static const struct nla_policy nfnl_cthelper_policy[NFCTH_MAX+1] = {
 	[NFCTH_NAME] = { .type = NLA_NUL_STRING,
 			 .len = NF_CT_HELPER_NAME_LEN-1 },
 	[NFCTH_QUEUE_NUM] = { .type = NLA_U32, },
+	[NFCTH_PRIV_DATA_LEN] = { .type = NLA_U32, },
+	[NFCTH_STATUS] = { .type = NLA_U32, },
 };
 
 static const struct nfnl_callback nfnl_cthelper_cb[NFNL_MSG_CTHELPER_MAX] = {

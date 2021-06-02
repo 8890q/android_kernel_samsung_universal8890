@@ -181,7 +181,7 @@ static int hash_set_dma_transfer(struct hash_ctx *ctx, struct scatterlist *sg,
 		__func__);
 	desc = dmaengine_prep_slave_sg(channel,
 			ctx->device->dma.sg, ctx->device->dma.sg_len,
-			direction, DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
+			DMA_MEM_TO_DEV, DMA_CTRL_ACK | DMA_PREP_INTERRUPT);
 	if (!desc) {
 		dev_err(ctx->device->dev,
 			"%s: device_prep_slave_sg() failed!\n", __func__);
@@ -1682,9 +1682,9 @@ static int ux500_hash_probe(struct platform_device *pdev)
 
 	device_data->phybase = res->start;
 	device_data->base = ioremap(res->start, resource_size(res));
-	if (!device_data->base) {
+	if (IS_ERR(device_data->base)) {
 		dev_err(dev, "%s: ioremap() failed!\n", __func__);
-		ret = -ENOMEM;
+		ret = PTR_ERR(device_data->base);
 		goto out_free_mem;
 	}
 	spin_lock_init(&device_data->ctx_lock);

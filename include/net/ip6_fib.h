@@ -95,7 +95,7 @@ struct rt6_info {
 	 * the same cache line.
 	 */
 	struct fib6_table		*rt6i_table;
-	struct fib6_node		*rt6i_node;
+	struct fib6_node __rcu		*rt6i_node;
 
 	struct in6_addr			rt6i_gateway;
 
@@ -191,6 +191,11 @@ static inline void rt6_set_from(struct rt6_info *rt, struct rt6_info *from)
 	rt->rt6i_flags &= ~RTF_EXPIRES;
 	dst_hold(new);
 	rt->dst.from = new;
+}
+
+static inline u32 rt6_get_cookie(const struct rt6_info *rt)
+{
+	return rt->rt6i_node ? rt->rt6i_node->fn_sernum : 0;
 }
 
 static inline void ip6_rt_put(struct rt6_info *rt)

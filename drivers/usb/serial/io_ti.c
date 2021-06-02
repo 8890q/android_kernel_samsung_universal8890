@@ -1367,8 +1367,7 @@ static int download_fw(struct edgeport_serial *serial)
 
 		dev_dbg(dev, "%s - Download successful -- Device rebooting...\n", __func__);
 
-		/* return an error on purpose */
-		return -ENODEV;
+		return 1;
 	}
 
 stayinbootmode:
@@ -2386,6 +2385,13 @@ static int edge_startup(struct usb_serial *serial)
 {
 	struct edgeport_serial *edge_serial;
 	int status;
+
+	/* Make sure we have the required endpoints when in download mode. */
+	if (serial->interface->cur_altsetting->desc.bNumEndpoints > 1) {
+		if (serial->num_bulk_in < serial->num_ports ||
+				serial->num_bulk_out < serial->num_ports)
+			return -ENODEV;
+	}
 
 	/* create our private serial structure */
 	edge_serial = kzalloc(sizeof(struct edgeport_serial), GFP_KERNEL);

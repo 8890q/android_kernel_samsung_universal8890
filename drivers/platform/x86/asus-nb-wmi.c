@@ -27,6 +27,7 @@
 #include <linux/input/sparse-keymap.h>
 #include <linux/fb.h>
 #include <linux/dmi.h>
+#include <linux/i8042.h>
 
 #include "asus-wmi.h"
 
@@ -55,8 +56,32 @@ MODULE_PARM_DESC(wapf, "WAPF value");
 
 static struct quirk_entry *quirks;
 
+static bool asus_q500a_i8042_filter(unsigned char data, unsigned char str,
+			      struct serio *port)
+{
+	static bool extended;
+	bool ret = false;
+
+	if (str & I8042_STR_AUXDATA)
+		return false;
+
+	if (unlikely(data == 0xe1)) {
+		extended = true;
+		ret = true;
+	} else if (unlikely(extended)) {
+		extended = false;
+		ret = true;
+	}
+
+	return ret;
+}
+
 static struct quirk_entry quirk_asus_unknown = {
 	.wapf = 0,
+};
+
+static struct quirk_entry quirk_asus_q500a = {
+	.i8042_filter = asus_q500a_i8042_filter,
 };
 
 /*
@@ -87,6 +112,15 @@ static int dmi_matched(const struct dmi_system_id *dmi)
 static const struct dmi_system_id asus_quirks[] = {
 	{
 		.callback = dmi_matched,
+		.ident = "ASUSTeK COMPUTER INC. Q500A",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "Q500A"),
+		},
+		.driver_data = &quirk_asus_q500a,
+	},
+	{
+		.callback = dmi_matched,
 		.ident = "ASUSTeK COMPUTER INC. U32U",
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK Computer Inc."),
@@ -97,6 +131,15 @@ static const struct dmi_system_id asus_quirks[] = {
 		 * machines need quirk_asus_x55u / wmi_backlight_power but
 		 * here acpi-video seems to work fine for backlight control.
 		 */
+		.driver_data = &quirk_asus_wapf4,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "ASUSTeK COMPUTER INC. X302UA",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "X302UA"),
+		},
 		.driver_data = &quirk_asus_wapf4,
 	},
 	{
@@ -114,6 +157,15 @@ static const struct dmi_system_id asus_quirks[] = {
 		.matches = {
 			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
 			DMI_MATCH(DMI_PRODUCT_NAME, "X401A"),
+		},
+		.driver_data = &quirk_asus_wapf4,
+	},
+	{
+		.callback = dmi_matched,
+		.ident = "ASUSTeK COMPUTER INC. X45U",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "X45U"),
 		},
 		.driver_data = &quirk_asus_wapf4,
 	},
@@ -284,6 +336,8 @@ static const struct dmi_system_id asus_quirks[] = {
 
 static void asus_nb_wmi_quirks(struct asus_wmi_driver *driver)
 {
+	int ret;
+
 	quirks = &quirk_asus_unknown;
 	dmi_check_system(asus_quirks);
 
@@ -295,6 +349,15 @@ static void asus_nb_wmi_quirks(struct asus_wmi_driver *driver)
 		quirks->wapf = wapf;
 	else
 		wapf = quirks->wapf;
+
+	if (quirks->i8042_filter) {
+		ret = i8042_install_filter(quirks->i8042_filter);
+		if (ret) {
+			pr_warn("Unable to install key filter\n");
+			return;
+		}
+		pr_info("Using i8042 filter function for receiving events\n");
+	}
 }
 
 static const struct key_entry asus_nb_wmi_keymap[] = {
@@ -303,8 +366,7 @@ static const struct key_entry asus_nb_wmi_keymap[] = {
 	{ KE_KEY, 0x30, { KEY_VOLUMEUP } },
 	{ KE_KEY, 0x31, { KEY_VOLUMEDOWN } },
 	{ KE_KEY, 0x32, { KEY_MUTE } },
-	{ KE_KEY, 0x33, { KEY_DISPLAYTOGGLE } }, /* LCD on */
-	{ KE_KEY, 0x34, { KEY_DISPLAY_OFF } }, /* LCD off */
+	{ KE_KEY, 0x35, { KEY_SCREENLOCK } },
 	{ KE_KEY, 0x40, { KEY_PREVIOUSSONG } },
 	{ KE_KEY, 0x41, { KEY_NEXTSONG } },
 	{ KE_KEY, 0x43, { KEY_STOPCD } }, /* Stop/Eject */
@@ -356,6 +418,7 @@ static const struct key_entry asus_nb_wmi_keymap[] = {
 	{ KE_KEY, 0xC4, { KEY_KBDILLUMUP } },
 	{ KE_KEY, 0xC5, { KEY_KBDILLUMDOWN } },
 	{ KE_IGNORE, 0xC6, },  /* Ambient Light Sensor notification */
+	{ KE_KEY, 0xFA, { KEY_PROG2 } },           /* Lid flip action */
 	{ KE_END, 0},
 };
 
@@ -369,9 +432,33 @@ static struct asus_wmi_driver asus_nb_wmi_driver = {
 	.detect_quirks = asus_nb_wmi_quirks,
 };
 
+static const struct dmi_system_id asus_nb_wmi_blacklist[] __initconst = {
+	{
+		/*
+		 * asus-nb-wm adds no functionality. The T100TA has a detachable
+		 * USB kbd, so no hotkeys and it has no WMI rfkill; and loading
+		 * asus-nb-wm causes the camera LED to turn and _stay_ on.
+		 */
+		.matches = {
+			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "T100TA"),
+		},
+	},
+	{
+		/* The Asus T200TA has the same issue as the T100TA */
+		.matches = {
+			DMI_EXACT_MATCH(DMI_SYS_VENDOR, "ASUSTeK COMPUTER INC."),
+			DMI_EXACT_MATCH(DMI_PRODUCT_NAME, "T200TA"),
+		},
+	},
+	{} /* Terminating entry */
+};
 
 static int __init asus_nb_wmi_init(void)
 {
+	if (dmi_check_system(asus_nb_wmi_blacklist))
+		return -ENODEV;
+
 	return asus_wmi_register_driver(&asus_nb_wmi_driver);
 }
 

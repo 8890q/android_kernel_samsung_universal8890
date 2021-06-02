@@ -263,12 +263,13 @@ static int parse_reply_info_extra(void **p, void *end,
 				  struct ceph_mds_reply_info_parsed *info,
 				  u64 features)
 {
-	if (info->head->op == CEPH_MDS_OP_GETFILELOCK)
+	u32 op = le32_to_cpu(info->head->op);
+
+	if (op == CEPH_MDS_OP_GETFILELOCK)
 		return parse_reply_info_filelock(p, end, info, features);
-	else if (info->head->op == CEPH_MDS_OP_READDIR ||
-		 info->head->op == CEPH_MDS_OP_LSSNAP)
+	else if (op == CEPH_MDS_OP_READDIR || op == CEPH_MDS_OP_LSSNAP)
 		return parse_reply_info_dir(p, end, info, features);
-	else if (info->head->op == CEPH_MDS_OP_CREATE)
+	else if (op == CEPH_MDS_OP_CREATE)
 		return parse_reply_info_create(p, end, info, features);
 	else
 		return -EIO;
@@ -1308,6 +1309,29 @@ static int __close_session(struct ceph_mds_client *mdsc,
 	return request_close_session(mdsc, session);
 }
 
+static bool drop_negative_children(struct dentry *dentry)
+{
+	struct dentry *child;
+	bool all_negative = true;
+
+	if (!d_is_dir(dentry))
+		goto out;
+
+	spin_lock(&dentry->d_lock);
+	list_for_each_entry(child, &dentry->d_subdirs, d_child) {
+		if (d_really_is_positive(child)) {
+			all_negative = false;
+			break;
+		}
+	}
+	spin_unlock(&dentry->d_lock);
+
+	if (all_negative)
+		shrink_dcache_parent(dentry);
+out:
+	return all_negative;
+}
+
 /*
  * Trim old(er) caps.
  *
@@ -1345,16 +1369,27 @@ static int trim_caps_cb(struct inode *inode, struct ceph_cap *cap, void *arg)
 	if ((used | wanted) & ~oissued & mine)
 		goto out;   /* we need these caps */
 
-	session->s_trim_caps--;
 	if (oissued) {
 		/* we aren't the only cap.. just remove us */
 		__ceph_remove_cap(cap, true);
+		session->s_trim_caps--;
 	} else {
+		struct dentry *dentry;
 		/* try to drop referring dentries */
 		spin_unlock(&ci->i_ceph_lock);
-		d_prune_aliases(inode);
-		dout("trim_caps_cb %p cap %p  pruned, count now %d\n",
-		     inode, cap, atomic_read(&inode->i_count));
+		dentry = d_find_any_alias(inode);
+		if (dentry && drop_negative_children(dentry)) {
+			int count;
+			dput(dentry);
+			d_prune_aliases(inode);
+			count = atomic_read(&inode->i_count);
+			if (count == 1)
+				session->s_trim_caps--;
+			dout("trim_caps_cb %p cap %p pruned, count now %d\n",
+			     inode, cap, count);
+		} else {
+			dput(dentry);
+		}
 		return 0;
 	}
 
@@ -1754,13 +1789,18 @@ static int build_dentry_path(struct dentry *dentry,
 			     int *pfreepath)
 {
 	char *path;
+	struct inode *dir;
 
-	if (ceph_snap(dentry->d_parent->d_inode) == CEPH_NOSNAP) {
-		*pino = ceph_ino(dentry->d_parent->d_inode);
+	rcu_read_lock();
+	dir = d_inode_rcu(dentry->d_parent);
+	if (dir && ceph_snap(dir) == CEPH_NOSNAP) {
+		*pino = ceph_ino(dir);
+		rcu_read_unlock();
 		*ppath = dentry->d_name.name;
 		*ppathlen = dentry->d_name.len;
 		return 0;
 	}
+	rcu_read_unlock();
 	path = ceph_mdsc_build_path(dentry, ppathlen, pino, 1);
 	if (IS_ERR(path))
 		return PTR_ERR(path);
@@ -3215,6 +3255,9 @@ static void delayed_work(struct work_struct *work)
 	dout("mdsc delayed_work\n");
 	ceph_check_delayed_caps(mdsc);
 
+	if (mdsc->stopping)
+		return;
+
 	mutex_lock(&mdsc->mutex);
 	renew_interval = mdsc->mdsmap->m_session_timeout >> 2;
 	renew_caps = time_after_eq(jiffies, HZ*renew_interval +
@@ -3505,7 +3548,16 @@ void ceph_mdsc_close_sessions(struct ceph_mds_client *mdsc)
 static void ceph_mdsc_stop(struct ceph_mds_client *mdsc)
 {
 	dout("stop\n");
-	cancel_delayed_work_sync(&mdsc->delayed_work); /* cancel timer */
+	/*
+	 * Make sure the delayed work stopped before releasing
+	 * the resources.
+	 *
+	 * Because the cancel_delayed_work_sync() will only
+	 * guarantee that the work finishes executing. But the
+	 * delayed work will re-arm itself again after that.
+	 */
+	flush_delayed_work(&mdsc->delayed_work);
+
 	if (mdsc->mdsmap)
 		ceph_mdsmap_destroy(mdsc->mdsmap);
 	kfree(mdsc->sessions);

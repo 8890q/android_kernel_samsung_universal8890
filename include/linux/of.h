@@ -24,6 +24,7 @@
 #include <linux/topology.h>
 #include <linux/notifier.h>
 #include <linux/property.h>
+#include <linux/list.h>
 
 #include <asm/byteorder.h>
 #include <asm/errno.h>
@@ -238,6 +239,8 @@ extern struct device_node *of_get_next_child(const struct device_node *node,
 extern struct device_node *of_get_next_available_child(
 	const struct device_node *node, struct device_node *prev);
 
+extern struct device_node *of_get_compatible_child(const struct device_node *parent,
+					const char *compatible);
 extern struct device_node *of_get_child_by_name(const struct device_node *node,
 					const char *name);
 
@@ -416,6 +419,12 @@ static inline struct device_node *of_find_node_with_property(
 static inline bool of_have_populated_dt(void)
 {
 	return false;
+}
+
+static inline struct device_node *of_get_compatible_child(const struct device_node *parent,
+					const char *compatible)
+{
+	return NULL;
 }
 
 static inline struct device_node *of_get_child_by_name(
@@ -840,6 +849,7 @@ static inline int of_get_available_child_count(const struct device_node *np)
 #define _OF_DECLARE(table, name, compat, fn, fn_type)			\
 	static const struct of_device_id __of_table_##name		\
 		__used __section(__##table##_of_table)			\
+		__aligned(__alignof__(struct of_device_id))		\
 		 = { .compatible = compat,				\
 		     .data = (fn == (fn_type)NULL) ? fn : fn  }
 #else
@@ -936,5 +946,35 @@ static inline int of_changeset_update_property(struct of_changeset *ocs,
 
 /* CONFIG_OF_RESOLVE api */
 extern int of_resolve_phandles(struct device_node *tree);
+
+/**
+ * Overlay support
+ */
+
+#ifdef CONFIG_OF_OVERLAY
+
+/* ID based overlays; the API for external users */
+int of_overlay_create(struct device_node *tree);
+int of_overlay_destroy(int id);
+int of_overlay_destroy_all(void);
+
+#else
+
+static inline int of_overlay_create(struct device_node *tree)
+{
+	return -ENOTSUPP;
+}
+
+static inline int of_overlay_destroy(int id)
+{
+	return -ENOTSUPP;
+}
+
+static inline int of_overlay_destroy_all(void)
+{
+	return -ENOTSUPP;
+}
+
+#endif
 
 #endif /* _LINUX_OF_H */

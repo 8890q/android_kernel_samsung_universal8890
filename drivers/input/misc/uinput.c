@@ -230,6 +230,18 @@ static int uinput_dev_erase_effect(struct input_dev *dev, int effect_id)
 	return uinput_request_submit(udev, &request);
 }
 
+static int uinput_dev_flush(struct input_dev *dev, struct file *file)
+{
+	/*
+	 * If we are called with file == NULL that means we are tearing
+	 * down the device, and therefore we can not handle FF erase
+	 * requests: either we are handling UI_DEV_DESTROY (and holding
+	 * the udev->mutex), or the file descriptor is closed and there is
+	 * nobody on the other side anymore.
+	 */
+	return file ? input_ff_flush(dev, file) : 0;
+}
+
 static void uinput_destroy_device(struct uinput_device *udev)
 {
 	const char *name, *phys;
@@ -273,6 +285,12 @@ static int uinput_create_device(struct uinput_device *udev)
 		dev->ff->playback = uinput_dev_playback;
 		dev->ff->set_gain = uinput_dev_set_gain;
 		dev->ff->set_autocenter = uinput_dev_set_autocenter;
+		/*
+		 * The standard input_ff_flush() implementation does
+		 * not quite work for uinput as we can't reasonably
+		 * handle FF requests during device teardown.
+		 */
+		dev->flush = uinput_dev_flush;
 	}
 
 	error = input_register_device(udev->dev);
@@ -896,13 +914,31 @@ static long uinput_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 #ifdef CONFIG_COMPAT
 
-#define UI_SET_PHYS_COMPAT	_IOW(UINPUT_IOCTL_BASE, 108, compat_uptr_t)
+/*
+ * These IOCTLs change their size and thus their numbers between
+ * 32 and 64 bits.
+ */
+#define UI_SET_PHYS_COMPAT		\
+	_IOW(UINPUT_IOCTL_BASE, 108, compat_uptr_t)
+#define UI_BEGIN_FF_UPLOAD_COMPAT	\
+	_IOWR(UINPUT_IOCTL_BASE, 200, struct uinput_ff_upload_compat)
+#define UI_END_FF_UPLOAD_COMPAT		\
+	_IOW(UINPUT_IOCTL_BASE, 201, struct uinput_ff_upload_compat)
 
 static long uinput_compat_ioctl(struct file *file,
 				unsigned int cmd, unsigned long arg)
 {
-	if (cmd == UI_SET_PHYS_COMPAT)
+	switch (cmd) {
+	case UI_SET_PHYS_COMPAT:
 		cmd = UI_SET_PHYS;
+		break;
+	case UI_BEGIN_FF_UPLOAD_COMPAT:
+		cmd = UI_BEGIN_FF_UPLOAD;
+		break;
+	case UI_END_FF_UPLOAD_COMPAT:
+		cmd = UI_END_FF_UPLOAD;
+		break;
+	}
 
 	return uinput_ioctl_handler(file, cmd, arg, compat_ptr(arg));
 }

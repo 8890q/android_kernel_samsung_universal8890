@@ -195,6 +195,7 @@ static int __init zswap_comp_init(void)
 static void __init zswap_comp_exit(void)
 {
 	/* free percpu transforms */
+
 	free_percpu(zswap_comp_pcpu_tfms);
 }
 
@@ -920,9 +921,20 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 
 	if (zswap_is_full(ZSWAP_POOL_MAX)) {
 		zswap_pool_limit_hit++;
+
 		ret = -ENOMEM;
 		goto reject;
 	}
+
+		/* A second zswap_is_full() check after
+		 * zswap_shrink() to make sure it's now
+		 * under the max_pool_percent
+		 */
+		if (zswap_is_full()) {
+			ret = -ENOMEM;
+			goto reject;
+		}
+
 
 	/* allocate entry */
 	entry = zswap_entry_cache_alloc(GFP_KERNEL);
@@ -933,6 +945,7 @@ static int zswap_frontswap_store(unsigned type, pgoff_t offset,
 	}
 
 	/* compress */
+
 	src = kmap_atomic(page);
 	if (page_zero_filled(src)) {
 		atomic_inc(&zswap_zero_pages);

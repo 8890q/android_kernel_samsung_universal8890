@@ -100,7 +100,7 @@ struct sur40_data {
 #define TOUCH_ENDPOINT 0x86
 
 /* polling interval (ms) */
-#define POLL_INTERVAL 10
+#define POLL_INTERVAL 1
 
 /* maximum number of contacts FIXME: this is a guess? */
 #define MAX_CONTACTS 64
@@ -357,7 +357,7 @@ static int sur40_probe(struct usb_interface *interface,
 	int error;
 
 	/* Check if we really have the right interface. */
-	iface_desc = &interface->altsetting[0];
+	iface_desc = interface->cur_altsetting;
 	if (iface_desc->desc.bInterfaceClass != 0xFF)
 		return -ENODEV;
 

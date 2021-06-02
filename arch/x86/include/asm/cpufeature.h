@@ -12,7 +12,7 @@
 #include <asm/disabled-features.h>
 #endif
 
-#define NCAPINTS	11	/* N 32-bit words worth of info */
+#define NCAPINTS	16	/* N 32-bit words worth of info */
 #define NBUGINTS	1	/* N 32-bit bug flags */
 
 /*
@@ -178,17 +178,20 @@
 
 /*
  * Auxiliary flags: Linux defined - For features scattered in various
- * CPUID levels like 0x6, 0xA etc, word 7
+ * CPUID levels like 0x6, 0xA etc, word 7.
+ *
+ * Reuse free bits when adding new feature flags!
  */
-#define X86_FEATURE_IDA		( 7*32+ 0) /* Intel Dynamic Acceleration */
-#define X86_FEATURE_ARAT	( 7*32+ 1) /* Always Running APIC Timer */
+
 #define X86_FEATURE_CPB		( 7*32+ 2) /* AMD Core Performance Boost */
 #define X86_FEATURE_EPB		( 7*32+ 3) /* IA32_ENERGY_PERF_BIAS support */
-#define X86_FEATURE_PLN		( 7*32+ 5) /* Intel Power Limit Notification */
-#define X86_FEATURE_PTS		( 7*32+ 6) /* Intel Package Thermal Status */
-#define X86_FEATURE_DTHERM	( 7*32+ 7) /* Digital Thermal Sensor */
 #define X86_FEATURE_HW_PSTATE	( 7*32+ 8) /* AMD HW-PState */
 #define X86_FEATURE_PROC_FEEDBACK ( 7*32+ 9) /* AMD ProcFeedbackInterface */
+
+#define X86_FEATURE_RSB_CTXSW	( 7*32+19) /* Fill RSB on context switches */
+
+#define X86_FEATURE_RETPOLINE	( 7*32+29) /* Generic Retpoline mitigation for Spectre variant 2 */
+#define X86_FEATURE_RETPOLINE_AMD ( 7*32+30) /* AMD Retpoline mitigation for Spectre variant 2 */
 
 /* Virtualization flags: Linux defined, word 8 */
 #define X86_FEATURE_TPR_SHADOW  ( 8*32+ 0) /* Intel TPR Shadow */
@@ -196,16 +199,7 @@
 #define X86_FEATURE_FLEXPRIORITY ( 8*32+ 2) /* Intel FlexPriority */
 #define X86_FEATURE_EPT         ( 8*32+ 3) /* Intel Extended Page Table */
 #define X86_FEATURE_VPID        ( 8*32+ 4) /* Intel Virtual Processor ID */
-#define X86_FEATURE_NPT		( 8*32+ 5) /* AMD Nested Page Table support */
-#define X86_FEATURE_LBRV	( 8*32+ 6) /* AMD LBR Virtualization support */
-#define X86_FEATURE_SVML	( 8*32+ 7) /* "svm_lock" AMD SVM locking MSR */
-#define X86_FEATURE_NRIPS	( 8*32+ 8) /* "nrip_save" AMD SVM next_rip save */
-#define X86_FEATURE_TSCRATEMSR  ( 8*32+ 9) /* "tsc_scale" AMD TSC scaling support */
-#define X86_FEATURE_VMCBCLEAN   ( 8*32+10) /* "vmcb_clean" AMD VMCB clean bits support */
-#define X86_FEATURE_FLUSHBYASID ( 8*32+11) /* AMD flush-by-ASID support */
-#define X86_FEATURE_DECODEASSISTS ( 8*32+12) /* AMD Decode Assists support */
-#define X86_FEATURE_PAUSEFILTER ( 8*32+13) /* AMD filtered pause intercept */
-#define X86_FEATURE_PFTHRESHOLD ( 8*32+14) /* AMD pause filter threshold */
+
 #define X86_FEATURE_VMMCALL     ( 8*32+15) /* Prefer vmmcall to vmcall */
 
 
@@ -236,6 +230,30 @@
 #define X86_FEATURE_XGETBV1	(10*32+ 2) /* XGETBV with ECX = 1 */
 #define X86_FEATURE_XSAVES	(10*32+ 3) /* XSAVES/XRSTORS */
 
+/* Thermal and Power Management Leaf, CPUID level 0x00000006 (eax), word 14 */
+#define X86_FEATURE_DTHERM	(14*32+ 0) /* Digital Thermal Sensor */
+#define X86_FEATURE_IDA		(14*32+ 1) /* Intel Dynamic Acceleration */
+#define X86_FEATURE_ARAT	(14*32+ 2) /* Always Running APIC Timer */
+#define X86_FEATURE_PLN		(14*32+ 4) /* Intel Power Limit Notification */
+#define X86_FEATURE_PTS		(14*32+ 6) /* Intel Package Thermal Status */
+#define X86_FEATURE_HWP		(14*32+ 7) /* Intel Hardware P-states */
+#define X86_FEATURE_HWP_NOTIFY	(14*32+ 8) /* HWP Notification */
+#define X86_FEATURE_HWP_ACT_WINDOW (14*32+ 9) /* HWP Activity Window */
+#define X86_FEATURE_HWP_EPP	(14*32+10) /* HWP Energy Perf. Preference */
+#define X86_FEATURE_HWP_PKG_REQ (14*32+11) /* HWP Package Level Request */
+
+/* AMD SVM Feature Identification, CPUID level 0x8000000a (edx), word 15 */
+#define X86_FEATURE_NPT		(15*32+ 0) /* Nested Page Table support */
+#define X86_FEATURE_LBRV	(15*32+ 1) /* LBR Virtualization support */
+#define X86_FEATURE_SVML	(15*32+ 2) /* "svm_lock" SVM locking MSR */
+#define X86_FEATURE_NRIPS	(15*32+ 3) /* "nrip_save" SVM next_rip save */
+#define X86_FEATURE_TSCRATEMSR  (15*32+ 4) /* "tsc_scale" TSC scaling support */
+#define X86_FEATURE_VMCBCLEAN   (15*32+ 5) /* "vmcb_clean" VMCB clean bits support */
+#define X86_FEATURE_FLUSHBYASID (15*32+ 6) /* flush-by-ASID support */
+#define X86_FEATURE_DECODEASSISTS (15*32+ 7) /* Decode Assists support */
+#define X86_FEATURE_PAUSEFILTER (15*32+10) /* filtered pause intercept */
+#define X86_FEATURE_PFTHRESHOLD (15*32+12) /* pause filter threshold */
+
 /*
  * BUG word(s)
  */
@@ -249,11 +267,34 @@
 #define X86_BUG_11AP		X86_BUG(5) /* Bad local APIC aka 11AP */
 #define X86_BUG_FXSAVE_LEAK	X86_BUG(6) /* FXSAVE leaks FOP/FIP/FOP */
 #define X86_BUG_CLFLUSH_MONITOR	X86_BUG(7) /* AAI65, CLFLUSH required before MONITOR */
+#define X86_BUG_CPU_MELTDOWN	X86_BUG(14) /* CPU is affected by meltdown attack and needs kernel page table isolation */
+#define X86_BUG_SPECTRE_V1	X86_BUG(15) /* CPU is affected by Spectre variant 1 attack with conditional branches */
+#define X86_BUG_SPECTRE_V2	X86_BUG(16) /* CPU is affected by Spectre variant 2 attack with indirect branches */
 
 #if defined(__KERNEL__) && !defined(__ASSEMBLY__)
 
 #include <asm/asm.h>
 #include <linux/bitops.h>
+
+enum cpuid_leafs
+{
+	CPUID_1_EDX		= 0,
+	CPUID_8000_0001_EDX,
+	CPUID_8086_0001_EDX,
+	CPUID_LNX_1,
+	CPUID_1_ECX,
+	CPUID_C000_0001_EDX,
+	CPUID_8000_0001_ECX,
+	CPUID_LNX_2,
+	CPUID_LNX_3,
+	CPUID_7_0_EBX,
+	CPUID_D_1_EAX,
+	CPUID_F_0_EDX,
+	CPUID_F_1_EDX,
+	CPUID_8000_0008_EBX,
+	CPUID_6_EAX,
+	CPUID_8000_000A_EDX,
+};
 
 #ifdef CONFIG_X86_FEATURE_NAMES
 extern const char * const x86_cap_flags[NCAPINTS*32];
@@ -315,8 +356,7 @@ extern const char * const x86_bug_flags[NBUGINTS*32];
  * is not relevant.
  */
 #define cpu_feature_enabled(bit)	\
-	(__builtin_constant_p(bit) && DISABLED_MASK_BIT_SET(bit) ? 0 :	\
-	 cpu_has(&boot_cpu_data, bit))
+	(__builtin_constant_p(bit) && DISABLED_MASK_BIT_SET(bit) ? 0 : static_cpu_has(bit))
 
 #define boot_cpu_has(bit)	cpu_has(&boot_cpu_data, bit)
 
@@ -330,6 +370,8 @@ extern const char * const x86_bug_flags[NBUGINTS*32];
 	set_cpu_cap(&boot_cpu_data, bit);	\
 	set_bit(bit, (unsigned long *)cpu_caps_set);	\
 } while (0)
+
+#define setup_force_cpu_bug(bit) setup_force_cpu_cap(bit)
 
 #define cpu_has_fpu		boot_cpu_has(X86_FEATURE_FPU)
 #define cpu_has_de		boot_cpu_has(X86_FEATURE_DE)
@@ -411,6 +453,7 @@ static __always_inline __pure bool __static_cpu_has(u16 bit)
 			 " .word %P0\n"		/* 1: do replace */
 			 " .byte 2b - 1b\n"	/* source len */
 			 " .byte 0\n"		/* replacement len */
+			 " .byte 0\n"		/* pad len */
 			 ".previous\n"
 			 /* skipping size check since replacement size = 0 */
 			 : : "i" (X86_FEATURE_ALWAYS) : : t_warn);
@@ -425,6 +468,7 @@ static __always_inline __pure bool __static_cpu_has(u16 bit)
 			 " .word %P0\n"		/* feature bit */
 			 " .byte 2b - 1b\n"	/* source len */
 			 " .byte 0\n"		/* replacement len */
+			 " .byte 0\n"		/* pad len */
 			 ".previous\n"
 			 /* skipping size check since replacement size = 0 */
 			 : : "i" (bit) : : t_no);
@@ -450,6 +494,7 @@ static __always_inline __pure bool __static_cpu_has(u16 bit)
 			     " .word %P1\n"		/* feature bit */
 			     " .byte 2b - 1b\n"		/* source len */
 			     " .byte 4f - 3f\n"		/* replacement len */
+			     " .byte 0\n"		/* pad len */
 			     ".previous\n"
 			     ".section .discard,\"aw\",@progbits\n"
 			     " .byte 0xff + (4f-3f) - (2b-1b)\n" /* size check */
@@ -484,23 +529,28 @@ static __always_inline __pure bool _static_cpu_has_safe(u16 bit)
  */
 		asm_volatile_goto("1: .byte 0xe9\n .long %l[t_dynamic] - 2f\n"
 			 "2:\n"
+			 ".skip -(((5f-4f) - (2b-1b)) > 0) * "
+			         "((5f-4f) - (2b-1b)),0x90\n"
+			 "3:\n"
 			 ".section .altinstructions,\"a\"\n"
 			 " .long 1b - .\n"		/* src offset */
-			 " .long 3f - .\n"		/* repl offset */
+			 " .long 4f - .\n"		/* repl offset */
 			 " .word %P1\n"			/* always replace */
-			 " .byte 2b - 1b\n"		/* src len */
-			 " .byte 4f - 3f\n"		/* repl len */
+			 " .byte 3b - 1b\n"		/* src len */
+			 " .byte 5f - 4f\n"		/* repl len */
+			 " .byte 3b - 2b\n"		/* pad len */
 			 ".previous\n"
 			 ".section .altinstr_replacement,\"ax\"\n"
-			 "3: .byte 0xe9\n .long %l[t_no] - 2b\n"
-			 "4:\n"
+			 "4: .byte 0xe9\n .long %l[t_no] - 2b\n"
+			 "5:\n"
 			 ".previous\n"
 			 ".section .altinstructions,\"a\"\n"
 			 " .long 1b - .\n"		/* src offset */
 			 " .long 0\n"			/* no replacement */
 			 " .word %P0\n"			/* feature bit */
-			 " .byte 2b - 1b\n"		/* src len */
+			 " .byte 3b - 1b\n"		/* src len */
 			 " .byte 0\n"			/* repl len */
+			 " .byte 0\n"			/* pad len */
 			 ".previous\n"
 			 : : "i" (bit), "i" (X86_FEATURE_ALWAYS)
 			 : : t_dynamic, t_no);
@@ -520,6 +570,7 @@ static __always_inline __pure bool _static_cpu_has_safe(u16 bit)
 			     " .word %P2\n"		/* always replace */
 			     " .byte 2b - 1b\n"		/* source len */
 			     " .byte 4f - 3f\n"		/* replacement len */
+			     " .byte 0\n"		/* pad len */
 			     ".previous\n"
 			     ".section .discard,\"aw\",@progbits\n"
 			     " .byte 0xff + (4f-3f) - (2b-1b)\n" /* size check */
@@ -534,6 +585,7 @@ static __always_inline __pure bool _static_cpu_has_safe(u16 bit)
 			     " .word %P1\n"		/* feature bit */
 			     " .byte 4b - 3b\n"		/* src len */
 			     " .byte 6f - 5f\n"		/* repl len */
+			     " .byte 0\n"		/* pad len */
 			     ".previous\n"
 			     ".section .discard,\"aw\",@progbits\n"
 			     " .byte 0xff + (6f-5f) - (4b-3b)\n" /* size check */

@@ -55,7 +55,7 @@ static const char *handler[]= {
 	"Error"
 };
 
-int show_unhandled_signals = 1;
+int show_unhandled_signals = 0;
 
 /*
  * Dump out the contents of some memory nicely...
@@ -312,6 +312,7 @@ static int __die(const char *str, int err, struct thread_info *thread,
 #endif
 		dump_instr(KERN_EMERG, regs);
 	}
+
 	return ret;
 }
 
@@ -472,6 +473,7 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 		return;
 
 	if (unhandled_signal(current, SIGILL) && show_unhandled_signals_ratelimited()) {
+
 		pr_info("%s[%d]: undefined instruction: pc=%p\n",
 			current->comm, task_pid_nr(current), pc);
 		dump_instr(KERN_INFO, regs);
@@ -505,7 +507,7 @@ static void cntfrq_read_handler(unsigned int esr, struct pt_regs *regs)
 	int rt = (esr & ESR_ELx_SYS64_ISS_RT_MASK) >> ESR_ELx_SYS64_ISS_RT_SHIFT;
 
 	if (rt != 31)
-		asm volatile("mrs %0, cntfrq_el0" : "=r" (regs->regs[rt]));
+		regs->regs[rt] = read_sysreg(cntfrq_el0);
 	regs->pc += 4;
 }
 
@@ -607,7 +609,7 @@ asmlinkage void bad_mode(struct pt_regs *regs, int reason, unsigned int esr)
 	sec_debug_set_extra_info_esr(esr);
 #endif
 
-	die("Oops - bad mode", regs, 0);
+
 	local_irq_disable();
 	panic("bad mode");
 }

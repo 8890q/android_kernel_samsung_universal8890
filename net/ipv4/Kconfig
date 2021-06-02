@@ -186,6 +186,7 @@ config NET_IPGRE_DEMUX
 
 config NET_IP_TUNNEL
 	tristate
+	select DST_CACHE
 	default n
 
 config NET_IPGRE
@@ -297,6 +298,7 @@ config SYN_COOKIES
 
 config NET_IPVTI
 	tristate "Virtual (secure) IP: tunneling"
+	depends on IPV6 || IPV6=n
 	select INET_TUNNEL
 	select NET_IP_TUNNEL
 	depends on INET_XFRM_MODE_TUNNEL
@@ -358,6 +360,7 @@ config INET_ESP
 	select CRYPTO_CBC
 	select CRYPTO_SHA1
 	select CRYPTO_DES
+	select CRYPTO_ECHAINIV
 	---help---
 	  Support for IPsec ESP.
 

@@ -1963,9 +1963,15 @@ enum ieee80211_key_len {
 	WLAN_KEY_LEN_WEP40 = 5,
 	WLAN_KEY_LEN_WEP104 = 13,
 	WLAN_KEY_LEN_CCMP = 16,
+	WLAN_KEY_LEN_CCMP_256 = 32,
 	WLAN_KEY_LEN_TKIP = 32,
 	WLAN_KEY_LEN_AES_CMAC = 16,
 	WLAN_KEY_LEN_SMS4 = 32,
+	WLAN_KEY_LEN_GCMP = 16,
+	WLAN_KEY_LEN_GCMP_256 = 32,
+	WLAN_KEY_LEN_BIP_CMAC_256 = 32,
+	WLAN_KEY_LEN_BIP_GMAC_128 = 16,
+	WLAN_KEY_LEN_BIP_GMAC_256 = 32,
 };
 
 #define IEEE80211_WEP_IV_LEN		4
@@ -1973,9 +1979,16 @@ enum ieee80211_key_len {
 #define IEEE80211_CCMP_HDR_LEN		8
 #define IEEE80211_CCMP_MIC_LEN		8
 #define IEEE80211_CCMP_PN_LEN		6
+#define IEEE80211_CCMP_256_HDR_LEN	8
+#define IEEE80211_CCMP_256_MIC_LEN	16
+#define IEEE80211_CCMP_256_PN_LEN	6
 #define IEEE80211_TKIP_IV_LEN		8
 #define IEEE80211_TKIP_ICV_LEN		4
 #define IEEE80211_CMAC_PN_LEN		6
+#define IEEE80211_GMAC_PN_LEN		6
+#define IEEE80211_GCMP_HDR_LEN		8
+#define IEEE80211_GCMP_MIC_LEN		16
+#define IEEE80211_GCMP_PN_LEN		6
 
 /* Public action codes */
 enum ieee80211_pub_actioncode {
@@ -2186,6 +2199,11 @@ enum ieee80211_sa_query_action {
 #define WLAN_CIPHER_SUITE_AES_CMAC	0x000FAC06
 #define WLAN_CIPHER_SUITE_GCMP		0x000FAC08
 #define WLAN_CIPHER_SUITE_PMK		0x00904C00 /* 802.11r */
+#define WLAN_CIPHER_SUITE_GCMP_256	0x000FAC09
+#define WLAN_CIPHER_SUITE_CCMP_256	0x000FAC0A
+#define WLAN_CIPHER_SUITE_BIP_GMAC_128	0x000FAC0B
+#define WLAN_CIPHER_SUITE_BIP_GMAC_256	0x000FAC0C
+#define WLAN_CIPHER_SUITE_BIP_CMAC_256	0x000FAC0D
 
 #define WLAN_CIPHER_SUITE_SMS4		0x00147201
 
@@ -2451,6 +2469,59 @@ static inline bool ieee80211_action_contains_tpc(struct sk_buff *skb)
 		return false;
 
 	return true;
+}
+
+struct element {
+	u8 id;
+	u8 datalen;
+	u8 data[];
+} __packed;
+
+/* element iteration helpers */
+#define for_each_element(_elem, _data, _datalen)			\
+	for (_elem = (const struct element *)(_data);			\
+	     (const u8 *)(_data) + (_datalen) - (const u8 *)_elem >=	\
+		(int)sizeof(*_elem) &&					\
+	     (const u8 *)(_data) + (_datalen) - (const u8 *)_elem >=	\
+		(int)sizeof(*_elem) + _elem->datalen;			\
+	     _elem = (const struct element *)(_elem->data + _elem->datalen))
+
+#define for_each_element_id(element, _id, data, datalen)		\
+	for_each_element(element, data, datalen)			\
+		if (element->id == (_id))
+
+#define for_each_element_extid(element, extid, data, datalen)		\
+	for_each_element(element, data, datalen)			\
+		if (element->id == WLAN_EID_EXTENSION &&		\
+		    element->datalen > 0 &&				\
+		    element->data[0] == (extid))
+
+#define for_each_subelement(sub, element)				\
+	for_each_element(sub, (element)->data, (element)->datalen)
+
+#define for_each_subelement_id(sub, id, element)			\
+	for_each_element_id(sub, id, (element)->data, (element)->datalen)
+
+#define for_each_subelement_extid(sub, extid, element)			\
+	for_each_element_extid(sub, extid, (element)->data, (element)->datalen)
+
+/**
+ * for_each_element_completed - determine if element parsing consumed all data
+ * @element: element pointer after for_each_element() or friends
+ * @data: same data pointer as passed to for_each_element() or friends
+ * @datalen: same data length as passed to for_each_element() or friends
+ *
+ * This function returns %true if all the data was parsed or considered
+ * while walking the elements. Only use this if your for_each_element()
+ * loop cannot be broken out of, otherwise it always returns %false.
+ *
+ * If some data was malformed, this returns %false since the last parsed
+ * element will not fill the whole remaining data.
+ */
+static inline bool for_each_element_completed(const struct element *element,
+					      const void *data, size_t datalen)
+{
+	return (const u8 *)element == (const u8 *)data + datalen;
 }
 
 #endif /* LINUX_IEEE80211_H */

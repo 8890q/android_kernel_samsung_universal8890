@@ -113,10 +113,16 @@ int kvm_handle_mmio_return(struct kvm_vcpu *vcpu, struct kvm_run *run)
 		}
 
 		trace_kvm_mmio(KVM_TRACE_MMIO_READ, len, run->mmio.phys_addr,
-			       data);
+			       &data);
 		data = vcpu_data_host_to_guest(vcpu, data, len);
 		*vcpu_reg(vcpu, vcpu->arch.mmio_decode.rt) = data;
 	}
+
+	/*
+	 * The MMIO instruction is emulated and should not be re-executed
+	 * in the guest.
+	 */
+	kvm_skip_instr(vcpu, kvm_vcpu_trap_il_is32bit(vcpu));
 
 	return 0;
 }
@@ -154,11 +160,6 @@ static int decode_hsr(struct kvm_vcpu *vcpu, phys_addr_t fault_ipa,
 	vcpu->arch.mmio_decode.sign_extend = sign_extend;
 	vcpu->arch.mmio_decode.rt = rt;
 
-	/*
-	 * The MMIO instruction is emulated and should not be re-executed
-	 * in the guest.
-	 */
-	kvm_skip_instr(vcpu, kvm_vcpu_trap_il_is32bit(vcpu));
 	return 0;
 }
 
@@ -192,7 +193,7 @@ int io_mem_abort(struct kvm_vcpu *vcpu, struct kvm_run *run,
 	trace_kvm_mmio((mmio.is_write) ? KVM_TRACE_MMIO_WRITE :
 					 KVM_TRACE_MMIO_READ_UNSATISFIED,
 			mmio.len, fault_ipa,
-			(mmio.is_write) ? data : 0);
+			(mmio.is_write) ? &data : 0);
 
 	if (mmio.is_write)
 		mmio_write_buf(mmio.data, mmio.len, data);

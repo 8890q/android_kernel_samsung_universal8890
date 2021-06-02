@@ -33,7 +33,7 @@
 #define X86		new_cpu_data+CPUINFO_x86
 #define X86_VENDOR	new_cpu_data+CPUINFO_x86_vendor
 #define X86_MODEL	new_cpu_data+CPUINFO_x86_model
-#define X86_MASK	new_cpu_data+CPUINFO_x86_mask
+#define X86_STEPPING	new_cpu_data+CPUINFO_x86_stepping
 #define X86_HARD_MATH	new_cpu_data+CPUINFO_hard_math
 #define X86_CPUID	new_cpu_data+CPUINFO_cpuid_level
 #define X86_CAPABILITY	new_cpu_data+CPUINFO_x86_capability
@@ -440,7 +440,7 @@ enable_paging:
 	shrb $4,%al
 	movb %al,X86_MODEL
 	andb $0x0f,%cl		# mask mask revision
-	movb %cl,X86_MASK
+	movb %cl,X86_STEPPING
 	movl %edx,X86_CAPABILITY
 
 is486:
@@ -571,7 +571,7 @@ early_idt_handler_common:
 	movl %eax,%ds
 	movl %eax,%es
 
-	cmpl $(__KERNEL_CS),32(%esp)
+	cmpw $(__KERNEL_CS),32(%esp)
 	jne 10f
 
 	leal 28(%esp),%eax	# Pointer to %eip
@@ -669,14 +669,17 @@ __PAGE_ALIGNED_BSS
 initial_pg_pmd:
 	.fill 1024*KPMDS,4,0
 #else
-ENTRY(initial_page_table)
+.globl initial_page_table
+initial_page_table:
 	.fill 1024,4,0
 #endif
 initial_pg_fixmap:
 	.fill 1024,4,0
-ENTRY(empty_zero_page)
+.globl empty_zero_page
+empty_zero_page:
 	.fill 4096,1,0
-ENTRY(swapper_pg_dir)
+.globl swapper_pg_dir
+swapper_pg_dir:
 	.fill 1024,4,0
 
 /*

@@ -97,8 +97,9 @@ task_top_pi_waiter(struct task_struct *p)
 
 static inline struct task_struct *rt_mutex_owner(struct rt_mutex *lock)
 {
-	return (struct task_struct *)
-		((unsigned long)lock->owner & ~RT_MUTEX_OWNER_MASKALL);
+	unsigned long owner = (unsigned long) READ_ONCE(lock->owner);
+
+	return (struct task_struct *) (owner & ~RT_MUTEX_OWNER_MASKALL);
 }
 
 /*
@@ -127,9 +128,11 @@ extern void rt_mutex_proxy_unlock(struct rt_mutex *lock,
 extern int rt_mutex_start_proxy_lock(struct rt_mutex *lock,
 				     struct rt_mutex_waiter *waiter,
 				     struct task_struct *task);
-extern int rt_mutex_finish_proxy_lock(struct rt_mutex *lock,
-				      struct hrtimer_sleeper *to,
-				      struct rt_mutex_waiter *waiter);
+extern int rt_mutex_wait_proxy_lock(struct rt_mutex *lock,
+			       struct hrtimer_sleeper *to,
+			       struct rt_mutex_waiter *waiter);
+extern bool rt_mutex_cleanup_proxy_lock(struct rt_mutex *lock,
+				 struct rt_mutex_waiter *waiter);
 extern int rt_mutex_timed_futex_lock(struct rt_mutex *l, struct hrtimer_sleeper *to);
 
 #ifdef CONFIG_DEBUG_RT_MUTEXES

@@ -209,6 +209,7 @@ config NAU7802
 config ROCKCHIP_SARADC
 	tristate "Rockchip SARADC driver"
 	depends on ARCH_ROCKCHIP || (ARM && COMPILE_TEST)
+	depends on RESET_CONTROLLER
 	help
 	  Say yes here to build support for the SARADC found in SoCs from
 	  Rockchip.
@@ -272,6 +273,7 @@ config TWL6030_GPADC
 config VF610_ADC
 	tristate "Freescale vf610 ADC driver"
 	depends on OF
+	depends on HAS_IOMEM
 	help
 	  Say yes here to support for Vybrid board analog-to-digital converter.
 	  Since the IP is used for i.MX6SLX, the driver also support i.MX6SLX.

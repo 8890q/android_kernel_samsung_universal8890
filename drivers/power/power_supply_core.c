@@ -15,6 +15,7 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/device.h>
+
 #include <linux/err.h>
 #include <linux/power_supply.h>
 #include <linux/thermal.h>
@@ -23,6 +24,7 @@
 /* exported for the APM Power driver, APM emulation */
 struct class *power_supply_class;
 EXPORT_SYMBOL_GPL(power_supply_class);
+
 
 static struct device_type power_supply_dev_type;
 
@@ -75,6 +77,7 @@ static void power_supply_changed_work(struct work_struct *work)
 
 	spin_lock_irqsave(&psy->changed_lock, flags);
 	if (psy->changed) {
+
 		psy->changed = false;
 		spin_unlock_irqrestore(&psy->changed_lock, flags);
 
@@ -83,10 +86,12 @@ static void power_supply_changed_work(struct work_struct *work)
 
 		power_supply_update_leds(psy);
 
+
 		kobject_uevent(&psy->dev->kobj, KOBJ_CHANGE);
 		spin_lock_irqsave(&psy->changed_lock, flags);
 	}
 	if (!psy->changed)
+
 		pm_relax(psy->dev);
 	spin_unlock_irqrestore(&psy->changed_lock, flags);
 }
@@ -210,6 +215,7 @@ static int power_supply_check_supplies(struct power_supply *psy)
 			continue;
 
 		ret = power_supply_find_supply_from_node(np);
+
 		if (ret) {
 			dev_dbg(psy->dev, "Failed to find supply, defer!\n");
 			of_node_put(np);
@@ -217,6 +223,7 @@ static int power_supply_check_supplies(struct power_supply *psy)
 		}
 		of_node_put(np);
 	} while (np);
+
 
 	/* All supplies found, allocate char ** array for filling */
 	psy->supplied_from = devm_kzalloc(psy->dev, sizeof(psy->supplied_from),
@@ -333,6 +340,7 @@ struct power_supply *power_supply_get_by_name(const char *name)
 }
 EXPORT_SYMBOL_GPL(power_supply_get_by_name);
 
+
 int power_supply_powers(struct power_supply *psy, struct device *dev)
 {
 	return sysfs_create_link(&psy->dev->kobj, &dev->kobj, "powers");
@@ -346,6 +354,7 @@ static void power_supply_dev_release(struct device *dev)
 }
 
 #if defined(CONFIG_THERMAL) && !defined(CONFIG_SOC_EXYNOS7580)
+
 static int power_supply_read_temp(struct thermal_zone_device *tzd,
 		unsigned long *temp)
 {
@@ -371,6 +380,7 @@ static struct thermal_zone_device_ops psy_tzd_ops = {
 static int psy_register_thermal(struct power_supply *psy)
 {
 	int i;
+
 
 	/* Register battery zone device psy reports temperature */
 	for (i = 0; i < psy->num_properties; i++) {
@@ -492,6 +502,7 @@ static void psy_unregister_cooler(struct power_supply *psy)
 #endif
 
 int power_supply_register(struct device *parent, struct power_supply *psy)
+
 {
 	struct device *dev;
 	int rc;
@@ -508,6 +519,7 @@ int power_supply_register(struct device *parent, struct power_supply *psy)
 	dev->release = power_supply_dev_release;
 	dev_set_drvdata(dev, psy);
 	psy->dev = dev;
+
 
 	INIT_WORK(&psy->changed_work, power_supply_changed_work);
 
@@ -554,13 +566,18 @@ register_thermal_failed:
 wakeup_init_failed:
 	device_del(dev);
 kobject_set_name_failed:
+
+
 device_add_failed:
 check_supplies_failed:
+
 	put_device(dev);
 success:
 	return rc;
 }
+
 EXPORT_SYMBOL_GPL(power_supply_register);
+
 
 void power_supply_unregister(struct power_supply *psy)
 {
@@ -569,6 +586,7 @@ void power_supply_unregister(struct power_supply *psy)
 	power_supply_remove_triggers(psy);
 	psy_unregister_cooler(psy);
 	psy_unregister_thermal(psy);
+
 	device_unregister(psy->dev);
 }
 EXPORT_SYMBOL_GPL(power_supply_unregister);

@@ -441,7 +441,7 @@ struct cache {
 	 * until a gc finishes - otherwise we could pointlessly burn a ton of
 	 * cpu
 	 */
-	unsigned		invalidate_needs_gc:1;
+	unsigned		invalidate_needs_gc;
 
 	bool			discard; /* Get rid of? */
 
@@ -564,6 +564,7 @@ struct cache_set {
 	 */
 	wait_queue_head_t	btree_cache_wait;
 	struct task_struct	*btree_cache_alloc_lock;
+	spinlock_t		btree_cannibalize_lock;
 
 	/*
 	 * When we free a btree node, we increment the gen of the bucket the
@@ -611,8 +612,8 @@ struct cache_set {
 
 	/* Counts how many sectors bio_insert has added to the cache */
 	atomic_t		sectors_to_gc;
+	wait_queue_head_t	gc_wait;
 
-	wait_queue_head_t	moving_gc_wait;
 	struct keybuf		moving_gc_keys;
 	/* Number of moving GC bios in flight */
 	struct semaphore	moving_in_flight;
@@ -922,7 +923,7 @@ void bcache_write_super(struct cache_set *);
 
 int bch_flash_dev_create(struct cache_set *c, uint64_t size);
 
-int bch_cached_dev_attach(struct cached_dev *, struct cache_set *);
+int bch_cached_dev_attach(struct cached_dev *, struct cache_set *, uint8_t *);
 void bch_cached_dev_detach(struct cached_dev *);
 void bch_cached_dev_run(struct cached_dev *);
 void bcache_device_stop(struct bcache_device *);

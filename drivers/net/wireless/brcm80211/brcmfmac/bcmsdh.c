@@ -703,7 +703,7 @@ done:
 int brcmf_sdiod_recv_chain(struct brcmf_sdio_dev *sdiodev,
 			   struct sk_buff_head *pktq, uint totlen)
 {
-	struct sk_buff *glom_skb;
+	struct sk_buff *glom_skb = NULL;
 	struct sk_buff *skb;
 	u32 addr = sdiodev->sbwad;
 	int err = 0;
@@ -736,6 +736,7 @@ int brcmf_sdiod_recv_chain(struct brcmf_sdio_dev *sdiodev,
 					    pktq);
 
 done:
+	brcmu_pkt_buf_free_skb(glom_skb);
 	return err;
 }
 
@@ -1005,6 +1006,8 @@ static const struct sdio_device_id brcmf_sdmmc_ids[] = {
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_4329_DEVICE_ID),
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_4330_DEVICE_ID),
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_4334_DEVICE_ID),
+	BRCMF_SDIO_DEVICE(BRCM_SDIO_43340_DEVICE_ID),
+	BRCMF_SDIO_DEVICE(BRCM_SDIO_43341_DEVICE_ID),
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_43362_DEVICE_ID),
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_4335_4339_DEVICE_ID),
 	BRCMF_SDIO_DEVICE(BRCM_SDIO_4354_DEVICE_ID),

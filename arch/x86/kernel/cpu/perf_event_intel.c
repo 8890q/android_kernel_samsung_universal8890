@@ -1396,6 +1396,16 @@ again:
 	if (__test_and_clear_bit(62, (unsigned long *)&status)) {
 		handled++;
 		x86_pmu.drain_pebs(regs);
+		/*
+		 * There are cases where, even though, the PEBS ovfl bit is set
+		 * in GLOBAL_OVF_STATUS, the PEBS events may also have their
+		 * overflow bits set for their counters. We must clear them
+		 * here because they have been processed as exact samples in
+		 * the drain_pebs() routine. They must not be processed again
+		 * in the for_each_bit_set() loop for regular samples below.
+		 */
+		status &= ~cpuc->pebs_enabled;
+		status &= x86_pmu.intel_ctrl | GLOBAL_STATUS_TRACE_TOPAPMI;
 	}
 
 	/*
@@ -2146,7 +2156,7 @@ static int intel_snb_pebs_broken(int cpu)
 		break;
 
 	case 45: /* SNB-EP */
-		switch (cpu_data(cpu).x86_mask) {
+		switch (cpu_data(cpu).x86_stepping) {
 		case 6: rev = 0x618; break;
 		case 7: rev = 0x70c; break;
 		}
@@ -2644,7 +2654,7 @@ __init int intel_pmu_init(void)
 
 	/* Support full width counters using alternative MSR range */
 	if (x86_pmu.intel_cap.full_width_write) {
-		x86_pmu.max_period = x86_pmu.cntval_mask;
+		x86_pmu.max_period = x86_pmu.cntval_mask >> 1;
 		x86_pmu.perfctr = MSR_IA32_PMC0;
 		pr_cont("full-width counters, ");
 	}

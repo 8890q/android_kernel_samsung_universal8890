@@ -71,6 +71,9 @@ static inline void set_fs(mm_segment_t fs)
 {
 	current_thread_info()->addr_limit = fs;
 
+	/* On user-mode return, check fs is correct */
+	set_thread_flag(TIF_FSCHECK);
+
 	/*
 	 * Enable/disable UAO so that copy_to_user() etc can access
 	 * kernel memory with the unprivileged instructions.
@@ -415,12 +418,14 @@ static inline unsigned long __must_check __copy_to_user(void __user *to, const v
 
 static inline unsigned long __must_check copy_from_user(void *to, const void __user *from, unsigned long n)
 {
+	unsigned long res = n;
 	if (access_ok(VERIFY_READ, from, n)) {
 		check_object_size(to, n, false);
-		n = __arch_copy_from_user(to, from, n);
-	} else /* security hole - plug it */
-		memset(to, 0, n);
-	return n;
+		res = __arch_copy_from_user(to, from, n);
+	}
+	if (unlikely(res))
+		memset(to + (n - res), 0, res);
+	return res;
 }
 
 static inline unsigned long __must_check copy_to_user(void __user *to, const void *from, unsigned long n)

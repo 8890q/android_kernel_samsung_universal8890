@@ -107,6 +107,7 @@ struct bnx2x_vf_mac_vlan_filter {
 #define BNX2X_VF_FILTER_VLAN	2
 
 	bool add;
+	bool applied;
 	u8 *mac;
 	u16 vid;
 };
@@ -136,6 +137,7 @@ struct bnx2x_virtf {
 #define VF_ACQUIRED	1	/* VF acquired, but not initialized */
 #define VF_ENABLED	2	/* VF Enabled */
 #define VF_RESET	3	/* VF FLR'd, pending cleanup */
+#define VF_LOST		4	/* Recovery while VFs are loaded */
 
 	bool flr_clnup_stage;	/* true during flr cleanup */
 

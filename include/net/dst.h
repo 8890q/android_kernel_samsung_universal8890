@@ -463,7 +463,15 @@ static inline struct neighbour *dst_neigh_lookup(const struct dst_entry *dst, co
 static inline struct neighbour *dst_neigh_lookup_skb(const struct dst_entry *dst,
 						     struct sk_buff *skb)
 {
-	struct neighbour *n =  dst->ops->neigh_lookup(dst, skb, NULL);
+	struct neighbour *n = NULL;
+
+	/* The packets from tunnel devices (eg bareudp) may have only
+	 * metadata in the dst pointer of skb. Hence a pointer check of
+	 * neigh_lookup is needed.
+	 */
+	if (dst->ops->neigh_lookup)
+		n = dst->ops->neigh_lookup(dst, skb, NULL);
+
 	return IS_ERR(n) ? NULL : n;
 }
 
@@ -521,7 +529,8 @@ struct flowi;
 #ifndef CONFIG_XFRM
 static inline struct dst_entry *xfrm_lookup(struct net *net,
 					    struct dst_entry *dst_orig,
-					    const struct flowi *fl, struct sock *sk,
+					    const struct flowi *fl,
+					    const struct sock *sk,
 					    int flags)
 {
 	return dst_orig;
@@ -530,7 +539,7 @@ static inline struct dst_entry *xfrm_lookup(struct net *net,
 static inline struct dst_entry *xfrm_lookup_route(struct net *net,
 						  struct dst_entry *dst_orig,
 						  const struct flowi *fl,
-						  struct sock *sk,
+						  const struct sock *sk,
 						  int flags)
 {
 	return dst_orig;
@@ -543,11 +552,11 @@ static inline struct xfrm_state *dst_xfrm(const struct dst_entry *dst)
 
 #else
 struct dst_entry *xfrm_lookup(struct net *net, struct dst_entry *dst_orig,
-			      const struct flowi *fl, struct sock *sk,
+			      const struct flowi *fl, const struct sock *sk,
 			      int flags);
 
 struct dst_entry *xfrm_lookup_route(struct net *net, struct dst_entry *dst_orig,
-				    const struct flowi *fl, struct sock *sk,
+				    const struct flowi *fl, const struct sock *sk,
 				    int flags);
 
 /* skb attached with this dst needs transformation if dst->xfrm is valid */

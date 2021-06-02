@@ -325,6 +325,8 @@ EXPORT_SYMBOL_GPL(iio_channel_get);
 
 void iio_channel_release(struct iio_channel *channel)
 {
+	if (!channel)
+		return;
 	iio_device_put(channel->indio_dev);
 	kfree(channel);
 }
@@ -425,6 +427,9 @@ static int iio_channel_read(struct iio_channel *chan, int *val, int *val2,
 
 	if (val2 == NULL)
 		val2 = &unused;
+
+	if(!iio_channel_has_info(chan->channel, info))
+		return -EINVAL;
 
 	if (chan->indio_dev->info->read_raw_multi) {
 		ret = chan->indio_dev->info->read_raw_multi(chan->indio_dev,

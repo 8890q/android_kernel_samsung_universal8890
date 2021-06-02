@@ -616,7 +616,7 @@ static int scsi_alloc_sgtable(struct scsi_data_buffer *sdb, int nents,
 	}
 
 	ret = __sg_alloc_table(&sdb->table, nents, SCSI_MAX_SG_SEGMENTS,
-			       first_chunk, gfp_mask, scsi_sg_alloc);
+			       first_chunk, GFP_ATOMIC, scsi_sg_alloc);
 	if (unlikely(ret))
 		scsi_free_sgtable(sdb, mq);
 	return ret;
@@ -1116,7 +1116,8 @@ int scsi_init_io(struct scsi_cmnd *cmd, gfp_t gfp_mask)
 	bool is_mq = (rq->mq_ctx != NULL);
 	int error;
 
-	BUG_ON(!rq->nr_phys_segments);
+	if (WARN_ON_ONCE(!rq->nr_phys_segments))
+		return -EINVAL;
 
 	error = scsi_init_sgtable(rq, &cmd->sdb, gfp_mask);
 	if (error)

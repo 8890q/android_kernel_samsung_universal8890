@@ -163,7 +163,7 @@ static inline void shrink_free_pagepool(struct xen_blkif *blkif, int num)
 
 #define vaddr(page) ((unsigned long)pfn_to_kaddr(page_to_pfn(page)))
 
-static int do_block_io_op(struct xen_blkif *blkif);
+static int do_block_io_op(struct xen_blkif *blkif, unsigned int *eoi_flags);
 static int dispatch_rw_block_io(struct xen_blkif *blkif,
 				struct blkif_request *req,
 				struct pending_req *pending_req);
@@ -575,8 +575,8 @@ int xen_blkif_schedule(void *arg)
 	struct xen_vbd *vbd = &blkif->vbd;
 	unsigned long timeout;
 	int ret;
-
-	xen_blkif_get(blkif);
+	bool do_eoi;
+	unsigned int eoi_flags = XEN_EOI_FLAG_SPURIOUS;
 
 	while (!kthread_should_stop()) {
 		if (try_to_freeze())
@@ -600,15 +600,22 @@ int xen_blkif_schedule(void *arg)
 		if (timeout == 0)
 			goto purge_gnt_list;
 
+		do_eoi = blkif->waiting_reqs;
+
 		blkif->waiting_reqs = 0;
 		smp_mb(); /* clear flag *before* checking for work */
 
-		ret = do_block_io_op(blkif);
+		ret = do_block_io_op(blkif, &eoi_flags);
 		if (ret > 0)
 			blkif->waiting_reqs = 1;
 		if (ret == -EACCES)
 			wait_event_interruptible(blkif->shutdown_wq,
 						 kthread_should_stop());
+
+		if (do_eoi && !blkif->waiting_reqs) {
+			xen_irq_lateeoi(blkif->irq, eoi_flags);
+			eoi_flags |= XEN_EOI_FLAG_SPURIOUS;
+		}
 
 purge_gnt_list:
 		if (blkif->vbd.feature_gnt_persistent &&
@@ -631,7 +638,6 @@ purge_gnt_list:
 		print_stats(blkif);
 
 	blkif->xenblkd = NULL;
-	xen_blkif_put(blkif);
 
 	return 0;
 }
@@ -730,8 +736,11 @@ again:
 			pages[i]->page = persistent_gnt->page;
 			pages[i]->persistent_gnt = persistent_gnt;
 		} else {
-			if (get_free_page(blkif, &pages[i]->page))
-				goto out_of_memory;
+			if (get_free_page(blkif, &pages[i]->page)) {
+				put_free_pages(blkif, pages_to_gnt, segs_to_map);
+				ret = -ENOMEM;
+				goto out;
+			}
 			addr = vaddr(pages[i]->page);
 			pages_to_gnt[segs_to_map] = pages[i]->page;
 			pages[i]->persistent_gnt = NULL;
@@ -747,10 +756,8 @@ again:
 			break;
 	}
 
-	if (segs_to_map) {
+	if (segs_to_map)
 		ret = gnttab_map_refs(map, NULL, pages_to_gnt, segs_to_map);
-		BUG_ON(ret);
-	}
 
 	/*
 	 * Now swizzle the MFN in our domain with the MFN from the other domain
@@ -765,7 +772,7 @@ again:
 				pr_debug(DRV_PFX "invalid buffer -- could not remap it\n");
 				put_free_pages(blkif, &pages[seg_idx]->page, 1);
 				pages[seg_idx]->handle = BLKBACK_INVALID_HANDLE;
-				ret |= 1;
+				ret |= !ret;
 				goto next;
 			}
 			pages[seg_idx]->handle = map[new_map_idx].handle;
@@ -817,15 +824,18 @@ next:
 	}
 	segs_to_map = 0;
 	last_map = map_until;
-	if (map_until != num)
+	if (!ret && map_until != num)
 		goto again;
 
-	return ret;
+out:
+	for (i = last_map; i < num; i++) {
+		/* Don't zap current batch's valid persistent grants. */
+		if(i >= map_until)
+			pages[i]->persistent_gnt = NULL;
+		pages[i]->handle = BLKBACK_INVALID_HANDLE;
+	}
 
-out_of_memory:
-	pr_alert(DRV_PFX "%s: out of memory\n", __func__);
-	put_free_pages(blkif, pages_to_gnt, segs_to_map);
-	return -ENOMEM;
+	return ret;
 }
 
 static int xen_blkbk_map_seg(struct pending_req *pending_req)
@@ -1027,7 +1037,7 @@ static void end_block_io_op(struct bio *bio, int error)
  * and transmute  it to the block API to hand it over to the proper block disk.
  */
 static int
-__do_block_io_op(struct xen_blkif *blkif)
+__do_block_io_op(struct xen_blkif *blkif, unsigned int *eoi_flags)
 {
 	union blkif_back_rings *blk_rings = &blkif->blk_rings;
 	struct blkif_request req;
@@ -1049,6 +1059,9 @@ __do_block_io_op(struct xen_blkif *blkif)
 
 		if (RING_REQUEST_CONS_OVERFLOW(&blk_rings->common, rc))
 			break;
+
+		/* We've seen a request, so clear spurious eoi flag. */
+		*eoi_flags &= ~XEN_EOI_FLAG_SPURIOUS;
 
 		if (kthread_should_stop()) {
 			more_to_do = 1;
@@ -1108,13 +1121,13 @@ done:
 }
 
 static int
-do_block_io_op(struct xen_blkif *blkif)
+do_block_io_op(struct xen_blkif *blkif, unsigned int *eoi_flags)
 {
 	union blkif_back_rings *blk_rings = &blkif->blk_rings;
 	int more_to_do;
 
 	do {
-		more_to_do = __do_block_io_op(blkif);
+		more_to_do = __do_block_io_op(blkif, eoi_flags);
 		if (more_to_do)
 			break;
 
@@ -1341,33 +1354,34 @@ static int dispatch_rw_block_io(struct xen_blkif *blkif,
 static void make_response(struct xen_blkif *blkif, u64 id,
 			  unsigned short op, int st)
 {
-	struct blkif_response  resp;
+	struct blkif_response *resp;
 	unsigned long     flags;
 	union blkif_back_rings *blk_rings = &blkif->blk_rings;
 	int notify;
-
-	resp.id        = id;
-	resp.operation = op;
-	resp.status    = st;
 
 	spin_lock_irqsave(&blkif->blk_ring_lock, flags);
 	/* Place on the response ring for the relevant domain. */
 	switch (blkif->blk_protocol) {
 	case BLKIF_PROTOCOL_NATIVE:
-		memcpy(RING_GET_RESPONSE(&blk_rings->native, blk_rings->native.rsp_prod_pvt),
-		       &resp, sizeof(resp));
+		resp = RING_GET_RESPONSE(&blk_rings->native,
+					 blk_rings->native.rsp_prod_pvt);
 		break;
 	case BLKIF_PROTOCOL_X86_32:
-		memcpy(RING_GET_RESPONSE(&blk_rings->x86_32, blk_rings->x86_32.rsp_prod_pvt),
-		       &resp, sizeof(resp));
+		resp = RING_GET_RESPONSE(&blk_rings->x86_32,
+					 blk_rings->x86_32.rsp_prod_pvt);
 		break;
 	case BLKIF_PROTOCOL_X86_64:
-		memcpy(RING_GET_RESPONSE(&blk_rings->x86_64, blk_rings->x86_64.rsp_prod_pvt),
-		       &resp, sizeof(resp));
+		resp = RING_GET_RESPONSE(&blk_rings->x86_64,
+					 blk_rings->x86_64.rsp_prod_pvt);
 		break;
 	default:
 		BUG();
 	}
+
+	resp->id        = id;
+	resp->operation = op;
+	resp->status    = st;
+
 	blk_rings->common.rsp_prod_pvt++;
 	RING_PUSH_RESPONSES_AND_CHECK_NOTIFY(&blk_rings->common, notify);
 	spin_unlock_irqrestore(&blkif->blk_ring_lock, flags);

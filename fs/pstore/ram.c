@@ -295,6 +295,17 @@ static int notrace ramoops_pstore_write_buf(enum pstore_type_id type,
 
 	prz = cxt->przs[cxt->dump_write_cnt];
 
+	/*
+	 * Since this is a new crash dump, we need to reset the buffer in
+	 * case it still has an old dump present. Without this, the new dump
+	 * will get appended, which would seriously confuse anything trying
+	 * to check dump file contents. Specifically, ramoops_read_kmsg_hdr()
+	 * expects to find a dump header in the beginning of buffer data, so
+	 * we must to reset the buffer values, in order to ensure that the
+	 * header will be written to the beginning of the buffer.
+	 */
+	persistent_ram_zap(prz);
+
 	hlen = ramoops_write_kmsg_hdr(prz, compressed);
 	if (size + hlen > prz->buffer_size)
 		size = prz->buffer_size - hlen;
@@ -370,13 +381,14 @@ static void ramoops_free_przs(struct ramoops_context *cxt)
 {
 	int i;
 
-	cxt->max_dump_cnt = 0;
 	if (!cxt->przs)
 		return;
 
-	for (i = 0; !IS_ERR_OR_NULL(cxt->przs[i]); i++)
+	for (i = 0; i < cxt->max_dump_cnt; i++)
 		persistent_ram_free(cxt->przs[i]);
+
 	kfree(cxt->przs);
+	cxt->max_dump_cnt = 0;
 }
 
 static int ramoops_init_przs(struct device *dev, struct ramoops_context *cxt,
@@ -401,7 +413,7 @@ static int ramoops_init_przs(struct device *dev, struct ramoops_context *cxt,
 			     GFP_KERNEL);
 	if (!cxt->przs) {
 		dev_err(dev, "failed to initialize a prz array for dumps\n");
-		goto fail_prz;
+		goto fail_mem;
 	}
 
 	for (i = 0; i < cxt->max_dump_cnt; i++) {
@@ -414,6 +426,11 @@ static int ramoops_init_przs(struct device *dev, struct ramoops_context *cxt,
 			err = PTR_ERR(cxt->przs[i]);
 			dev_err(dev, "failed to request mem region (0x%zx@0x%llx): %d\n",
 				sz, (unsigned long long)*paddr, err);
+
+			while (i > 0) {
+				i--;
+				persistent_ram_free(cxt->przs[i]);
+			}
 			goto fail_prz;
 		}
 		*paddr += sz;
@@ -421,7 +438,9 @@ static int ramoops_init_przs(struct device *dev, struct ramoops_context *cxt,
 
 	return 0;
 fail_prz:
-	ramoops_free_przs(cxt);
+	kfree(cxt->przs);
+fail_mem:
+	cxt->max_dump_cnt = 0;
 	return err;
 }
 
@@ -590,7 +609,6 @@ static int __exit ramoops_remove(struct platform_device *pdev)
 
 	iounmap(cxt->virt_addr);
 	release_mem_region(cxt->phys_addr, cxt->size);
-	cxt->max_dump_cnt = 0;
 
 	/* TODO(kees): When pstore supports unregistering, call it here. */
 	kfree(cxt->pstore.buf);

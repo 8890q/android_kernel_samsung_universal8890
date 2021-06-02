@@ -1088,7 +1088,7 @@ static const u16 pinmux_data[] = {
 	PINMUX_IPSR_MODSEL_DATA(IP6_5_3, FMIN_E, SEL_FM_4),
 	PINMUX_IPSR_DATA(IP6_7_6, AUDIO_CLKOUT),
 	PINMUX_IPSR_MODSEL_DATA(IP6_7_6, MSIOF1_SS1_B, SEL_SOF1_1),
-	PINMUX_IPSR_MODSEL_DATA(IP6_5_3, TX2, SEL_SCIF2_0),
+	PINMUX_IPSR_MODSEL_DATA(IP6_7_6, TX2, SEL_SCIF2_0),
 	PINMUX_IPSR_MODSEL_DATA(IP6_7_6, SCIFA2_TXD, SEL_SCIFA2_0),
 	PINMUX_IPSR_DATA(IP6_9_8, IRQ0),
 	PINMUX_IPSR_MODSEL_DATA(IP6_9_8, SCIFB1_RXD_D, SEL_SCIFB1_3),
@@ -2965,8 +2965,7 @@ static const unsigned int qspi_data4_b_pins[] = {
 	RCAR_GP_PIN(6, 4),
 };
 static const unsigned int qspi_data4_b_mux[] = {
-	SPCLK_B_MARK, MOSI_IO0_B_MARK, MISO_IO1_B_MARK,
-	IO2_B_MARK, IO3_B_MARK, SSL_B_MARK,
+	MOSI_IO0_B_MARK, MISO_IO1_B_MARK, IO2_B_MARK, IO3_B_MARK,
 };
 /* - SCIF0 ------------------------------------------------------------------ */
 static const unsigned int scif0_data_pins[] = {
@@ -4095,17 +4094,14 @@ static const unsigned int vin1_b_data18_pins[] = {
 };
 static const unsigned int vin1_b_data18_mux[] = {
 	/* B */
-	VI1_DATA0_B_MARK, VI1_DATA1_B_MARK,
 	VI1_DATA2_B_MARK, VI1_DATA3_B_MARK,
 	VI1_DATA4_B_MARK, VI1_DATA5_B_MARK,
 	VI1_DATA6_B_MARK, VI1_DATA7_B_MARK,
 	/* G */
-	VI1_G0_B_MARK, VI1_G1_B_MARK,
 	VI1_G2_B_MARK, VI1_G3_B_MARK,
 	VI1_G4_B_MARK, VI1_G5_B_MARK,
 	VI1_G6_B_MARK, VI1_G7_B_MARK,
 	/* R */
-	VI1_R0_B_MARK, VI1_R1_B_MARK,
 	VI1_R2_B_MARK, VI1_R3_B_MARK,
 	VI1_R4_B_MARK, VI1_R5_B_MARK,
 	VI1_R6_B_MARK, VI1_R7_B_MARK,
@@ -4845,7 +4841,7 @@ static const char * const scifb2_groups[] = {
 	"scifb2_data_b",
 	"scifb2_clk_b",
 	"scifb2_ctrl_b",
-	"scifb0_data_c",
+	"scifb2_data_c",
 	"scifb2_clk_c",
 	"scifb2_data_d",
 };
