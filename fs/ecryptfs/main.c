@@ -814,6 +814,12 @@ static struct dentry *ecryptfs_mount(struct file_system_type *fs_type, int flags
 	sbi->userid = -1;
 #endif
 
+	if (!dev_name) {
+		rc = -EINVAL;
+		err = "Device name cannot be null";
+		goto out;
+	}
+
 	rc = ecryptfs_parse_options(sbi, raw_data, &check_ruid);
 	if (rc) {
 		err = "Error parsing options";
