@@ -39,6 +39,7 @@
 #include <net/netlink.h>
 #include <net/genetlink.h>
 #include <linux/suspend.h>
+#include <linux/cpu.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/thermal.h>
