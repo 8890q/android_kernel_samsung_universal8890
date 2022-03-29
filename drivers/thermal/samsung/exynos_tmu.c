@@ -88,9 +88,7 @@ struct exynos_tmu_data {
 	struct list_head node;
 	int temp;
 	int vaild;
-#ifdef CONFIG_EXYNOS_SNAPSHOT_THERMAL
 	int cpu_num;
-#endif
 };
 
 /* list of multiple instance for each thermal sensor */
