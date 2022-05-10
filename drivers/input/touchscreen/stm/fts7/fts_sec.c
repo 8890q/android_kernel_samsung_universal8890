@@ -267,6 +267,7 @@ struct ft_cmd ft_commands[] = {
 };
 
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP, NULL, store_cmd);
+static DEVICE_ATTR(cmd2, S_IWUSR | S_IWGRP, NULL, store_cmd);
 static DEVICE_ATTR(cmd_status, S_IRUGO, show_cmd_status, NULL);
 static DEVICE_ATTR(cmd_result, S_IRUGO, show_cmd_result, NULL);
 static DEVICE_ATTR(cmd_list, S_IRUGO, cmd_list_show, NULL);
@@ -275,6 +276,7 @@ static DEVICE_ATTR(edge_pos, S_IRUGO, fts_edge_x_position, NULL);
 
 static struct attribute *sec_touch_facotry_attributes[] = {
 	&dev_attr_cmd.attr,
+        &dev_attr_cmd2.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_result.attr,
 	&dev_attr_cmd_list.attr,

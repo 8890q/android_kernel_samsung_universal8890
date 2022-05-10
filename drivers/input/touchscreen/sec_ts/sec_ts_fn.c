@@ -77,6 +77,7 @@ static ssize_t edge_x_position(struct device *dev,
 		struct device_attribute *attr, char *buf);
 
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP, NULL, cmd_store);
+static DEVICE_ATTR(cmd2, S_IWUSR | S_IWGRP, NULL, cmd_store);
 static DEVICE_ATTR(cmd_status, S_IRUGO, cmd_status_show, NULL);
 static DEVICE_ATTR(cmd_result, S_IRUGO, cmd_result_show, NULL);
 static DEVICE_ATTR(cmd_list, S_IRUGO, cmd_list_show, NULL);
@@ -365,6 +366,7 @@ static DEVICE_ATTR(module_id, S_IRUGO, read_module_id_show, NULL);
 
 static struct attribute *cmd_attributes[] = {
 	&dev_attr_cmd.attr,
+        &dev_attr_cmd2.attr,
 	&dev_attr_cmd_status.attr,
 	&dev_attr_cmd_list.attr,
 	&dev_attr_cmd_result.attr,
