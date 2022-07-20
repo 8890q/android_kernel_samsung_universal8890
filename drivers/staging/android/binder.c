@@ -2907,16 +2907,19 @@ static void binder_transaction(struct binder_proc *proc,
 			target_node = context->binder_context_mgr_node;
 			if (target_node == NULL) {
 
-				return_error = BR_DEAD_REPLY;
 				mutex_unlock(&context->context_mgr_node_lock);
+				return_error = BR_DEAD_REPLY;
+				return_error_line = __LINE__;
+				goto err_dead_binder;
+			}
 			if (target_node && target_proc == proc) {
 				binder_user_error("%d:%d got transaction to context manager from process owning it\n",
 						  proc->pid, thread->pid);
+				mutex_unlock(&context->context_mgr_node_lock);
 				return_error = BR_FAILED_REPLY;
 				return_error_param = -EINVAL;
 				return_error_line = __LINE__;
 				goto err_invalid_target_handle;
-			}
 			}
 			binder_inc_node(target_node, 1, 0, NULL);
 			mutex_unlock(&context->context_mgr_node_lock);
