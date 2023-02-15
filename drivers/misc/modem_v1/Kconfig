@@ -92,6 +92,10 @@ config HW_REV_DETECT
 	bool "Support HW REV Detect"
 	default n
 
+config MODEM_N7_BL6
+        bool "Support Note 7 on Android 6 BL"
+        default n
+
 config MODEM_IF_LEGACY_QOS
 	bool "Implement QoS for legacy"
 	depends on LINK_DEVICE_SHMEM

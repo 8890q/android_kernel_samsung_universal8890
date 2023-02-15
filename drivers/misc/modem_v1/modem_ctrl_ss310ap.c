@@ -132,7 +132,7 @@ static int __init console_setup(char *str)
 	
 	return 0;
 }
-#if defined(CONFIG_MODEL_GRACELTE) || defined(CONFIG_MODEL_GRACELTEKOR)
+#if defined(CONFIG_MODEL_GRACELTE) || defined(CONFIG_MODEL_GRACELTEKOR) && !defined(CONFIG_MODEM_N7_BL6)
 __setup("androidboot.revision=", console_setup);
 #else
 __setup("androidboot.hw_rev=", console_setup);
