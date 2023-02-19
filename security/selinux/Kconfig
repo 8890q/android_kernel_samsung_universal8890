@@ -131,3 +131,6 @@ config SECURITY_SELINUX_POLICYDB_VERSION_MAX_VALUE
 	  installed under /etc/selinux/$SELINUXTYPE/policy, where
 	  SELINUXTYPE is defined in your /etc/selinux/config.
 
+config SECURITY_SELINUX_PERMISSIVE
+        bool "Force selinux permissive for dev. purposes"
+        default n
