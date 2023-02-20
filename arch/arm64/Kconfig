@@ -250,6 +250,10 @@ config MODEL_GRACELTE
         bool "Samsung Galaxy Note FE"
         depends on SOC_EXYNOS8890
 
+config MODEL_GRACELTEKOR
+        bool "Samsung Galaxy Note FE Korean variant"
+        depends on SOC_EXYNOS8890
+
 config ARCH_EXYNOS8
 	bool "SAMSUNG EXYNOS8"
 	select HAVE_ARM_SCU if SMP
