@@ -45,6 +45,8 @@ static inline int change_cp_pmu_manual_reset(void) {return 0; }
 static struct modem_ctl *g_mc;
 
 static int sys_rev;
+static int new_rev;
+int rev_usage = 0;
 
 static irqreturn_t cp_wdt_handler(int irq, void *arg)
 {
@@ -125,18 +127,23 @@ static void cp_active_handler(void *arg)
 }
 
 #ifdef CONFIG_HW_REV_DETECT
+static int __init seal_setup(char *str)
+{
+        get_option(&str, &new_rev);
+        mif_info("new_rev : %d\n", new_rev);
+        return 0;
+}
+__setup("androidboot.revision=", seal_setup);
+
+
 static int __init console_setup(char *str)
 {
 	get_option(&str, &sys_rev);
 	mif_info("board_rev : %d\n", sys_rev);
-	
 	return 0;
 }
-#if defined(CONFIG_MODEL_GRACELTE) || defined(CONFIG_MODEL_GRACELTEKOR) && !defined(CONFIG_MODEM_N7_BL6)
-__setup("androidboot.revision=", console_setup);
-#else
 __setup("androidboot.hw_rev=", console_setup);
-#endif
+
 #else
 static int get_system_rev(struct device_node *np)
 {
@@ -206,14 +213,27 @@ static int init_mailbox_regs(struct modem_ctl *mc)
 		sys_rev = get_system_rev(np);
 #endif
 		ds_det = get_ds_detect(np);
-		if (sys_rev < 0 || ds_det < 0)
-			return -EINVAL;
 
-		val = sys_rev | (ds_det & 0x1) << 8;
-		mbox_set_value(info_val, val);
+		if (new_rev <= sys_rev){
+			if (sys_rev < 0 || ds_det < 0)
+				return -EINVAL;
 
-		mif_info("sys_rev:%d, ds_det:%u (0x%x)\n",
-				sys_rev, ds_det, mbox_get_value(info_val));
+			val = sys_rev | (ds_det & 0x1) << 8;
+			mbox_set_value(info_val, val);
+			rev_usage = 1;
+			mif_info("sys_rev:%d, ds_det:%u (0x%x)\n",
+					sys_rev, ds_det, mbox_get_value(info_val));
+		} else {
+			if (new_rev < 0 || ds_det < 0)
+                                return -EINVAL;
+
+                        val = new_rev | (ds_det & 0x1) << 8;
+                        mbox_set_value(info_val, val);
+			rev_usage = 2;
+                        mif_info("new_rev:%d, ds_det:%u (0x%x)\n",
+                                        new_rev, ds_det, mbox_get_value(info_val));
+
+		}
 	} else {
 		mif_info("non-DT project, can't set system_rev\n");
 	}
@@ -516,6 +536,15 @@ static int ss310ap_busmon_notifier(struct notifier_block *nb,
 	return 0;
 }
 #endif
+
+module_param(sys_rev, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(sys_rev, "Modem revision detect");
+
+module_param(new_rev, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(new_rev, "test param");
+
+module_param(rev_usage, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(rev_usage, "test usgae param");
 
 int ss310ap_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 {
