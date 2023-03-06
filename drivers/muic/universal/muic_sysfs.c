@@ -55,6 +55,8 @@
 #include "muic_ccic.h"
 #endif
 
+#include "muic_vps.h"
+
 static int muic_resolve_attached_dev(muic_data_t *pmuic)
 {
 #if defined(CONFIG_MUIC_SUPPORT_CCIC)
@@ -241,6 +243,46 @@ static ssize_t muic_show_usb_state(struct device *dev,
 	}
 
 	return 0;
+}
+
+static ssize_t muic_show_force_enable_audiodock(struct device *dev,
+					   struct device_attribute *pattr,
+					   char *buf){
+	int val = vps_is_supported_dev(ATTACHED_DEV_AUDIODOCK_MUIC);
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t muic_set_force_enable_audiodock(struct device *dev,
+		struct device_attribute *pattr,
+		const char *buf, size_t count){
+	bool enable;
+	if(!strncmp(buf, "0", 1)){
+		enable = 0;
+	}else{
+		enable = 1;
+	}
+	vps_update_supported_attr(ATTACHED_DEV_AUDIODOCK_MUIC, enable);
+	return count;
+}
+
+static ssize_t muic_show_force_otg_audiodock(struct device *dev,
+					   struct device_attribute *pattr,
+					   char *buf){
+	muic_data_t *pmuic = dev_get_drvdata(dev);
+	int val = pmuic->otg_is_audiodock;
+	return sprintf(buf, "%d\n", val);
+}
+
+static ssize_t muic_set_force_otg_audiodock(struct device *dev,
+		struct device_attribute *pattr,
+		const char *buf, size_t count){
+	muic_data_t *pmuic = dev_get_drvdata(dev);
+	if(!strncmp(buf, "0", 1)){
+		pmuic->otg_is_audiodock = 0;
+	}else{
+		pmuic->otg_is_audiodock = 1;
+	}
+	return count;
 }
 
 #if defined(CONFIG_USB_HOST_NOTIFY)
@@ -598,6 +640,10 @@ static DEVICE_ATTR(usb_state, 0664, muic_show_usb_state, NULL);
 static DEVICE_ATTR(otg_test, 0664,
 		muic_show_otg_test, muic_set_otg_test);
 #endif
+static DEVICE_ATTR(force_enable_audiodock, 0664,
+		muic_show_force_enable_audiodock, muic_set_force_enable_audiodock);
+static DEVICE_ATTR(force_otg_audiodock, 0664,
+		muic_show_force_otg_audiodock, muic_set_force_otg_audiodock);
 static DEVICE_ATTR(attached_dev, 0664, muic_show_attached_dev, NULL);
 static DEVICE_ATTR(audio_path, 0664,
 		muic_show_audio_path, muic_set_audio_path);
@@ -624,6 +670,8 @@ static struct attribute *muic_attributes[] = {
 	&dev_attr_usb_sel.attr,
 	&dev_attr_adc.attr,
 	&dev_attr_usb_state.attr,
+	&dev_attr_force_enable_audiodock.attr,
+	&dev_attr_force_otg_audiodock.attr,
 #if defined(CONFIG_USB_HOST_NOTIFY)
 	&dev_attr_otg_test.attr,
 #endif
