@@ -524,6 +524,12 @@ int vps_find_attached_dev(muic_data_t *pmuic, muic_attached_dev_t *pdev, int *pi
 
 		new_dev = chgdet_dev ? chgdet_dev : mdev;
 
+		// audiodock hack
+		if(pmuic->otg_is_audiodock && new_dev == MDEV(OTG)){
+			pr_info("%s:otg is forced to be audiodock instead.\n", __func__);
+			mdev = new_dev = MDEV(AUDIODOCK);
+		}
+
 		break;
 	}
 

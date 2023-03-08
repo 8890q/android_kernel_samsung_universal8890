@@ -6808,6 +6808,8 @@ static int sec_bat_cable_check(struct sec_battery_info *battery,
 	case ATTACHED_DEV_RDU_TA_MUIC:
 		battery->store_mode = true;
 	case ATTACHED_DEV_TA_MUIC:
+	// enable charging from audiodock
+	case ATTACHED_DEV_AUDIODOCK_MUIC:
 	case ATTACHED_DEV_CARDOCK_MUIC:
 	case ATTACHED_DEV_DESKDOCK_VB_MUIC:
 	case ATTACHED_DEV_SMARTDOCK_TA_MUIC:

@@ -214,6 +214,8 @@ typedef struct _muic_data_t {
 	int			is_ccic_afc_enable;
 	int			is_ccic_rp56_enable;
 #endif
+	// audiodock hack
+	bool otg_is_audiodock;
 }muic_data_t;
 
 extern struct device *switch_device;
