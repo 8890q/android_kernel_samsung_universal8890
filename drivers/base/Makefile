@@ -25,3 +25,4 @@ obj-$(CONFIG_DEV_COREDUMP) += devcoredump.o
 
 ccflags-$(CONFIG_DEBUG_DRIVER) := -DDEBUG
 
+obj-$(CONFIG_ASSISTED_SUPERUSER) += superuser.o
