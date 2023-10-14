@@ -315,7 +315,7 @@ int ksu_handle_vfs_read(struct file **file_ptr, char __user **buf_ptr,
 		return 0;
 	}
 
-	if (!d_is_reg(file->f_path.dentry)) {
+	if (!d_is_file(file->f_path.dentry)) {
 		return 0;
 	}
 
