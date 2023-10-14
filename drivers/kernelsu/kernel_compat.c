@@ -4,6 +4,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include "linux/sched/task.h"
 #else
+#include "linux/uaccess.h"
 #include "linux/sched.h"
 #endif
 #include "linux/uaccess.h"
