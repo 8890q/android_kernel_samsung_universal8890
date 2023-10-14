@@ -46,7 +46,7 @@ static void do_update_uid(struct work_struct *work)
 	if (IS_ERR(fp)) {
 		pr_err("do_update_uid, open " SYSTEM_PACKAGES_LIST_PATH
 		       " failed: %ld\n",
-		       PTR_ERR(fp));
+		       (int)PTR_ERR(fp));
 		return;
 	}
 
