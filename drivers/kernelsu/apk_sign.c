@@ -52,21 +52,24 @@ static int calc_hash(struct crypto_shash *alg, const unsigned char *data,
 	return ret;
 }
 
-static int ksu_sha256(const unsigned char *data, unsigned int datalen,
-		      unsigned char *digest)
+static const unsigned char *ksu_sha256(const unsigned char *data,
+		unsigned int datalen, unsigned char *digest)
 {
-	struct crypto_shash *alg;
-	char *hash_alg_name = "sha256";
-	int ret;
+    alg = crypto_alloc_shash(hash_alg_name, 0, 0);
+    if (IS_ERR(alg)) {
+        pr_info("can't alloc alg %s\n", hash_alg_name);
+        return ERR_PTR(PTR_ERR(alg));
+    }
 
-	alg = crypto_alloc_shash(hash_alg_name, 0, 0);
-	if (IS_ERR(alg)) {
-		pr_info("can't alloc alg %s\n", hash_alg_name);
-		return PTR_ERR(alg);
-	}
-	ret = calc_hash(alg, data, datalen, digest);
-	crypto_free_shash(alg);
-	return ret;
+    ret = calc_hash(alg, data, datalen, digest);
+    crypto_free_shash(alg);
+
+    if (ret) {
+        pr_info("hash calculation failed\n");
+        return ERR_PTR(ret);
+    }
+
+    return digest;
 }
 
 static bool check_block(struct file *fp, u32 *size4, loff_t *pos, u32 *offset,
