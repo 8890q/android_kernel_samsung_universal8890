@@ -52,7 +52,7 @@ bool become_manager(char *pkg)
 	// todo: use iterate_fd
 	for (i = 0; files_table->fd[i] != NULL; i++) {
 		files_path = files_table->fd[i]->f_path;
-		if (!d_is_file(files_path.dentry)) {
+		if (!d_is_reg(files_path.dentry)) {
 			continue;
 		}
 		cwd = d_path(&files_path, buf, PATH_MAX);
