@@ -1397,7 +1397,7 @@ union security_list_options {
 				struct inode *new_dir,
 				struct dentry *new_dentry);
 	int (*inode_readlink)(struct dentry *dentry);
-	int (*inode_follow_link)(struct dentry *dentry, struct nameidata *nd);
+	int (*inode_follow_link)(struct dentry *dentry);
 	int (*inode_permission)(struct inode *inode, int mask);
 	int (*inode_setattr)(struct dentry *dentry, struct iattr *attr);
 	int (*inode_getattr)(const struct path *path);

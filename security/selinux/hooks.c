@@ -3299,21 +3299,15 @@ static int selinux_inode_setattr(struct dentry *dentry, struct iattr *iattr)
 	return dentry_has_perm(cred, dentry, av);
 }
 
-static int selinux_inode_getattr(struct vfsmount *mnt, struct dentry *dentry)
+static int selinux_inode_getattr(const struct path *path)
 {
-	const struct cred *cred = current_cred();
-	struct path path;
 #ifdef CONFIG_RKP_KDP
 	int rc;
 
 	if ((rc = security_integrity_current()))
 		return rc;
 #endif  /* CONFIG_RKP_KDP */
-
-	path.dentry = dentry;
-	path.mnt = mnt;
-
-	return path_has_perm(cred, &path, FILE__GETATTR);
+	return path_has_perm(current_cred(), path, FILE__GETATTR);
 }
 
 static int selinux_inode_setotherxattr(struct dentry *dentry, const char *name)
