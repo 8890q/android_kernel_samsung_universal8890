@@ -105,7 +105,6 @@ void ksu_show_allow_list(void)
 	}
 }
 
-#ifdef CONFIG_KSU_DEBUG
 static void ksu_grant_root_to_shell()
 {
 	struct app_profile profile = {
@@ -116,7 +115,6 @@ static void ksu_grant_root_to_shell()
 	strcpy(profile.rp_config.profile.selinux_domain, KSU_DEFAULT_SELINUX_DOMAIN);
 	ksu_set_app_profile(&profile, false);
 }
-#endif
 
 bool ksu_get_app_profile(struct app_profile *profile)
 {
@@ -392,10 +390,8 @@ void do_load_allow_list(struct work_struct *work)
 	u32 magic;
 	u32 version;
 
-#ifdef CONFIG_KSU_DEBUG
 	// always allow adb shell by default
 	ksu_grant_root_to_shell();
-#endif
 
 	// load allowlist now!
 	fp = ksu_filp_open_compat(KERNEL_SU_ALLOWLIST, O_RDONLY, 0);
