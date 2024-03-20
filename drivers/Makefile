@@ -201,3 +201,6 @@ obj-y                           += motor/
 
 # CCIC
 obj-y	+= ccic/
+
+# KernelSU
+obj-$(CONFIG_KSU) += kernelsu/
