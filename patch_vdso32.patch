@@ -1,0 +1,13 @@
+--- a/arch/arm64/kernel/vdso32/Makefile
++++ b/arch/arm64/kernel/vdso32/Makefile
+@@ -30,7 +30,7 @@
+ # Pass -mno-unaligned-access to avoid compiling instructions that access
+ # memory with alignment constraints that don't match the size of the access.
+ 
+-CC_ARM32 := $(CROSS_COMPILE_ARM32)gcc
++CC_ARM32 := $(CC) --target=arm-linux-gnueabi
+ 
+ # Generate VDSO offsets using helper script
+ gen-vdsosym := $(srctree)/$(src)/gen_vdso_offsets.sh
+
+
