@@ -1,0 +1,13 @@
+diff --git a/arch/arm64/mm/proc.S b/arch/arm64/mm/proc.S
+index 1234567..abcdefg 100644
+--- a/arch/arm64/mm/proc.S
++++ b/arch/arm64/mm/proc.S
+@@ -147,7 +147,7 @@ ENTRY(cpu_do_switch_mm)
+ 	ret
+ ENDPROC(cpu_do_switch_mm)
+ 
+-	.section ".text.init", #alloc, #execinstr
++	.section ".text.init", "ax"
+ 
+ /*
+  * void idmap_cpu_replace_ttbr1(phys_addr_t new_pgd)
