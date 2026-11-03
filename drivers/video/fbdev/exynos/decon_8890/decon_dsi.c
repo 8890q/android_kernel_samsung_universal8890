@@ -22,6 +22,17 @@
 #include "dsim.h"
 #include "decon_helper.h"
 
+extern unsigned int lpcharge;
+
+unsigned int decon_bootmode;
+EXPORT_SYMBOL(decon_bootmode);
+static int __init decon_bootmode_setup(char *str)
+{
+	get_option(&str, &decon_bootmode);
+	return 1;
+}
+__setup("bootmode=", decon_bootmode_setup);
+
 int create_link_mipi(struct decon_device *decon, int id)
 {
 	int i, ret = 0;
@@ -131,7 +142,7 @@ int decon_set_par(struct fb_info *info)
 	struct decon_window_regs win_regs;
 	int win_no = win->index;
 
-	dev_info(decon->dev, "%s: state %d\n", __func__, decon->state);
+	dev_dbg(decon->dev, "%s: state %d\n", __func__, decon->state);
 
 	if ((decon->pdata->out_type == DECON_OUT_DSI &&
 			decon->state == DECON_STATE_INIT) ||
@@ -148,7 +159,6 @@ int decon_set_par(struct fb_info *info)
 			var->bits_per_pixel);
 	info->fix.xpanstep = fb_panstep(var->xres, var->xres_virtual);
 	info->fix.ypanstep = fb_panstep(var->yres, var->yres_virtual);
-
 	win_regs.wincon = WIN_CONTROL_EN_F;
 
 	win_regs.wincon |= wincon(var->transp.length, 0, 0xFF,
@@ -326,6 +336,7 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	int ret = 0;
 	int shift = 0;
 	struct decon_mode_info psr;
+	struct dsim_device *dsim = container_of(decon->output_sd, struct dsim_device, sd);
 
 	if ((decon->pdata->out_type == DECON_OUT_DSI &&
 			decon->state == DECON_STATE_INIT) ||
@@ -348,7 +359,7 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 		break;
 	case 24:
 	case 32:
-		config.format = DECON_PIXEL_FORMAT_BGRA_8888;
+		config.format = DECON_PIXEL_FORMAT_ABGR_8888;
 		shift = 4;
 		break;
 	default:
@@ -386,6 +397,9 @@ int decon_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 	if (decon_reg_wait_update_done_and_mask(decon->id, &psr, SHADOW_UPDATE_TIMEOUT)
 			< 0)
 		decon_err("%s: wait_for_update_timeout\n", __func__);
+
+	if (decon->pdata->out_type == DECON_OUT_DSI)
+		dsim->req_display_on = true;
 
 	decon_lpd_unblock(decon);
 	return ret;
@@ -533,6 +547,9 @@ int decon_config_eint_for_te(struct platform_device *pdev, struct decon_device *
 		gpio1 = of_get_gpio(dev->of_node, 1);
 		if (gpio1 < 0)
 			decon_info("This board doesn't support TE GPIO of 2nd LCD\n");
+	} else {
+		decon_err("failed to find gpio node from device tree\n");
+		return -EINVAL;
 	}
 
 	gpio = gpio_to_irq(gpio);
@@ -579,9 +596,20 @@ static ssize_t decon_psr_info(struct device *dev,
 {
 	struct decon_device *decon = dev_get_drvdata(dev);
 	struct decon_lcd *lcd_info = decon->lcd_info;
-	int dsc_offset = (lcd_info->dsc_enabled)? 4: 0;
+	int dsc_y_slice_size = 0;
+	int psr_info = 0;
 
-	return scnprintf(buf, PAGE_SIZE, "%d\n", decon->pdata->psr_mode + dsc_offset);
+	if (lcd_info->dsc_enabled) {
+		if (lcd_info->dsc_slice_num == 2)
+			dsc_y_slice_size = 64; /* in multi-resolution HD case, it is bigger than 32 */
+		else if (lcd_info->dsc_slice_num == 4)
+			dsc_y_slice_size = 64;
+	}
+
+	psr_info = decon->pdata->psr_mode | (lcd_info->dsc_enabled << 2);
+
+	return scnprintf(buf, PAGE_SIZE, "%d\n%d\n%d\n", psr_info,
+			lcd_info->dsc_slice_num, dsc_y_slice_size);
 }
 
 static DEVICE_ATTR(psr_info, S_IRUGO, decon_psr_info, NULL);
@@ -661,6 +689,7 @@ static int decon_enter_lpd(struct decon_device *decon)
 	decon->state = DECON_STATE_LPD_ENT_REQ;
 	decon_disable(decon);
 	decon->state = DECON_STATE_LPD;
+	decon->tracing_mark_write( decon->systrace_pid, 'C', "decon_LPD", 1 );
 	exynos_ss_printk("%s -\n", __func__);
 
 	DISP_SS_EVENT_LOG(DISP_EVT_ENTER_LPD, &decon->sd, start);
@@ -691,6 +720,7 @@ int decon_exit_lpd(struct decon_device *decon)
 	decon_enable(decon);
 	decon_lpd_trig_reset(decon);
 	decon->state = DECON_STATE_ON;
+	decon->tracing_mark_write( decon->systrace_pid, 'C', "decon_LPD", 0 );
 	exynos_ss_printk("%s -\n", __func__);
 
 	DISP_SS_EVENT_LOG(DISP_EVT_EXIT_LPD, &decon->sd, start);
@@ -750,7 +780,11 @@ static void decon_lpd_handler(struct work_struct *work)
 	if (!decon || !decon->lpd_init_status)
 		return;
 
+#ifdef CONFIG_DECON_SELF_REFRESH
+	if (decon_lpd_enter_cond(decon) && !decon->dsr_on)
+#else
 	if (decon_lpd_enter_cond(decon))
+#endif
 		decon_enter_lpd(decon);
 }
 
@@ -769,6 +803,13 @@ int decon_register_lpd_work(struct decon_device *decon)
 
 	INIT_WORK(&decon->lpd_work, decon_lpd_handler);
 	decon->lpd_init_status = true;
+
+	// recovery mode -> skip LPD
+	if(decon_bootmode == 2)
+		decon->lpd_init_status = false;
+
+	if (lpcharge == 1)
+		decon->lpd_init_status = false;
 
 	return 0;
 }

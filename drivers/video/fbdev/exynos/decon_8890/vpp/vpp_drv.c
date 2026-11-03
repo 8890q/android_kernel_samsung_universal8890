@@ -20,6 +20,8 @@
 #include <linux/export.h>
 #include <linux/videodev2_exynos_media.h>
 
+#include "../../../../../soc/samsung/pwrcal/pwrcal.h"
+#include "../../../../../soc/samsung/pwrcal/S5E8890/S5E8890-vclk.h"
 #include "vpp.h"
 #include "vpp_common.h"
 #include "../decon_helper.h"
@@ -87,6 +89,10 @@ static void vpp_dump_cfw_register(void)
 
 static void vpp_dump_registers(struct vpp_dev *vpp)
 {
+	if (!test_bit(VPP_RUNNING, &vpp->state)) {
+		dev_err(DEV, "vpp clocks are disabled\n");
+		return;
+	}
 	vpp_dump_cfw_register();
 	dev_info(DEV, "=== VPP%d SFR DUMP ===\n", vpp->id);
 	dev_info(DEV, "start count : %d, done count : %d\n",
@@ -105,6 +111,13 @@ static void vpp_dump_registers(struct vpp_dev *vpp)
 void vpp_op_timer_handler(unsigned long arg)
 {
 	struct vpp_dev *vpp = (struct vpp_dev *)arg;
+	struct decon_device *decon = get_decon_drvdata(0);
+
+	if(decon->ignore_vsync)
+	{
+		dev_info(DEV, "VPP[%d] irq hasn't been occured but ignore_vsync is true skip", vpp->id);
+		return;
+	}
 
 	vpp_dump_registers(vpp);
 
@@ -308,7 +321,7 @@ static void vpp_clk_disable(struct vpp_dev *vpp)
 static int vpp_init(struct vpp_dev *vpp)
 {
 	int ret = 0;
-#if 0
+
 	if (vpp->id == 0 || vpp->id == 2) {
 		ret = exynos_smc(MC_FC_SET_CFW_PROT,
 				MC_FC_DRM_SET_CFW_PROT, PROT_G0, 0);
@@ -344,7 +357,7 @@ static int vpp_init(struct vpp_dev *vpp)
 			return -EBUSY;
 		}
 	}
-#endif
+
 	ret = vpp_clk_enable(vpp);
 	if (ret)
 		return ret;
@@ -451,6 +464,16 @@ void vpp_split_single_plane(struct decon_win_config *config, struct vpp_size_par
 	}
 }
 
+void vpp_set_deadlock_time(struct vpp_dev *vpp, int msec)
+{
+	int deadlock_num;
+	int disp;
+
+	disp = cal_dfs_get_rate(dvfs_disp);
+	deadlock_num = msec * disp;
+	vpp_reg_set_deadlock_num(vpp->id, deadlock_num);
+}
+
 static int vpp_set_config(struct vpp_dev *vpp)
 {
 	struct decon_win_config *config = vpp->config;
@@ -481,6 +504,7 @@ static int vpp_set_config(struct vpp_dev *vpp)
 		}
 		/* The state need to be set here to handle err case */
 		set_bit(VPP_RUNNING, &vpp->state);
+		DISP_SS_EVENT_LOG(DISP_EVT_VPP_SET_RUNNING, vpp->sd, ktime_set(0, 0));
 		spin_unlock_irqrestore(&vpp->slock, flags);
 		enable_irq(vpp->irq);
 	}
@@ -552,7 +576,7 @@ err:
 static int vpp_tui_protection(struct v4l2_subdev *sd, int enable)
 {
 	struct vpp_dev *vpp = v4l2_get_subdevdata(sd);
-	int ret;
+	int ret = 0;
 
 	if (test_bit(VPP_POWER_ON, &vpp->state)) {
 		dev_err(DEV, "VPP is not ready for TUI (%ld)\n", vpp->state);
@@ -641,11 +665,16 @@ static long vpp_subdev_ioctl(struct v4l2_subdev *sd,
 		break;
 
 	case VPP_WAIT_IDLE:
-		vpp_reg_wait_idle(vpp->id);
+		if (test_bit(VPP_RUNNING, &vpp->state))
+			vpp_reg_wait_idle(vpp->id);
 		break;
 
 	case VPP_WAIT_FOR_FRAMEDONE:
 		ret = vpp_wait_for_framedone(vpp);
+		break;
+
+	case VPP_SET_DEADLOCK_NUM:
+		vpp_set_deadlock_time(vpp, 20);
 		break;
 
 	default:
@@ -781,10 +810,13 @@ static irqreturn_t vpp_irq_handler(int irq, void *priv)
 		vpp_reg_set_clear_irq(vpp->id, vpp_irq);
 
 		if (is_err_irq(vpp_irq)) {
-			dev_err(DEV, "Error interrupt (0x%x)\n", vpp_irq);
-			vpp_dump_registers(vpp);
-			exynos_sysmmu_show_status(&vpp->pdev->dev);
-			goto err;
+			dev_err(DEV, "vpp%d interrupt info(0x%x)\n",vpp->id, vpp_irq);
+			if ((vpp_irq == VG_IRQ_DEADLOCK_STATUS) && (vpp->id == 6 || vpp->id == 7))
+				vpp->afbc_re = vpp_reg_set_debug_sfr(vpp->id);
+			if (!(vpp_irq == VG_IRQ_DEADLOCK_STATUS)) {
+				exynos_sysmmu_show_status(&vpp->pdev->dev);
+				goto err;
+			}
 		}
 	}
 
@@ -909,7 +941,7 @@ static int vpp_probe(struct platform_device *pdev)
 	vpp->pdev = pdev;
 
 	vpp_config_id(vpp);
-#if 0
+
 	if (vpp->id == 0 || vpp->id == 2) {
 		ret = exynos_smc(MC_FC_SET_CFW_PROT,
 				MC_FC_DRM_SET_CFW_PROT, PROT_G0, 0);
@@ -945,7 +977,7 @@ static int vpp_probe(struct platform_device *pdev)
 			return -EBUSY;
 		}
 	}
-#endif
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	vpp->regs = devm_ioremap_resource(dev, res);
 	if (!vpp->regs) {
@@ -1080,6 +1112,7 @@ static struct platform_driver vpp_driver __refdata = {
 		.owner	= THIS_MODULE,
 		.pm	= &vpp_pm_ops,
 		.of_match_table = of_match_ptr(vpp_device_table),
+		.suppress_bind_attrs = true,
 	}
 };
 

@@ -26,7 +26,7 @@
 #define DSIM_LP_RX_TIMEOUT		0xffff
 #define DSIM_MULTI_PACKET_CNT		0xffff
 #define DSIM_PLL_STABLE_TIME		0x13880
-#define DSIM_FIFOCTRL_THRESHOLD		0x1 /* 1 ~ 32 */
+#define DSIM_FIFOCTRL_THRESHOLD		0x0 /* 1 ~ 32 */
 
 /* If below values depend on panel. These values wil be move to panel file.
  * And these values are valid in case of video mode only. */
@@ -557,7 +557,8 @@ void dsim_reg_get_num_of_slice(u32 id, u32 *num_of_slice)
 
 void dsim_reg_set_multi_slice(u32 id, struct decon_lcd *lcd_info)
 {
-	u32 multi_slice, val;
+	u32 multi_slice = 1;
+	u32 val;
 
 	/* if multi-slice(2~4 slices) DSC compression is used in video mode
 	 * MULTI_SLICE_PACKET configuration must be matched to DDI's configuration */
@@ -588,10 +589,10 @@ void dsim_reg_set_size_of_slice(u32 id, struct decon_lcd *lcd_info)
 		mask_23 = DSIM_SLICE23_SIZE_OF_SLICE3_MASK |
 			DSIM_SLICE23_SIZE_OF_SLICE2_MASK;
 	} else if (lcd_info->dsc_slice_num == 2 && lcd_info->dsc_cnt == 2) {
-		val_01 = DSIM_SLICE01_SIZE_OF_SLICE0(slice_w);
-		mask_01 = DSIM_SLICE01_SIZE_OF_SLICE0_MASK;
-		val_23 = DSIM_SLICE23_SIZE_OF_SLICE2(slice_w);
-		mask_23 = DSIM_SLICE23_SIZE_OF_SLICE2_MASK;
+		val_01 = DSIM_SLICE01_SIZE_OF_SLICE1(slice_w) |
+			DSIM_SLICE01_SIZE_OF_SLICE0(slice_w);
+		mask_01 = DSIM_SLICE01_SIZE_OF_SLICE1_MASK |
+			DSIM_SLICE01_SIZE_OF_SLICE0_MASK;
 	} else if (lcd_info->dsc_slice_num == 2 && lcd_info->dsc_cnt == 1) {
 		val_01 = DSIM_SLICE01_SIZE_OF_SLICE1(slice_w) |
 			DSIM_SLICE01_SIZE_OF_SLICE0(slice_w);
@@ -731,9 +732,66 @@ void dsim_reg_set_vresol(u32 id, u32 vresol)
 	dsim_write_mask(id, DSIM_RESOL, val, DSIM_RESOL_VRESOL_MASK);
 }
 
+u32 dsc_get_hresol(u32 x_resol, u32 dscc_en, u32 ds_en)
+{
+	u32 slice_width;
+	u32 width_eff;
+	u32 slice_width_byte_unit, comp_slice_width_byte_unit;
+	u32 comp_slice_width_pixel_unit;
+	u32 overlap_w = 0;
+	u32 comp_slice_w = 0;
+	u32 i, j;
+
+	/* check if two encoders are used */
+	if (dscc_en)
+		width_eff = (x_resol >> 1) + overlap_w;
+	else
+		width_eff = x_resol + overlap_w;
+
+	/* check if dual slice is enabled */
+	if (ds_en)
+		slice_width = width_eff >> 1;
+	else
+		slice_width = width_eff;
+
+	/* 3bytes per pixel */
+	slice_width_byte_unit = slice_width * 3;
+	/* integer value, /3 for 1/3 compression */
+	comp_slice_width_byte_unit = slice_width_byte_unit / 3;
+	/* integer value, /3 for pixel unit */
+	comp_slice_width_pixel_unit = comp_slice_width_byte_unit / 3;
+
+	i = comp_slice_width_byte_unit % 3;
+	j = comp_slice_width_pixel_unit % 2;
+
+	if ( i == 0 && j == 0) {
+		comp_slice_w = comp_slice_width_pixel_unit;
+	} else if (i == 0 && j != 0) {
+		comp_slice_w = comp_slice_width_pixel_unit + 1;
+	} else if (i != 0) {
+		while (1) {
+			comp_slice_width_pixel_unit++;
+			j = comp_slice_width_pixel_unit % 2;
+			if (j == 0)
+				break;
+		}
+		comp_slice_w = comp_slice_width_pixel_unit;
+	}
+
+	return comp_slice_w;
+
+}
+
 void dsim_reg_set_hresol(u32 id, u32 hresol, struct decon_lcd *lcd)
 {
-	u32 width, val;
+	u32 width = 0, val = 0;
+	u32 dual_slice = 0;
+	u32 slice_mode_change = 0;
+	int dsi_cnt = 1;
+
+	if (lcd->dsc_slice_num == lcd->dsc_cnt *2) dual_slice = 1;
+	slice_mode_change = ((lcd->dsc_slice_num == lcd->dsc_cnt) != (lcd->dsc_slice_num == dsi_cnt));
+	dsim_dbg("dual slice(%d), slice_mode_change(%d)\n", dual_slice, slice_mode_change);
 
 	if (lcd->mic_enabled) {
 		switch (lcd->mic_ratio) {
@@ -747,9 +805,8 @@ void dsim_reg_set_hresol(u32 id, u32 hresol, struct decon_lcd *lcd)
 			break;
 		}
 	} else if (lcd->dsc_enabled) {
-		width = lcd->xres / 3;
-	} else {
-		width = lcd->xres;
+		width = dsc_get_hresol(lcd->xres, slice_mode_change, dual_slice) * 2;
+		dsim_dbg("%s hresol : %d\n", __func__, width);
 	}
 
 	val = DSIM_RESOL_HRESOL(width);
@@ -1147,7 +1204,6 @@ int dsim_reg_init(u32 id, struct decon_lcd *lcd_info, u32 data_lane_cnt, struct 
 		   then just return. */
 		ret = -EBUSY;
 	}
-
 	/* get byte clock */
 	clks->byte_clk = clks->hs_clk / 8;
 	dsim_dbg("byte clock is %u MHz\n", clks->byte_clk);
@@ -1197,6 +1253,7 @@ int dsim_reg_init(u32 id, struct decon_lcd *lcd_info, u32 data_lane_cnt, struct 
 	dsim_reg_set_bta_timeout(id);
 	dsim_reg_set_lpdr_timeout(id);
 	dsim_reg_set_hsync_timeout(id, 0x3f);
+
 	if (lcd_info->dsc_enabled) {
 		dsim_dbg("%s: dsc configuration is set\n", __func__);
 		dsim_reg_set_num_of_slice(id, lcd_info->dsc_slice_num);
@@ -1207,7 +1264,6 @@ int dsim_reg_init(u32 id, struct decon_lcd *lcd_info, u32 data_lane_cnt, struct 
 		dsim_dbg("dsim%d: number of DSC slice(%d)\n", id, num_of_slice);
 		dsim_reg_print_size_of_slice(id);
 	}
-
 	return ret;
 }
 

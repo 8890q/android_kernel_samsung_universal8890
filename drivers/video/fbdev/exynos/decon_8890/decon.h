@@ -24,12 +24,13 @@
 #include <media/v4l2-device.h>
 #include <media/videobuf2-core.h>
 #include <media/exynos_mc.h>
-#include <soc/samsung/bts.h>
 
 #include "regs-decon.h"
 #include "decon_common.h"
 #include "./panels/decon_lcd.h"
+#include "dsim.h"
 
+extern struct ion_device *ion_exynos;
 extern struct decon_device *decon_f_drvdata;
 extern struct decon_device *decon_s_drvdata;
 extern struct decon_device *decon_t_drvdata;
@@ -66,6 +67,10 @@ extern struct decon_bts2 decon_bts2_control;
 #define	NO_CNT_TH		10
 #endif
 
+#ifdef CONFIG_LCD_ALPM
+#define ALPM_TIMEOUT 3
+#endif
+
 #define DECON_PIX_PER_CLK	2
 
 #define UNDERRUN_FILTER_INTERVAL_MS    100
@@ -74,6 +79,11 @@ extern struct decon_bts2 decon_bts2_control;
 #define DECON_UNDERRUN_THRESHOLD	0
 #ifdef CONFIG_FB_WINDOW_UPDATE
 #define DECON_WIN_UPDATE_IDX	(8)
+
+#define DECON_CR0_SETTING_BY_UM		1
+#define DECON_CR0_SETTING_BY_GUIDE	0
+#define DECON_CR0_SETTING		DECON_CR0_SETTING_BY_GUIDE
+
 #define decon_win_update_dbg(fmt, ...)					\
 	do {								\
 		if (decon_log_level >= 7)				\
@@ -90,10 +100,6 @@ extern struct decon_bts2 decon_bts2_control;
 #ifndef MHZ
 #define MHZ (1000*1000)
 #endif
-
-#define exynos_ss_printk(fmt, ...)	\
-	do {							\
-	} while (0)
 
 #define decon_err(fmt, ...)							\
 	do {									\
@@ -399,6 +405,15 @@ struct decon_win_config {
 			/* source framebuffer coordinates */
 			struct decon_frame		src;
 		};
+#ifdef CONFIG_FB_DSU
+		struct {
+			int left;
+			int top;
+			int right;
+			int bottom;
+			int enableDSU;
+		};
+#endif
 	};
 
 	/* destination OSD coordinates */
@@ -509,6 +524,13 @@ typedef enum disp_ss_event_type {
 	DISP_EVT_ACT_VSYNC,
 	DISP_EVT_DEACT_VSYNC,
 	DISP_EVT_WIN_CONFIG,
+#ifdef	CONFIG_DECON_SELF_REFRESH
+	DISP_EVT_DSR_ENABLE,
+	DISP_EVT_DSR_DISABLE,
+#endif
+	DISP_EVT_ENT_UPDATE,
+	DISP_EVT_PARTIAL_UPDATE,
+	DISP_EVT_START_VPP_SET,
 
 	/* Related with interrupt */
 	DISP_EVT_TE_INTERRUPT,
@@ -534,6 +556,7 @@ typedef enum disp_ss_event_type {
 	DISP_EVT_VPP_SHADOW_UPDATE,
 	DISP_EVT_VPP_SUSPEND,
 	DISP_EVT_VPP_RESUME,
+	DISP_EVT_VPP_SET_RUNNING,
 
 	/* Related with PM */
 	DISP_EVT_DECON_SUSPEND,
@@ -584,6 +607,27 @@ struct disp_log_vpp {
 	u32 height;
 };
 
+typedef enum disp_esd_irq {
+	irq_no_esd = 0,
+	irq_pcd_det,
+	irq_err_fg,
+	irq_disp_det
+} disp_esd_irq_t;
+
+struct esd_protect {
+	u32 pcd_irq;
+	u32 err_irq;
+	u32 disp_det_irq;
+	u32 pcd_gpio;
+	u32 disp_det_gpio;
+	struct workqueue_struct *esd_wq;
+	struct work_struct esd_work;
+	u32	queuework_pending;
+	int irq_disable;
+	disp_esd_irq_t irq_type;
+	ktime_t when_irq_enable;
+};
+
 /**
  * struct disp_ss_log - Display Subsystem Log
  * This struct includes DECON/DSIM/VPP
@@ -617,6 +661,7 @@ typedef enum disp_ss_event_log_level_type {
 #define DISP_SS_EVENT_START() ktime_t start = ktime_get()
 void DISP_SS_EVENT_LOG(disp_ss_event_t type, struct v4l2_subdev *sd, ktime_t time);
 void DISP_SS_EVENT_LOG_WINCON(struct v4l2_subdev *sd, struct decon_reg_data *regs);
+void DISP_SS_EVENT_LOG_WINCON2(struct v4l2_subdev *sd, struct decon_reg_data *regs);
 void DISP_SS_EVENT_LOG_CMD(struct v4l2_subdev *sd, u32 cmd_id, unsigned long data);
 void DISP_SS_EVENT_SHOW(struct seq_file *s, struct decon_device *decon);
 void DISP_SS_EVENT_SIZE_ERR_LOG(struct v4l2_subdev *sd, struct disp_ss_size_info *info);
@@ -654,6 +699,36 @@ struct dma_rsm {
 	u32	decon_dma_map[MAX_DMA_TYPE-1];
 };
 
+#define DISP_FENCE_ERR_LIST_CNT			10
+struct disp_fence_err {
+	char name[32];
+	ktime_t time;
+	int status;
+	unsigned int win_id;
+};
+
+#ifdef CONFIG_LCD_DOZE_MODE
+enum decon_doze_mode {
+	DECON_DOZE_STATE_NORMAL = 0,
+	DECON_DOZE_STATE_DOZE,
+	DECON_DOZE_STATE_SUSPEND,
+	DECON_DOZE_STATE_DOZE_SUSPEND
+};
+#endif
+
+#ifdef CONFIG_FB_DSU
+enum decon_dsu_state {
+	DECON_DSU_DONE = 0,
+	DECON_DSU_IGNORE_VSYNC,
+	DECON_DSU_DSC_CMD,
+	DECON_DSU_DSC_SET,
+	DECON_DSU_MIC_CMD,
+	DECON_DSU_TE_ON,
+	DECON_DSU_DISPLAY_ON,
+	DECON_DSU_UPDATE_RECT,
+};
+#endif
+
 typedef struct decon_device decon_dev;
 struct decon_device {
 	decon_dev			*decon[NUM_DECON_IPS];
@@ -676,6 +751,7 @@ struct decon_device {
 
 	struct mutex			update_regs_list_lock;
 	struct list_head		update_regs_list;
+	int				update_regs_list_cnt;
 	struct task_struct		*update_regs_thread;
 	struct kthread_worker		update_regs_worker;
 	struct kthread_work		update_regs_work;
@@ -735,8 +811,10 @@ struct decon_device {
 	bool				vpp_err_stat[MAX_VPP_SUBDEV];
 	u32				vpp_usage_bitmask;
 	struct decon_lcd		*lcd_info;
+
 	struct decon_win_rect		update_win;
 	bool				need_update;
+
 	struct decon_underrun_stat	underrun_stat;
 	void __iomem			*cam_status[2];
 	u32				prev_protection_bitmask;
@@ -753,9 +831,14 @@ struct decon_device {
 	u32				disp_ss_size_log_idx;
 	struct disp_ss_size_err_info	disp_ss_size_log[DISP_EVENT_SIZE_ERR_MAX];
 #endif
+
+#ifdef CONFIG_DUMPSTATE_LOGGING
+	struct dentry *debug_info;
+#endif
+
 	struct pinctrl			*pinctrl;
-        struct pinctrl_state 		*decon_te_on;
-        struct pinctrl_state		*decon_te_off;
+    struct pinctrl_state 		*decon_te_on;
+    struct pinctrl_state		*decon_te_off;
 	struct pm_qos_request		mif_qos;
 	struct pm_qos_request		int_qos;
 	struct pm_qos_request		disp_qos;
@@ -772,9 +855,51 @@ struct decon_device {
 	ktime_t				trig_mask_timestamp;
 	int                             frame_idle;
 	int				eint_status;
+#ifdef CONFIG_LOGGING_BIGDATA_BUG
+	int eint_pend_for_big;
+#endif
 	struct work_struct		fifo_irq_work;
 	struct workqueue_struct		*fifo_irq_wq;
 	int				fifo_irq_status;
+	int				re_cnt;
+	int				win_id[2];
+	int				vpp_id[2];
+	bool			vpp_afbc_re;
+
+#ifdef CONFIG_DECON_SELF_REFRESH
+	bool dsr_on;
+#endif
+
+	bool	ignore_vsync;
+	struct esd_protect esd;
+	unsigned int			force_fullupdate;
+
+	int	systrace_pid;
+	void	(*tracing_mark_write)( int pid, char id, char* str1, int value );
+#ifdef CONFIG_LCD_DOZE_MODE
+	unsigned int decon_doze;
+	bool vsync_backup;
+	unsigned int req_display_on;
+#endif
+#ifdef CONFIG_FB_DSU
+	int	need_DSU_update;
+	bool	DSU_mode;
+	bool	is_DSU_mic;
+	bool	is_DSU_dsc;
+	int		DSU_x_delta;
+	int		DSU_y_delta;
+	struct decon_win_rect DSU_rect;
+	struct decon_lcd lcd_info_default;
+	s64	dsu_lock_cnt;	/* for HA5 DDI register-Locking */
+	struct mutex	dsu_lock;
+#endif
+#ifdef CONFIG_CHECK_DECON_TIME
+	struct time_buffer* debug_time;
+#endif
+
+	int fence_err_cnt;
+	struct disp_fence_err first_fence_err;
+	struct disp_fence_err fence_err_list[DISP_FENCE_ERR_LIST_CNT];
 };
 
 static inline struct decon_device *get_decon_drvdata(u32 id)
@@ -941,9 +1066,24 @@ static inline bool is_cam_not_running(struct decon_device *decon)
 }
 static inline bool decon_lpd_enter_cond(struct decon_device *decon)
 {
+#if defined(CONFIG_LCD_ALPM) || defined(CONFIG_LCD_HMT)
+	struct dsim_device *dsim = NULL;
+	dsim = container_of(decon->output_sd, struct dsim_device, sd);
+#endif
 	return ((atomic_read(&decon->lpd_block_cnt) <= 0) && is_cam_not_running(decon)
+#ifdef CONFIG_LCD_ALPM
+		&& (!dsim->alpm)
+#endif
+#ifdef CONFIG_LCD_HMT
+		&& (!dsim->priv.hmt_on)
+#endif
+#ifdef CONFIG_DECON_SELF_REFRESH
+		&& (!decon->dsr_on)
+#endif
 		&& (atomic_inc_return(&decon->lpd_trig_cnt) >= DECON_ENTER_LPD_CNT));
 }
+
+
 
 static inline bool decon_min_lock_cond(struct decon_device *decon)
 {
@@ -959,7 +1099,6 @@ static inline u32 win_end_pos(int x, int y,  u32 xres, u32 yres)
 {
 	return (WIN_ENDPTR_Y_F(y + yres - 1) | WIN_ENDPTR_X_F(x + xres - 1));
 }
-
 /* IOCTL commands */
 #define S3CFB_WIN_POSITION		_IOW('F', 203, \
 						struct decon_user_window)
@@ -969,6 +1108,10 @@ static inline u32 win_end_pos(int x, int y,  u32 xres, u32 yres)
 						struct s3c_fb_user_chroma)
 #define S3CFB_SET_VSYNC_INT		_IOW('F', 206, __u32)
 
+#ifdef CONFIG_DECON_SELF_REFRESH
+#define S3CFB_DECON_SELF_REFRESH	_IOW('F', 207, __u32)
+#endif
+
 #define S3CFB_GET_ION_USER_HANDLE	_IOWR('F', 208, \
 						struct s3c_fb_user_ion_client)
 #define S3CFB_WIN_CONFIG		_IOW('F', 209, \
@@ -977,5 +1120,14 @@ static inline u32 win_end_pos(int x, int y,  u32 xres, u32 yres)
 
 #define DECON_IOC_LPD_EXIT_LOCK		_IOW('L', 0, u32)
 #define DECON_IOC_LPD_UNLOCK		_IOW('L', 1, u32)
+#ifdef CONFIG_LCD_DOZE_MODE
+#define S3CFB_POWER_MODE		_IOW('F', 223, __u32)
+enum disp_pwr_mode {
+	DECON_POWER_MODE_OFF = 0,
+	DECON_POWER_MODE_DOZE,
+	DECON_POWER_MODE_NORMAL,
+	DECON_POWER_MODE_DOZE_SUSPEND,
+};
+#endif
 
 #endif /* ___SAMSUNG_DECON_H__ */

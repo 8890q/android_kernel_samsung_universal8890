@@ -357,6 +357,7 @@
 * <-
 * DSC registers
 */
+
 #define DSC0_OFFSET					0x2000
 #define DSC1_OFFSET					0x3000
 #define DSC_NUM_EXTRA_MUX_BIT				246

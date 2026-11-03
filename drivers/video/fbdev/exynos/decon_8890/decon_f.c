@@ -24,13 +24,31 @@
 #include "dsim.h"
 #include "decon_helper.h"
 
+static void get_underrun_info_for_dump(struct decon_device *decon)
+{
+	int idx;
+	struct dsim_device *dsim = get_dsim_drvdata(0);
+	dsim->total_underrun_cnt = decon->underrun_stat.total_underrun_cnt;
+	idx = dsim->under_list_idx;
+
+	dsim->under_list[idx].time = ktime_get();
+	dsim->under_list[idx].mif_freq = cal_dfs_get_rate(dvfs_mif);
+	dsim->under_list[idx].int_freq = cal_dfs_get_rate(dvfs_int);
+	dsim->under_list[idx].disp_freq = cal_dfs_get_rate(dvfs_disp);
+	dsim->under_list[idx].prev_bw = decon->prev_total_bw;
+	dsim->under_list[idx].cur_bw = decon->total_bw;
+
+	dsim->under_list_idx = (idx + 1) % MAX_UNDERRUN_LIST;
+}
+
 static void decon_oneshot_underrun_log(struct decon_device *decon)
 {
 	DISP_SS_EVENT_LOG(DISP_EVT_UNDERRUN, &decon->sd, ktime_set(0, 0));
-
 	decon->underrun_stat.underrun_cnt++;
 	if (decon->fifo_irq_status++ > UNDERRUN_FILTER_IDLE)
 		return;
+
+	get_underrun_info_for_dump(decon);
 
 	if (decon->underrun_stat.underrun_cnt > DECON_UNDERRUN_THRESHOLD) {
 #if defined(CONFIG_EXYNOS8890_BTS_OPTIMIZATION)
@@ -110,7 +128,9 @@ irqreturn_t decon_f_irq_handler(int irq, void *dev_data)
 		decon->underrun_stat.prev_int_bw = decon->prev_int_bw;
 		decon->underrun_stat.prev_disp_bw = decon->prev_disp_bw;
 		decon->underrun_stat.chmap = decon_read(0, RESOURCE_SEL_1);
-		decon->underrun_stat.aclk = clk_get_rate(decon->res.pclk);
+		/* The IRQ handler must use the non-sleeping cached-rate accessor. */
+		decon->underrun_stat.aclk =
+			clk_hw_get_rate(__clk_get_hw(decon->res.pclk));
 		decon_f_get_enabled_win(decon);
 		decon_oneshot_underrun_log(decon);
 	}

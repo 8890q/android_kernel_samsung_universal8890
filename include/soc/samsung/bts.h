@@ -99,7 +99,7 @@ void bts_update_scen(enum bts_scen_type type, unsigned int val);
 /* bandwidth (KB/s) */
 void bts_update_bw(enum bts_bw_type type, struct bts_bw bw);
 unsigned int bts_calc_bw(enum bts_bw_type type, void *data);
-#else
+#elif !defined(CONFIG_SOC_EXYNOS8890)
 #define bts_update_scen(a, b) do {} while(0)
 #define bts_update_bw(a, b) do {} while(0)
 #define bts_calc_bw(a, b) do {} while(0)

@@ -14,6 +14,8 @@ if EXYNOS_VIDEO
 # MIPI DSI driver
 #
 
+if !SOC_EXYNOS8890
+
 config EXYNOS_MIPI_DSI
 	bool "EXYNOS MIPI DSI driver support."
 	select GENERIC_PHY
@@ -28,6 +30,12 @@ config EXYNOS_LCD_S6E8AX0
 	help
 	  If you have an S6E8AX0 MIPI AMOLED LCD Panel, say Y to enable its
 	  LCD control driver.
+
+endif # !SOC_EXYNOS8890
+
+if SOC_EXYNOS8890
+source "drivers/video/fbdev/exynos/decon_8890/Kconfig"
+endif
 
 config EXYNOS_DUAL_DISPLAY
 	bool "EXYNOS Dual Display Driver Support."

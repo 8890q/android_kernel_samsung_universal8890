@@ -48,10 +48,66 @@ config DECON_BLOCKING_MODE
         depends on EXYNOS_DECON_8890
         default n
 
+config FB_DSU
+	bool "DECON DSU mode"
+	depends on EXYNOS_DECON_8890 && FB_WINDOW_UPDATE
+	default n
+
+config FB_DSU_NOT_SEAMLESS
+	bool "LCD cannot sealmess while multi-resolution"
+	depends on FB_DSU
+	default n
+
+config FB_DSU_REG_LOCK
+	bool "Lock register while multi-resolution (only HF4)"
+	depends on FB_DSU
+	default n
+
 config DECON_EVENT_LOG
 	bool "Display sub-system event logger (DECON/DSIM/VPP)"
         depends on DEBUG_INFO && EXYNOS_DECON_8890
         default y
+
+config DSIM_ESD_RECOVERY_NOPOWER
+	bool "Not control power/reset in esd recovery"
+        default n
+
+config DSIM_ESD_REMOVE_DISP_DET
+        bool "To Remove DISP_DET gpio irq for ESD"
+        default n
+
+config ALWAYS_RELOAD_MTP_FACTORY_BUILD
+	bool "reaload MTP/MDNIE every LCD-on times"
+	depends on SEC_FACTORY
+	default n
+
+config CHECK_OCTA_CHIP_ID
+	bool "support to check octa chip id"
+	default n
+
+config LCD_RES
+	bool "change LCD-resolution by BOOT_PARAM"
+	default n
+
+config DECON_SELF_REFRESH
+	bool "DECON self refresh"
+	depends on EXYNOS_DECON_8890
+	default n
+
+config LOGGING_BIGDATA_BUG
+	bool "Logging extra information when decon bug"
+	depends on EXYNOS_DECON_8890
+	default n
+
+config DUMPSTATE_LOGGING
+	bool "Support DumpState Logging"
+	depends on EXYNOS_DECON_8890
+	default n
+
+config CHECK_DECON_TIME
+	bool "Check Decon thread time"
+	depends on EXYNOS_DECON_8890 && DUMPSTATE_LOGGING
+	default n
 
 source "drivers/video/fbdev/exynos/decon_8890/vpp/Kconfig"
 

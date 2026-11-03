@@ -145,6 +145,7 @@ struct vpp_dev {
 	u64				cur_disp;
 	u64				shw_disp;
 #endif
+	bool				afbc_re;
 };
 
 extern struct vpp_dev *vpp0_for_decon;

@@ -15,11 +15,14 @@
 #include <asm/cacheflush.h>
 #include <asm/page.h>
 
+#ifdef CONFIG_FB_DSU
+#include <linux/ion.h>
+#endif
+
 #include "decon.h"
 #include "dsim.h"
 #include "./vpp/vpp.h"
 #include "decon_helper.h"
-#include "./panels/lcd_ctrl.h"
 #include <video/mipi_display.h>
 
 extern void *return_address(int);
@@ -369,6 +372,13 @@ void DISP_SS_EVENT_LOG(disp_ss_event_t type, struct v4l2_subdev *sd, ktime_t tim
 	case DISP_EVT_WB_SW_TRIGGER:
 	case DISP_EVT_DECON_SHUTDOWN:
 	case DISP_EVT_RSC_CONFLICT:
+#ifdef CONFIG_DECON_SELF_REFRESH
+	case DISP_EVT_DSR_ENABLE:
+	case DISP_EVT_DSR_DISABLE:
+#endif
+	case DISP_EVT_ENT_UPDATE:
+	case DISP_EVT_PARTIAL_UPDATE:
+	case DISP_EVT_START_VPP_SET:
 		disp_ss_event_log_decon(type, sd, time);
 		break;
 	case DISP_EVT_DSIM_FRAMEDONE:
@@ -380,6 +390,7 @@ void DISP_SS_EVENT_LOG(disp_ss_event_t type, struct v4l2_subdev *sd, ktime_t tim
 	case DISP_EVT_VPP_FRAMEDONE:
 	case DISP_EVT_VPP_STOP:
 	case DISP_EVT_VPP_WINCON:
+	case DISP_EVT_VPP_SET_RUNNING:
 		disp_ss_event_log_vpp(type, sd, time);
 		break;
 	default:
@@ -407,6 +418,47 @@ void DISP_SS_EVENT_LOG(disp_ss_event_t type, struct v4l2_subdev *sd, ktime_t tim
 		disp_ss_event_log_vpp(type, sd, time);
 	default:
 		break;
+	}
+}
+void DISP_SS_EVENT_LOG_WINCON2(struct v4l2_subdev *sd, struct decon_reg_data *regs)
+{
+	struct decon_device *decon = container_of(sd, struct decon_device, sd);
+	int idx = atomic_inc_return(&decon->disp_ss_log_idx) % DISP_EVENT_LOG_MAX;
+	struct disp_ss_log *log = &decon->disp_ss_log[idx];
+	int win = 0;
+	bool window_updated = false;
+
+	log->time = ktime_get();
+	log->type = DISP_EVT_WIN_CONFIG;
+
+	for (win = 0; win < MAX_DECON_WIN; win++) {
+		if (regs->win_regs[win].wincon & WIN_CONTROL_EN_F) {
+			memcpy(&log->data.reg.win_regs[win], &regs->win_regs[win],
+				sizeof(struct decon_window_regs));
+			memcpy(&log->data.reg.win_config[win], &regs->vpp_config[win],
+				sizeof(struct decon_win_config));
+		} else {
+			log->data.reg.win_config[win].state = DECON_WIN_STATE_DISABLED;
+		}
+	}
+
+	if (decon->pdata->out_type == DECON_OUT_WB)
+		memcpy(&log->data.reg.win_config[MAX_DECON_WIN], &regs->vpp_config[MAX_DECON_WIN],
+				sizeof(struct decon_win_config));
+
+#ifdef CONFIG_FB_WINDOW_UPDATE
+	if ((regs->need_update) ||
+		(decon->need_update && regs->update_win.w)) {
+		window_updated = true;
+		memcpy(&log->data.reg.win, &regs->update_win,
+				sizeof(struct decon_rect));
+	}
+#endif
+	if (!window_updated) {
+		log->data.reg.win.x = 0;
+		log->data.reg.win.y = 0;
+		log->data.reg.win.w = decon->lcd_info->xres;
+		log->data.reg.win.h = decon->lcd_info->yres;
 	}
 }
 
@@ -538,6 +590,14 @@ void DISP_SS_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 		case DISP_EVT_WIN_CONFIG:
 			seq_printf(s, "%20s  %20s", "WIN_CONFIG", "-\n");
 			break;
+#ifdef CONFIG_DECON_SELF_REFRESH
+		case DISP_EVT_DSR_ENABLE:
+			seq_printf(s, "%20s  %20s", "DSR_ENABLE", "-\n");
+			break;
+		case DISP_EVT_DSR_DISABLE:
+			seq_printf(s, "%20s  %20s", "DSR_DISABLE", "-\n");
+			break;
+#endif
 		case DISP_EVT_TE_INTERRUPT:
 			prev_ktime = ktime_sub(log->time, prev_ktime);
 			seq_printf(s, "%20s  ", "TE_INTERRUPT");
@@ -651,13 +711,193 @@ void DISP_SS_EVENT_SHOW(struct seq_file *s, struct decon_device *decon)
 void DISP_SS_EVENT_SIZE_ERR_LOG(struct v4l2_subdev *sd, struct disp_ss_size_info *info)
 {
 	struct decon_device *decon = container_of(sd, struct decon_device, sd);
-	int idx = (decon->disp_ss_size_log_idx++) % DISP_EVENT_SIZE_ERR_MAX;
-	struct disp_ss_size_err_info *log = &decon->disp_ss_size_log[idx];
+	int idx = 0;
+	struct disp_ss_size_err_info *log = NULL;
 
 	if (!decon)
 		return;
-
+	idx = (decon->disp_ss_size_log_idx++) % DISP_EVENT_SIZE_ERR_MAX;
+	log = &decon->disp_ss_size_log[idx];
 	log->time = ktime_get();
 	memcpy(&log->info, info, sizeof(struct disp_ss_size_info));
 }
+#endif
+
+#ifdef CONFIG_FB_DSU
+static char logBuffer[10][1024];
+static char* logLast;
+static int logCnt = 0;
+
+void decon_get_window_rect_log( char* buffer, struct decon_device *decon, struct decon_win_config_data *win_data )
+{
+	struct decon_win_config *win_config = win_data->config;
+	char* cPos = buffer;
+	int i;
+
+	cPos += sprintf( cPos, "DSU window.%llu:", ktime_to_ms(ktime_get()) );
+
+	cPos += sprintf( cPos, "[%d-%d,dst[%4d,%4d,%4d,%4d],rect[%4d,%4d,%4d,%4d]] ",
+		DECON_WIN_UPDATE_IDX, win_config[DECON_WIN_UPDATE_IDX].enableDSU,
+		win_config[DECON_WIN_UPDATE_IDX].dst.x, win_config[DECON_WIN_UPDATE_IDX].dst.y, win_config[DECON_WIN_UPDATE_IDX].dst.w, win_config[DECON_WIN_UPDATE_IDX].dst.h,
+		win_config[DECON_WIN_UPDATE_IDX].left, win_config[DECON_WIN_UPDATE_IDX].top, win_config[DECON_WIN_UPDATE_IDX].right, win_config[DECON_WIN_UPDATE_IDX].bottom );
+
+	for (i = 0; i < decon->pdata->max_win; i++) {
+		if( win_config[i].dst.x || win_config[i].dst.y || win_config[i].dst.w || win_config[i].dst.h||
+			win_config[i].src.x || win_config[i].src.y || win_config[i].src.w || win_config[i].src.h ) {
+			cPos += sprintf( cPos, "(%d.%d-src(%4d,%4d,%4d,%4d),dst(%4d,%4d,%4d,%4d)) ", i, win_config[i].state,
+				win_config[i].src.x, win_config[i].src.y, win_config[i].src.w, win_config[i].src.h,
+				win_config[i].dst.x, win_config[i].dst.y, win_config[i].dst.w, win_config[i].dst.h );
+		}
+	}
+}
+
+
+void decon_store_window_rect_log( struct decon_device *decon, struct decon_win_config_data *win_data )
+{
+	decon_get_window_rect_log( &(logBuffer[logCnt][0]), decon, win_data);
+	logLast = &(logBuffer[logCnt][0]);
+
+	logCnt++;
+	if( logCnt >= 10 ) logCnt = 0;
+}
+
+char* decon_last_window_rect_log( void )
+{
+	return logLast;
+}
+
+void decon_print_bufered_window_rect_log( void )
+{
+	int i;
+
+	for( i = logCnt; i < 10; i++ ) pr_info( "(history) %s\n", logBuffer[i] );
+	for( i = 0; i < logCnt; i++ ) pr_info( "(history) %s\n", logBuffer[i] );
+}
+#endif
+
+
+#ifdef CONFIG_CHECK_DECON_TIME
+
+void init_debug_buffer(struct time_buffer* debug_buf)
+{
+	int i = 0, j = 0;
+
+	if(debug_buf == NULL) {
+		pr_info("%s debug buf is NULL\n", __func__);
+		return ;
+	}
+	debug_buf->qIndex = 0;
+	debug_buf->overtime_count = 0;
+	for(i = 0; i < UPDATE_DEBUG_BUFFER_MAX; i++) {
+		for(j = 0; j < TIME_TABLE_SEQ_MAX; j++) {
+			debug_buf->time_Q[i].time_table[j].tv_sec = 0;
+			debug_buf->time_Q[i].time_table[j].tv_usec = 0;
+		}
+		debug_buf->time_Q[i].total_diff.tv64 = 0;
+	}
+}
+
+void set_time_to_buffer(struct time_buffer* debug_buf, enum TIME_TABLE_UPDATE_SEQ update_seq)
+{
+	ktime_t cur_time;
+
+	if(debug_buf == NULL) {
+		pr_info("%s debug buf is NULL\n", __func__);
+		return ;
+	}
+	if((update_seq >= TIME_TABLE_SEQ_MAX) || (update_seq < 0)){
+		pr_info("%s out of range : buffer size %d\n", __func__, update_seq);
+		return ;
+	}
+	cur_time = ktime_get();
+
+	if(update_seq == TIME_ENTER_UPDATE_TH)
+		debug_buf->start_time = cur_time;
+	if(update_seq == TIME_FINISH_UPDATE_TH)
+		debug_buf->end_time = cur_time;
+	if(update_seq == TIME_FINISH_VPP_SET)
+		debug_buf->mid_time = cur_time;
+	if(debug_buf->qIndex < 10)
+		debug_buf->time_Q[debug_buf->qIndex].time_table[update_seq] = ktime_to_timeval(cur_time);
+}
+
+int check_diff_time(struct time_buffer* debug_buf)
+{
+	int retVal = 0, index = 0;
+	ktime_t start_time, mid_time, end_time;
+
+	if(debug_buf == NULL) {
+		pr_info("%s debug buf is NULL\n", __func__);
+		return retVal;
+	}
+	start_time = debug_buf->start_time;
+	mid_time = debug_buf->mid_time;
+	end_time  = debug_buf->end_time;
+
+	index = debug_buf->qIndex;
+	debug_buf->latest_end_diff = ktime_sub(end_time, start_time);
+	debug_buf->latest_mid_diff = ktime_sub(mid_time, start_time);
+
+	if((ktime_to_ms(debug_buf->latest_end_diff) > UPDATE_END_TIME_LIMIT) ||
+		(ktime_to_ms(debug_buf->latest_mid_diff) > UPDATE_MID_TIME_LIMIT)){
+		retVal = 1;
+		debug_buf->overtime_count++;
+		if(index < 10) {
+			debug_buf->time_Q[index].total_diff = debug_buf->latest_end_diff;
+			debug_buf->time_Q[index].mid_diff = debug_buf->latest_mid_diff;
+			debug_buf->qIndex++;
+		}
+	}
+
+	return retVal;
+}
+
+
+void show_debug_time(struct time_buffer* debug_buf, struct seq_file *s)
+{
+	int i = 0;
+	int loop_size = 0;
+	if(debug_buf == NULL) {
+		pr_info("%s debug buf is NULL\n", __func__);
+		return ;
+	}
+	loop_size = (debug_buf->overtime_count > UPDATE_DEBUG_BUFFER_MAX) ? UPDATE_DEBUG_BUFFER_MAX : debug_buf->overtime_count;
+	if (s != NULL) {
+		seq_printf(s, "\nDecon Update Time OverCount : %d\n", debug_buf->overtime_count);
+		if(debug_buf->overtime_count) {
+			seq_printf(s, "index : %-15s %-15s %-15s %-15s %-15s %-15s Total_duration  VPPSET_duration \n",
+			"ENT_UP_TH", "FIN_FEN_WA", "ENT_VPP_SET",
+			"FIN_VPP_SET", "FIN_UP_WA", "FIN_UP_TH");
+			for(i = 0; i < loop_size; i++) {
+				seq_printf(s, "%dth : [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld]        %dmsec         %dmsec\n",
+					i, debug_buf->time_Q[i].time_table[TIME_ENTER_UPDATE_TH].tv_sec, debug_buf->time_Q[i].time_table[TIME_ENTER_UPDATE_TH].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_FENCE_WAIT].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_FENCE_WAIT].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_ENTER_VPP_SET].tv_sec, debug_buf->time_Q[i].time_table[TIME_ENTER_VPP_SET].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_VPP_SET].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_VPP_SET].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_WAIT].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_WAIT].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_TH].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_TH].tv_usec,
+					(int)ktime_to_ms(debug_buf->time_Q[i].total_diff), (int)ktime_to_ms(debug_buf->time_Q[i].mid_diff));
+			}
+		}
+	} else {
+		decon_info("\nDecon Update Time OverCount : %d\n", debug_buf->overtime_count);
+		if(debug_buf->overtime_count) {
+			decon_info("index : %-15s %-15s %-15s %-15s %-15s %-15s Total_duration  VPPSET_duration \n",
+			"ENT_UP_TH", "FIN_FEN_WA", "ENT_VPP_SET",
+			"FIN_VPP_SET", "FIN_UP_WA", "FIN_UP_TH");
+			for(i = 0; i < loop_size; i++) {
+				decon_info("%dth : [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld] [%6ld.%06ld]        %dmsec         %dmsec\n",
+					i, debug_buf->time_Q[i].time_table[TIME_ENTER_UPDATE_TH].tv_sec, debug_buf->time_Q[i].time_table[TIME_ENTER_UPDATE_TH].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_FENCE_WAIT].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_FENCE_WAIT].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_ENTER_VPP_SET].tv_sec, debug_buf->time_Q[i].time_table[TIME_ENTER_VPP_SET].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_VPP_SET].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_VPP_SET].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_WAIT].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_WAIT].tv_usec,
+					debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_TH].tv_sec, debug_buf->time_Q[i].time_table[TIME_FINISH_UPDATE_TH].tv_usec,
+					(int)ktime_to_ms(debug_buf->time_Q[i].total_diff), (int)ktime_to_ms(debug_buf->time_Q[i].mid_diff));
+			}
+		}
+	}
+	init_debug_buffer(debug_buf);
+}
+
 #endif

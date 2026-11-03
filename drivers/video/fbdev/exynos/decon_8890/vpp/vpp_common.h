@@ -189,6 +189,7 @@ void vpp_reg_set_lookup_table(u32 id);
 void vpp_reg_set_enable_interrupt(u32 id);
 void vpp_reg_set_rgb_type(u32 id, u32 type);
 void vpp_reg_set_dynamic_clock_gating(u32 id);
+int vpp_reg_set_debug_sfr(u32 id);
 void vpp_reg_set_plane_alpha_fixed(u32 id);
 
 /* CAL raw functions list */
@@ -199,6 +200,7 @@ void vpp_reg_set_scale_ratio(u32 id, struct vpp_size_param *p, u32 rot_en);
 int vpp_reg_set_in_format(u32 id, struct vpp_img_format *vi);
 void vpp_reg_set_in_block_size(u32 id, u32 enable, struct vpp_size_param *p);
 void vpp_reg_set_in_afbc_en(u32 id, u32 enable);
+u64 vpp_reg_print_buf_addr(u32 id);
 void vpp_reg_set_in_buf_addr(u32 id, struct vpp_size_param *p, struct vpp_img_format *vi);
 void vpp_reg_set_smart_if_pix_num(u32 id, u32 dst_w, u32 dst_h);
 void vpp_reg_set_sfr_update_force(u32 id);
@@ -213,4 +215,5 @@ void vpp_constraints_params(struct vpp_size_constraints *vc,
 void vpp_reg_init(u32 id);
 void vpp_reg_deinit(u32 id, u32 reset_en);
 void vpp_reg_wait_pingpong_clear(u32 id);
+void vpp_reg_set_deadlock_num(u32 id, u32 num);
 #endif /* ___SAMSUNG_VPP_COMMON_H__ */

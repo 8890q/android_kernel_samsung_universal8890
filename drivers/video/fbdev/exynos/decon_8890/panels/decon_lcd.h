@@ -68,6 +68,7 @@ struct decon_lcd {
 	unsigned int dsc_slice_num;
 	enum mic_ver mic_ver;
 	enum type_of_ddi ddi_type;
+	unsigned int partial_range[2];
 };
 
 #endif
