@@ -103,7 +103,11 @@ static int configure_fmp_disk_enc(struct ufshcd_sg_entry *prd_table,
 			printk(KERN_INFO "FMP disk encryption key is set\n");
 		else if (disk_key_flag == 2)
 			printk(KERN_INFO "FMP disk encryption key is set after clear\n");
+#ifdef CONFIG_SOC_EXYNOS8890
+		ret = exynos_smc(SMC_CMD_FMP, FMP_KEY_SET, UFS_FMP, 0);
+#else
 		ret = exynos_smc(SMC_CMD_FMP_DISKENC, FMP_DISKKEY_SET, ID_FMP_UFS_MMC, 0);
+#endif
 		if (ret < 0)
 			panic("Fail to load FMP loadable firmware\n");
 		else if (ret) {
@@ -502,6 +506,10 @@ int fmp_clear_disk_key(void)
 
 	printk(KERN_INFO "FMP disk encryption key is clear\n");
 	exynos_ufs_ctrl_auto_hci_clk(dev_get_platdata(hba->dev), false);
+#ifdef CONFIG_SOC_EXYNOS8890
+	return exynos_smc(SMC_CMD_FMP, FMP_KEY_CLEAR, 0, 0);
+#else
 	return exynos_smc(SMC_CMD_FMP_DISKENC, FMP_DISKKEY_CLEAR, ID_FMP_UFS_MMC, 0);
+#endif
 }
 #endif

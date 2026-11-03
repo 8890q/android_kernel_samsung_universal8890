@@ -873,6 +873,19 @@ static void exynos_ufs_config_smu(struct exynos_ufs *ufs)
 {
 	int ret;
 
+#ifdef CONFIG_SOC_EXYNOS8890
+#if defined(CONFIG_FMP_UFS)
+	const u32 enabled = FMP_DESC_ON;
+#else
+	const u32 enabled = FMP_DESC_OFF;
+#endif
+
+	ret = exynos_smc(SMC_CMD_FMP, FMP_SECURITY, UFS_FMP, enabled);
+	if (ret)
+		dev_err(ufs->dev, "Fail to smc call for FMP SECURITY: %d\n", ret);
+	ret = exynos_smc(SMC_CMD_SMU, FMP_SMU_INIT,
+			enabled ? FMP_SMU_ON : FMP_SMU_OFF, 0);
+#else
 #if defined(CONFIG_FMP_UFS)
 	ret = exynos_smc(SMC_CMD_FMP_SECURITY, 0, ID_FMP_UFS_MMC, FMP_DESCTYPE_3);
 #else
@@ -882,8 +895,9 @@ static void exynos_ufs_config_smu(struct exynos_ufs *ufs)
 		dev_err(ufs->dev, "Fail to smc call for FMP SECURITY\n");
 
 	ret = exynos_smc(SMC_CMD_SMU, FMP_SMU_INIT, ID_FMP_UFS_MMC, 0);
+#endif
 	if (ret)
-		dev_err(ufs->dev, "Fail to smc call for FMP SMU Initialization\n");
+		dev_err(ufs->dev, "Fail to smc call for FMP SMU Initialization: %d\n", ret);
 }
 
 static bool exynos_ufs_wait_pll_lock(struct exynos_ufs *ufs, u32 addr, u32 mask)
@@ -1879,12 +1893,18 @@ static int __exynos_ufs_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	exynos_ufs_ctrl_auto_hci_clk(ufs, false);
 	exynos_ufs_config_smu(ufs);
 #if defined(CONFIG_FMP_UFS)
+#ifdef CONFIG_SOC_EXYNOS8890
+	ret = exynos_smc(SMC_CMD_RESUME, 0, UFS_FMP, FMP_DESC_ON);
+#else
 	ret = exynos_smc(SMC_CMD_FMP_RESUME, 0, ID_FMP_UFS_MMC, 0);
+#endif
 	if (ret)
 		dev_warn(ufs->dev, "failed to smc call for FMP: %x\n", ret);
 #endif
+#ifndef CONFIG_SOC_EXYNOS8890
 	/* secure log */
 	exynos_smc(SMC_CMD_LOG, 0, 0, 2);
+#endif
 
 	if (ufshcd_is_clkgating_allowed(hba))
 		clk_disable_unprepare(ufs->clk_hci);

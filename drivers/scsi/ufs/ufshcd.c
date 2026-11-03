@@ -5166,13 +5166,15 @@ static int ufshcd_abort(struct scsi_cmnd *cmd)
 	/* Dump debugging information to system memory */
 	ufshcd_vops_dbg_register_dump(hba);
 
-	/* check smu abort */
+#ifndef CONFIG_SOC_EXYNOS8890
+	/* This validity query was introduced after the 8890 SMU ABI. */
 	err = exynos_smc(SMC_CMD_SMU, FMP_SMU_CHK_VALID, ID_UFS_MMC_FMP, 0);
 	if (err == SMU_INVALID)
 		dev_err(hba->dev, "%s: smu abort occurs, so it is newly initialized.",
 				__func__);
 	else if (err && (err != SMU_INVALID))
 		dev_err(hba->dev, "%s: Fail smc call to check smu abort", __func__);
+#endif
 
 	/* If command is already aborted/completed, return SUCCESS */
 	if (!(test_bit(tag, &hba->outstanding_reqs))) {

@@ -74,7 +74,22 @@
 /* For FMP/SMU Ctrl */
 #define SMC_CMD_FMP_SECURITY		(0xC2001810)
 #define SMC_CMD_FMP_DISKENC		(0xC2001820)
+#ifdef CONFIG_SOC_EXYNOS8890
+/* The S7 secure monitor uses the original FMP/SMU command ABI. */
+#define SMC_CMD_FMP			(0xC2001810)
+#define SMC_CMD_SMU			(0xC2001820)
+#define SMC_CMD_RESUME			(0xC2001830)
+#define FMP_KEY_SET			(0x1)
+#define FMP_KEY_CLEAR			(0x7)
+#define FMP_SECURITY			(0x8)
+#define FMP_DESC_OFF			(0x0)
+#define FMP_DESC_ON			(0x1)
+#define FMP_SMU_OFF			(0x0)
+#define FMP_SMU_ON			(0x1)
+#define UFS_FMP				(0x155A2000)
+#else
 #define SMC_CMD_SMU			(0xC2001830)
+#endif
 #define SMC_CMD_FMP_RESUME		(0xC2001840)
 #define SMC_CMD_FMP_DUMP		(0xC2001850)
 #define SMC_CMD_LOG			(0xC2001860)
