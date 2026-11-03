@@ -601,7 +601,7 @@ static int exynos_secure_mem_enable(struct kbase_device *kbdev, int ion_fd, u64 
 		if (input_flags == BASE_MEM_RESERVED_BIT_19) {
 			reg->flags |= KBASE_REG_SECURE_CRC | KBASE_REG_SECURE;
 		} else {
-			client = ion_client_create(ion_exynos, "G3D");
+			client = exynos_ion_client_create("G3D");
 			if (IS_ERR(client)) {
 				GPU_LOG(DVFS_ERROR, LSI_GPU_SECURE, 0u, 0u, "%s: Failed to get ion_client of G3D\n",
 						__func__);

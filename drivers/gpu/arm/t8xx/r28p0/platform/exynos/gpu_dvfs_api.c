@@ -1255,3 +1255,64 @@ bool update_cal_table()
 }
 #endif
 #endif
+
+int gpu_dvfs_get_cur_clock(void)
+{
+	struct kbase_device *kbdev = pkbdev;
+	struct exynos_context *platform;
+	int clock = 0;
+
+	if (!kbdev || !kbdev->platform_context)
+		return 0;
+	platform = kbdev->platform_context;
+
+	DVFS_ASSERT(platform);
+
+	if (gpu_control_is_power_on(pkbdev) == 1) {
+		mutex_lock(&platform->gpu_clock_lock);
+
+		if (platform->dvs_is_enabled) {
+			mutex_unlock(&platform->gpu_clock_lock);
+			GPU_LOG(DVFS_INFO, DUMMY, 0u, 0u,
+					"%s: can't get dvfs cur clock\n", __func__);
+			return 0;
+		}
+		clock = gpu_get_cur_clock(platform);
+		mutex_unlock(&platform->gpu_clock_lock);
+	}
+
+
+	return clock;
+}
+
+int gpu_dvfs_get_utilization(void)
+{
+	struct kbase_device *kbdev = pkbdev;
+	struct exynos_context *platform;
+	int util = 0;
+
+	if (!kbdev || !kbdev->platform_context)
+		return 0;
+	platform = kbdev->platform_context;
+
+	DVFS_ASSERT(platform);
+
+	if (gpu_control_is_power_on(pkbdev) == 1)
+		util  = platform->env_data.utilization;
+
+	return util;
+}
+
+int gpu_dvfs_get_max_freq(void)
+{
+	struct kbase_device *kbdev = pkbdev;
+	struct exynos_context *platform;
+
+	if (!kbdev || !kbdev->platform_context)
+		return 0;
+	platform = kbdev->platform_context;
+
+	DVFS_ASSERT(platform);
+
+	return platform->gpu_max_clock;
+}
