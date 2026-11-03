@@ -74,8 +74,9 @@ static const char * __init product_id_to_name(unsigned int product_id)
 static const struct exynos_chipid_variant drv_data_exynos8890 = {
 	.unique_id_reg	= 0x14,
 	.rev_reg	= 0x0,
-	.main_rev_bit	= 0,
-	.sub_rev_bit	= 4,
+	/* Match the 8890 product ID revision byte used by the 3.18 driver. */
+	.main_rev_bit	= 4,
+	.sub_rev_bit	= 0,
 };
 
 static const struct exynos_chipid_variant drv_data_exynos8895 = {
