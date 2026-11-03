@@ -519,7 +519,7 @@ extern int s3c2410wdt_keepalive_emergency(bool reset);
 #define s3c2410wdt_keepalive_emergency(a)	do { } while(0)
 #endif
 extern void *return_address(int);
-extern void (*arm_pm_restart)(char str, const char *cmd);
+extern void (*arm_pm_restart)(enum reboot_mode mode, const char *cmd);
 #ifdef CONFIG_EXYNOS_CORESIGHT_PC_INFO
 extern unsigned long exynos_cs_pc[NR_CPUS][ESS_ITERATION];
 #endif
@@ -1040,7 +1040,9 @@ int exynos_ss_post_panic(void)
 	sec_debug_post_panic_handler();
 #endif
 #ifdef CONFIG_EXYNOS_SNAPSHOT_PANIC_REBOOT
-	arm_pm_restart(0, "panic");
+	/* An early panic may precede the Exynos reboot driver's initcall. */
+	if (arm_pm_restart)
+		arm_pm_restart(REBOOT_COLD, "panic");
 #endif
 	goto loop;
 	/* for stall cpu when not enabling panic reboot */
