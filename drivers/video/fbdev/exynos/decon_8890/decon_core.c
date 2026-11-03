@@ -1258,7 +1258,7 @@ int decon_enable(struct decon_device *decon)
 		goto err;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(decon->dev);
 #else
 	decon_runtime_resume(decon->dev);
@@ -1493,7 +1493,7 @@ int decon_disable(struct decon_device *decon)
 #endif
 	SYSTRACE_C_FINISH("decon_bts");
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_put_sync(decon->dev);
 #else
 	decon_runtime_suspend(decon->dev);
@@ -3946,7 +3946,7 @@ int decon_doze_enable(struct decon_device *decon)
 		goto exit_doze_enable;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(decon->dev);
 #else
 	decon_runtime_resume(decon->dev);
@@ -4113,7 +4113,7 @@ int decon_doze_suspend(struct decon_device *decon)
 	call_init_ops(decon, bts_release_init, decon);
 #endif
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_put_sync(decon->dev);
 #else
 	decon_runtime_suspend(decon->dev);
@@ -5657,7 +5657,7 @@ static int decon_probe(struct platform_device *pdev)
 
 	if (!decon->id && decon->pdata->out_type == DECON_OUT_DSI) {
 		/* Enable only Decon_F during probe */
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 		pm_runtime_get_sync(decon->dev);
 #else
 		decon_runtime_resume(decon->dev);

@@ -1042,7 +1042,7 @@ static int dsim_enable(struct dsim_device *dsim)
 		goto exit_dsim_enable;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(dsim->dev);
 #else
 	dsim_runtime_resume(dsim->dev);
@@ -1135,7 +1135,7 @@ static int dsim_disable(struct dsim_device *dsim)
 
 	dsim_set_panel_power(dsim, 0);
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_put_sync(dsim->dev);
 #else
 	dsim_runtime_suspend(dsim->dev);
@@ -1166,7 +1166,7 @@ static int dsim_doze_enable(struct dsim_device *dsim)
 		}
 		goto set_state_doze;
 	}
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(dsim->dev);
 #else
 	dsim_runtime_resume(dsim->dev);
@@ -1259,7 +1259,7 @@ static int dsim_doze_suspend(struct dsim_device *dsim)
 		dsim_set_panel_power(dsim, 0);
 #endif
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_put_sync(dsim->dev);
 #else
 	dsim_runtime_suspend(dsim->dev);
@@ -1306,7 +1306,7 @@ static int dsim_enter_ulps(struct dsim_device *dsim)
 
 	phy_power_off(dsim->phy);
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_put_sync(dsim->dev);
 #else
 	dsim_runtime_suspend(dsim->dev);
@@ -1335,7 +1335,7 @@ static int dsim_exit_ulps(struct dsim_device *dsim)
 		goto err;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(dsim->dev);
 #else
 	dsim_runtime_resume(dsim->dev);
@@ -1989,8 +1989,11 @@ static int dsim_probe(struct platform_device *pdev)
 	}
 
 	dsim->irq = res->start;
+	/* The bootloader can leave an interrupt pending before runtime resume. */
+	irq_set_status_flags(dsim->irq, IRQ_NOAUTOEN);
 	ret = devm_request_irq(dev, res->start,
 			dsim_interrupt_handler, 0, pdev->name, dsim);
+	irq_clear_status_flags(dsim->irq, IRQ_NOAUTOEN);
 	if (ret) {
 		dev_err(dev, "failed to install irq\n");
 		goto err_irq;
@@ -2031,7 +2034,7 @@ static int dsim_probe(struct platform_device *pdev)
 
 	dsim->state = DSIM_STATE_SUSPEND;
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_get_sync(dsim->dev);
 #else
 	dsim_runtime_resume(dsim->dev);
@@ -2057,6 +2060,7 @@ dsim_init_done:
 	dsim_reg_start(dsim->id, &dsim->clks_param.clks, DSIM_LANE_CLOCK | dsim->data_lane);
 
 	dsim->state = DSIM_STATE_HSCLKEN;
+	enable_irq(dsim->irq);
 
 #ifdef CONFIG_LCD_DOZE_MODE
 	dsim->dsim_doze = DSIM_DOZE_STATE_NORMAL;
