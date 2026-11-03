@@ -1,4 +1,5 @@
 #include <linux/init.h>
+#include <linux/kernel.h>
 #include <linux/printk.h>
 #ifdef CONFIG_RELOCATABLE_KERNEL
 #include <asm/page.h>
@@ -55,9 +56,9 @@ get_builtime_crypto_hmac (void)
 	}
 
 	idx = (offset / KASLR_ALIGN);
-	/* zero out the KASLR information for security */
-	kernel_addr[1] = 0;
-	kernel_addr[0] = 0;
+	if (WARN_ON_ONCE(idx >= ARRAY_SIZE(builtime_crypto_hmac)))
+		return NULL;
+	/* head.S stores these shared boot values in read-only kernel text. */
 	return builtime_crypto_hmac[idx];
 }
 #else
