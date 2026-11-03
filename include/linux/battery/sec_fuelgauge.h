@@ -20,6 +20,7 @@
 #define __SEC_FUELGAUGE_H __FILE__
 
 #include <linux/battery/sec_charging_common.h>
+#include <linux/wakelock.h>
 
 #if defined(CONFIG_FUELGAUGE_DUMMY)
 #include <linux/battery/fuelgauge/dummy_fuelgauge.h>

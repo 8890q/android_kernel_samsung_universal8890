@@ -15,6 +15,7 @@
 
 #include <linux/mfd/max77854-private.h>
 #include <linux/battery/sec_fuelgauge.h>
+#include <linux/err.h>
 #include <linux/of_gpio.h>
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
@@ -1479,11 +1480,11 @@ static void max77854_fg_set_vempty(struct max77854_fuelgauge_data *fuelgauge, bo
 }
 
 static int max77854_fg_get_property(struct power_supply *psy,
-			     enum power_supply_property psp,
-			     union power_supply_propval *val)
+				    enum power_supply_property psp,
+				    union power_supply_propval *val)
 {
 	struct max77854_fuelgauge_data *fuelgauge =
-		container_of(psy, struct max77854_fuelgauge_data, psy_fg);
+		power_supply_get_drvdata(psy);
 	static int abnormal_current_cnt = 0;
 	union power_supply_propval value;
 	u8 data[2] = {0, 0};
@@ -1709,11 +1710,11 @@ static int max77854_fg_get_property(struct power_supply *psy,
 static int max77854_fuelgauge_parse_dt(struct max77854_fuelgauge_data *fuelgauge);
 #endif
 static int max77854_fg_set_property(struct power_supply *psy,
-			     enum power_supply_property psp,
-			     const union power_supply_propval *val)
+				    enum power_supply_property psp,
+				    const union power_supply_propval *val)
 {
 	struct max77854_fuelgauge_data *fuelgauge =
-		container_of(psy, struct max77854_fuelgauge_data, psy_fg);
+		power_supply_get_drvdata(psy);
 	u8 data[2] = {0, 0};
 
 	switch (psp) {
@@ -2163,12 +2164,22 @@ static int max77854_fuelgauge_parse_dt(struct max77854_fuelgauge_data *fuelgauge
 }
 #endif
 
+static const struct power_supply_desc max77854_fuelgauge_desc = {
+	.name = "max77854-fuelgauge",
+	.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	.properties = max77854_fuelgauge_props,
+	.num_properties = ARRAY_SIZE(max77854_fuelgauge_props),
+	.get_property = max77854_fg_get_property,
+	.set_property = max77854_fg_set_property,
+};
+
 static int max77854_fuelgauge_probe(struct platform_device *pdev)
 {
 	struct max77854_dev *max77854 = dev_get_drvdata(pdev->dev.parent);
 	struct max77854_platform_data *pdata = dev_get_platdata(max77854->dev);
 	sec_fuelgauge_platform_data_t *fuelgauge_data;
 	struct max77854_fuelgauge_data *fuelgauge;
+	struct power_supply_config psy_cfg;
 	int ret = 0;
 	union power_supply_propval raw_soc_val;
 #if defined(CONFIG_DISABLE_SAVE_CAPACITY_MAX)	
@@ -2212,13 +2223,6 @@ static int max77854_fuelgauge_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, fuelgauge);
 
-	fuelgauge->psy_fg.name		= "max77854-fuelgauge";
-	fuelgauge->psy_fg.type		= POWER_SUPPLY_TYPE_UNKNOWN;
-	fuelgauge->psy_fg.get_property	= max77854_fg_get_property;
-	fuelgauge->psy_fg.set_property	= max77854_fg_set_property;
-	fuelgauge->psy_fg.properties	= max77854_fuelgauge_props;
-	fuelgauge->psy_fg.num_properties =
-		ARRAY_SIZE(max77854_fuelgauge_props);
 	fuelgauge->capacity_max = fuelgauge->pdata->capacity_max;
 	raw_soc_val.intval = max77854_get_fuelgauge_value(fuelgauge, FG_RAW_SOC) / 10;
 
@@ -2248,8 +2252,15 @@ static int max77854_fuelgauge_probe(struct platform_device *pdev)
 		goto err_data_free;
 	}
 
-	ret = power_supply_register(&pdev->dev, &fuelgauge->psy_fg);
-	if (ret) {
+	psy_cfg.of_node = pdev->dev.of_node;
+	psy_cfg.drv_data = fuelgauge;
+	psy_cfg.supplied_to = NULL;
+	psy_cfg.num_supplicants = 0;
+	fuelgauge->psy_fg = power_supply_register(&pdev->dev,
+			&max77854_fuelgauge_desc, &psy_cfg);
+	if (IS_ERR(fuelgauge->psy_fg)) {
+		ret = PTR_ERR(fuelgauge->psy_fg);
+		fuelgauge->psy_fg = NULL;
 		pr_err("%s: Failed to Register psy_fg\n", __func__);
 		goto err_data_free;
 	}
@@ -2292,7 +2303,7 @@ static int max77854_fuelgauge_probe(struct platform_device *pdev)
 	return 0;
 
 err_supply_unreg:
-	power_supply_unregister(&fuelgauge->psy_fg);
+	power_supply_unregister(fuelgauge->psy_fg);
 err_data_free:
 #if defined(CONFIG_OF)
 	kfree(fuelgauge->battery_data);
@@ -2311,6 +2322,7 @@ static int max77854_fuelgauge_remove(struct platform_device *pdev)
 	struct max77854_fuelgauge_data *fuelgauge =
 		platform_get_drvdata(pdev);
 
+	power_supply_unregister(fuelgauge->psy_fg);
 	if (fuelgauge->pdata->fuel_alert_soc >= 0)
 		wake_lock_destroy(&fuelgauge->fuel_alert_wake_lock);
 

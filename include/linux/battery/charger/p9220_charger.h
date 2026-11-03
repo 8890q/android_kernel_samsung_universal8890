@@ -21,7 +21,9 @@
 #include <linux/mfd/core.h>
 #include <linux/regulator/machine.h>
 #include <linux/i2c.h>
+#include <linux/power_supply.h>
 #include <linux/battery/sec_charging_common.h>
+#include <linux/wakelock.h>
 
 /* REGISTER MAPS */
 #define P9220_CHIP_ID_L_REG					0x00
@@ -469,7 +471,8 @@ struct p9220_charger_data {
 
 	int wc_w_state;
 
-	struct power_supply psy_chg;
+	struct power_supply *psy_chg;
+	struct power_supply_desc psy_desc;
 	struct wake_lock wpc_wake_lock;
 	struct wake_lock wpc_update_lock;
 	struct wake_lock wpc_opfq_lock;

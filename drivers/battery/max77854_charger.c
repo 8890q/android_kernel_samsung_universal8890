@@ -12,6 +12,7 @@
 #define DEBUG
 
 #include <linux/mfd/max77854-private.h>
+#include <linux/err.h>
 #if defined(CONFIG_BATTERY_NOTIFIER)
 #include <linux/battery/battery_notifier.h>
 #endif
@@ -788,7 +789,7 @@ ssize_t sec_chg_show_attrs(struct device *dev,
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_chg);
+		power_supply_get_drvdata(psy);
 	const ptrdiff_t offset = attr - max77854_charger_attrs;
 	int i = 0;
 	u8 addr, data;
@@ -817,7 +818,7 @@ ssize_t sec_chg_store_attrs(struct device *dev,
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_chg);
+		power_supply_get_drvdata(psy);
 	const ptrdiff_t offset = attr - max77854_charger_attrs;
 	int ret = 0;
 	int x,y;
@@ -853,7 +854,7 @@ static int max77854_chg_get_property(struct power_supply *psy,
 			      union power_supply_propval *val)
 {
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_chg);
+		power_supply_get_drvdata(psy);
 	u8 reg_data;
 
 	switch (psp) {
@@ -977,7 +978,7 @@ static int max77854_chg_set_property(struct power_supply *psy,
 			  const union power_supply_propval *val)
 {
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_chg);
+		power_supply_get_drvdata(psy);
 	union power_supply_propval value;
 	u8 chg_cnfg_00 = 0;
 	static u8 chg_int_state;
@@ -1204,7 +1205,7 @@ static int max77854_otg_get_property(struct power_supply *psy,
 		union power_supply_propval *val)
 {
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_otg);
+		power_supply_get_drvdata(psy);
 	u8 chg_cnfg_00;
 
 	switch (psp) {
@@ -1224,7 +1225,7 @@ static int max77854_otg_set_property(struct power_supply *psy,
 				const union power_supply_propval *val)
 {
 	struct max77854_charger_data *charger =
-		container_of(psy, struct max77854_charger_data, psy_otg);
+		power_supply_get_drvdata(psy);
 	union power_supply_propval value;
 	static u8 chg_int_state;
 	u8 chg_cnfg_00;
@@ -1889,12 +1890,31 @@ static int max77854_charger_parse_dt(struct max77854_charger_data *charger)
 }
 #endif
 
-static int __devinit max77854_charger_probe(struct platform_device *pdev)
+static const struct power_supply_desc max77854_charger_desc = {
+	.name = "max77854-charger",
+	.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	.properties = max77854_charger_props,
+	.num_properties = ARRAY_SIZE(max77854_charger_props),
+	.get_property = max77854_chg_get_property,
+	.set_property = max77854_chg_set_property,
+};
+
+static const struct power_supply_desc max77854_otg_desc = {
+	.name = "otg",
+	.type = POWER_SUPPLY_TYPE_OTG,
+	.properties = max77854_otg_props,
+	.num_properties = ARRAY_SIZE(max77854_otg_props),
+	.get_property = max77854_otg_get_property,
+	.set_property = max77854_otg_set_property,
+};
+
+static int max77854_charger_probe(struct platform_device *pdev)
 {
 	struct max77854_dev *max77854 = dev_get_drvdata(pdev->dev.parent);
 	struct max77854_platform_data *pdata = dev_get_platdata(max77854->dev);
 	sec_battery_platform_data_t *charger_data;
 	struct max77854_charger_data *charger;
+	struct power_supply_config psy_cfg;
 	int ret = 0;
 	u8 reg_data;
 
@@ -1929,19 +1949,6 @@ static int __devinit max77854_charger_probe(struct platform_device *pdev)
 	}
 #endif
 	platform_set_drvdata(pdev, charger);
-
-	charger->psy_chg.name		= "max77854-charger";
-	charger->psy_chg.type		= POWER_SUPPLY_TYPE_UNKNOWN;
-	charger->psy_chg.get_property	= max77854_chg_get_property;
-	charger->psy_chg.set_property	= max77854_chg_set_property;
-	charger->psy_chg.properties	= max77854_charger_props;
-	charger->psy_chg.num_properties	= ARRAY_SIZE(max77854_charger_props);
-	charger->psy_otg.name		= "otg";
-	charger->psy_otg.type		= POWER_SUPPLY_TYPE_OTG;
-	charger->psy_otg.get_property	= max77854_otg_get_property;
-	charger->psy_otg.set_property	= max77854_otg_set_property;
-	charger->psy_otg.properties	= max77854_otg_props;
-	charger->psy_otg.num_properties	= ARRAY_SIZE(max77854_otg_props);
 
 	max77854_charger_initialize(charger);
 
@@ -1983,14 +1990,24 @@ static int __devinit max77854_charger_probe(struct platform_device *pdev)
 		       "charger->wc-current");
 	INIT_DELAYED_WORK(&charger->wc_current_work, max77854_wc_current_work);
 
-	ret = power_supply_register(&pdev->dev, &charger->psy_chg);
-	if (ret) {
+	psy_cfg.of_node = pdev->dev.of_node;
+	psy_cfg.drv_data = charger;
+	psy_cfg.supplied_to = NULL;
+	psy_cfg.num_supplicants = 0;
+	charger->psy_chg = power_supply_register(&pdev->dev,
+			&max77854_charger_desc, &psy_cfg);
+	if (IS_ERR(charger->psy_chg)) {
+		ret = PTR_ERR(charger->psy_chg);
+		charger->psy_chg = NULL;
 		pr_err("%s: Failed to Register psy_chg\n", __func__);
 		goto err_power_supply_register;
 	}
 
-	ret = power_supply_register(&pdev->dev, &charger->psy_otg);
-	if (ret) {
+	charger->psy_otg = power_supply_register(&pdev->dev,
+			&max77854_otg_desc, &psy_cfg);
+	if (IS_ERR(charger->psy_otg)) {
+		ret = PTR_ERR(charger->psy_otg);
+		charger->psy_otg = NULL;
 		pr_err("%s: Failed to Register otg_chg\n", __func__);
 		goto err_power_supply_register_otg;
 	}
@@ -2053,7 +2070,7 @@ static int __devinit max77854_charger_probe(struct platform_device *pdev)
 		pr_err("%s: fail to request bypass IRQ: %d: %d\n",
 		       __func__, charger->irq_batp, ret);
 
-	ret = max77854_chg_create_attrs(charger->psy_chg.dev);
+	ret = max77854_chg_create_attrs(&charger->psy_chg->dev);
 	if (ret) {
 		dev_err(charger->dev,
 			"%s : Failed to create_attrs\n", __func__);
@@ -2071,9 +2088,9 @@ static int __devinit max77854_charger_probe(struct platform_device *pdev)
 err_wc_irq:
 	free_irq(charger->pdata->chg_irq, NULL);
 err_irq:
-	power_supply_unregister(&charger->psy_otg);
+	power_supply_unregister(charger->psy_otg);
 err_power_supply_register_otg:
-	power_supply_unregister(&charger->psy_chg);
+	power_supply_unregister(charger->psy_chg);
 err_power_supply_register:
 	destroy_workqueue(charger->wqueue);
 err_pdata_free:
@@ -2084,7 +2101,7 @@ err_free:
 	return ret;
 }
 
-static int __devexit max77854_charger_remove(struct platform_device *pdev)
+static int max77854_charger_remove(struct platform_device *pdev)
 {
 	struct max77854_charger_data *charger =
 		platform_get_drvdata(pdev);
@@ -2093,8 +2110,8 @@ static int __devexit max77854_charger_remove(struct platform_device *pdev)
 
 	free_irq(charger->wc_w_irq, NULL);
 	free_irq(charger->pdata->chg_irq, NULL);
-	power_supply_unregister(&charger->psy_chg);
-	power_supply_unregister(&charger->psy_otg);
+	power_supply_unregister(charger->psy_chg);
+	power_supply_unregister(charger->psy_otg);
 	kfree(charger);
 
 	return 0;
@@ -2154,7 +2171,7 @@ static struct platform_driver max77854_charger_driver = {
 		.shutdown = max77854_charger_shutdown,
 	},
 	.probe = max77854_charger_probe,
-	.remove = __devexit_p(max77854_charger_remove),
+	.remove = max77854_charger_remove,
 };
 
 static int __init max77854_charger_init(void)

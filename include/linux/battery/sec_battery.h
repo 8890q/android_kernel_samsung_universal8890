@@ -96,11 +96,11 @@ struct sec_battery_info {
 	struct pdic_notifier_struct pdic_info;
 #endif
 	/* power supply used in Android */
-	struct power_supply psy_bat;
-	struct power_supply psy_usb;
-	struct power_supply psy_ac;
-	struct power_supply psy_wireless;
-	struct power_supply psy_ps;
+	struct power_supply *psy_bat;
+	struct power_supply *psy_usb;
+	struct power_supply *psy_ac;
+	struct power_supply *psy_wireless;
+	struct power_supply *psy_ps;
 	unsigned int irq;
 
 	struct notifier_block batt_nb;

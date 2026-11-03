@@ -170,7 +170,8 @@ static void change_battery_pdata(
 		psy = power_supply_get_by_name(start_node->name);
 		if (psy) {
 			value.intval = 0;
-			psy->set_property(psy, POWER_SUPPLY_PROP_POWER_DESIGN, &value);
+			power_supply_set_property(psy,
+					POWER_SUPPLY_PROP_POWER_DESIGN, &value);
 		}
 
 		temp_node = temp_node->next;

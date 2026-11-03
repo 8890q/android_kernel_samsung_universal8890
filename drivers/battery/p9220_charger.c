@@ -17,6 +17,7 @@
  */
 
 #include <linux/battery/charger/p9220_charger.h>
+#include <linux/err.h>
 #include <linux/errno.h>
 #include <linux/version.h>
 #include <linux/device.h>
@@ -1357,8 +1358,7 @@ static int p9220_chg_get_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		union power_supply_propval *val)
 {
-	struct p9220_charger_data *charger =
-		container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -1439,8 +1439,7 @@ static int p9220_chg_set_property(struct power_supply *psy,
 		enum power_supply_property psp,
 		const union power_supply_propval *val)
 {
-	struct p9220_charger_data *charger =
-		container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	int vout, vrect, iout, i = 0;
 	/* int ret; */
 	union power_supply_propval value;
@@ -2062,7 +2061,7 @@ static ssize_t p9220_store_addr(struct device *dev,
 			      const char *buf, size_t count)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	int x;
 	if (sscanf(buf, "0x%x\n", &x) == 1) {
 		charger->addr = x;
@@ -2075,7 +2074,7 @@ static ssize_t p9220_show_addr(struct device *dev,
 				   char *buf)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	return sprintf(buf, "0x%x\n", charger->addr);
 }
 
@@ -2084,7 +2083,7 @@ static ssize_t p9220_store_size(struct device *dev,
 			      const char *buf, size_t count)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	int x;
 	if (sscanf(buf, "%d\n", &x) == 1) {
 		charger->size = x;
@@ -2097,7 +2096,7 @@ static ssize_t p9220_show_size(struct device *dev,
 				   char *buf)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	return sprintf(buf, "0x%x\n", charger->size);
 }
 static ssize_t p9220_store_data(struct device *dev,
@@ -2105,7 +2104,7 @@ static ssize_t p9220_store_data(struct device *dev,
 			      const char *buf, size_t count)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	int x;
 
 	if (sscanf(buf, "0x%x", &x) == 1) {
@@ -2124,7 +2123,7 @@ static ssize_t p9220_show_data(struct device *dev,
 				   char *buf)
 {
 	struct power_supply *psy = dev_get_drvdata(dev);
-	struct p9220_charger_data *charger = container_of(psy, struct p9220_charger_data, psy_chg);
+	struct p9220_charger_data *charger = power_supply_get_drvdata(psy);
 	u8 data;
 	int i, count = 0;;
 	if (charger->size == 0)
@@ -2158,12 +2157,22 @@ static const struct attribute_group p9220_attr_group = {
 };
 
 
+static const struct power_supply_desc p9220_charger_desc = {
+	.name = "p9220-charger",
+	.type = POWER_SUPPLY_TYPE_UNKNOWN,
+	.properties = sec_charger_props,
+	.num_properties = ARRAY_SIZE(sec_charger_props),
+	.get_property = p9220_chg_get_property,
+	.set_property = p9220_chg_set_property,
+};
+
 static int p9220_charger_probe(
 						struct i2c_client *client,
 						const struct i2c_device_id *id)
 {
 	struct device_node *of_node = client->dev.of_node;
 	struct p9220_charger_data *charger;
+	struct power_supply_config psy_cfg;
 	p9220_charger_platform_data_t *pdata = client->dev.platform_data;
 	int ret = 0;
 	int wc_w_state_irq;
@@ -2219,13 +2228,6 @@ static int p9220_charger_probe(
 	charger->pdata->vout_status = P9220_VOUT_0V;
 	charger->pdata->opfq_cnt = 0;
 
-	charger->psy_chg.name		= pdata->wireless_charger_name;
-	charger->psy_chg.type		= POWER_SUPPLY_TYPE_UNKNOWN;
-	charger->psy_chg.get_property	= p9220_chg_get_property;
-	charger->psy_chg.set_property	= p9220_chg_set_property;
-	charger->psy_chg.properties	= sec_charger_props;
-	charger->psy_chg.num_properties	= ARRAY_SIZE(sec_charger_props);
-
 	mutex_init(&charger->io_lock);
 
 	/* wpc_det */
@@ -2240,8 +2242,17 @@ static int p9220_charger_probe(
 		INIT_DELAYED_WORK(&charger->wpc_tx_id_work, p9220_wpc_tx_id_work);	
 	}
 
-	ret = power_supply_register(&client->dev, &charger->psy_chg);
-	if (ret) {
+	psy_cfg.of_node = client->dev.of_node;
+	psy_cfg.drv_data = charger;
+	psy_cfg.supplied_to = NULL;
+	psy_cfg.num_supplicants = 0;
+	charger->psy_desc = p9220_charger_desc;
+	charger->psy_desc.name = pdata->wireless_charger_name;
+	charger->psy_chg = power_supply_register(&client->dev,
+			&charger->psy_desc, &psy_cfg);
+	if (IS_ERR(charger->psy_chg)) {
+		ret = PTR_ERR(charger->psy_chg);
+		charger->psy_chg = NULL;
 		dev_err(&client->dev,
 			"%s: Failed to Register psy_chg\n", __func__);
 		goto err_supply_unreg;
@@ -2305,7 +2316,7 @@ static int p9220_charger_probe(
 			queue_delayed_work(charger->wqueue, &charger->wpc_isr_work, msecs_to_jiffies(2000));
 	}
 
-	ret = sysfs_create_group(&charger->psy_chg.dev->kobj, &p9220_attr_group);
+	ret = sysfs_create_group(&charger->psy_chg->dev.kobj, &p9220_attr_group);
 	if (ret) {
 		dev_info(&client->dev,
 			"%s: sysfs_create_group failed\n", __func__);
@@ -2319,7 +2330,7 @@ err_irq_wpc_int:
 	free_irq(charger->pdata->irq_wpc_det, NULL);
 err_irq_wpc_det:
 err_pdata_free:
-	power_supply_unregister(&charger->psy_chg);
+	power_supply_unregister(charger->psy_chg);
 err_supply_unreg:
 	mutex_destroy(&charger->io_lock);
 err_i2cfunc_not_support:
@@ -2336,12 +2347,12 @@ static int p9220_charger_remove(struct i2c_client *client)
 }
 
 #if defined CONFIG_PM
-static int p9220_charger_suspend(struct i2c_client *client,
-				pm_message_t state)
+static int p9220_charger_suspend(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct p9220_charger_data *charger = i2c_get_clientdata(client);
 
-	if (device_may_wakeup(charger->dev)){
+	if (device_may_wakeup(dev)) {
 		enable_irq_wake(charger->pdata->irq_wpc_int);
 		enable_irq_wake(charger->pdata->irq_wpc_det);
 	}
@@ -2351,13 +2362,14 @@ static int p9220_charger_suspend(struct i2c_client *client,
 	return 0;
 }
 
-static int p9220_charger_resume(struct i2c_client *client)
+static int p9220_charger_resume(struct device *dev)
 {
+	struct i2c_client *client = to_i2c_client(dev);
 	struct p9220_charger_data *charger = i2c_get_clientdata(client);
 
 	pr_info("%s \n", __func__);
 
-	if (device_may_wakeup(charger->dev)) {
+	if (device_may_wakeup(dev)) {
 		disable_irq_wake(charger->pdata->irq_wpc_int);
 		disable_irq_wake(charger->pdata->irq_wpc_det);
 	}
@@ -2366,9 +2378,14 @@ static int p9220_charger_resume(struct i2c_client *client)
 
 	return 0;
 }
+
+static const struct dev_pm_ops p9220_charger_pm_ops = {
+	.suspend = p9220_charger_suspend,
+	.resume = p9220_charger_resume,
+};
+#define P9220_CHARGER_PM_OPS (&p9220_charger_pm_ops)
 #else
-#define p9220_charger_suspend NULL
-#define p9220_charger_resume NULL
+#define P9220_CHARGER_PM_OPS NULL
 #endif
 
 static void p9220_charger_shutdown(struct i2c_client *client)
@@ -2400,10 +2417,9 @@ static struct i2c_driver p9220_charger_driver = {
 		.name	= "p9220-charger",
 		.owner	= THIS_MODULE,
 		.of_match_table = p9220_charger_match_table,
+		.pm = P9220_CHARGER_PM_OPS,
 	},
 	.shutdown	= p9220_charger_shutdown,
-	.suspend	= p9220_charger_suspend,
-	.resume		= p9220_charger_resume,
 	.probe	= p9220_charger_probe,
 	.remove	= p9220_charger_remove,
 	.id_table	= p9220_charger_id_table,

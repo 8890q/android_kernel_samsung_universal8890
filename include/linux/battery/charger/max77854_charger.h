@@ -23,6 +23,7 @@
 #include <linux/mfd/max77854.h>
 #include <linux/mfd/max77854-private.h>
 #include <linux/regulator/machine.h>
+#include <linux/wakelock.h>
 
 #define MAX77854_CHG_SAFEOUT2                0x80
 
@@ -192,8 +193,8 @@ struct max77854_charger_data {
 
 	struct max77854_platform_data *max77854_pdata;
 
-	struct power_supply	psy_chg;
-	struct power_supply	psy_otg;
+	struct power_supply	*psy_chg;
+	struct power_supply	*psy_otg;
 
 	struct workqueue_struct *wqueue;
 	struct work_struct	chgin_work;

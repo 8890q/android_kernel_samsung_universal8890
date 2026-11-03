@@ -22,6 +22,7 @@
 #include <linux/mfd/max77854.h>
 #include <linux/mfd/max77854-private.h>
 #include <linux/regulator/machine.h>
+#include <linux/wakelock.h>
 
 /* Slave address should be shifted to the right 1bit.
  * R/W bit should NOT be included.
@@ -133,7 +134,7 @@ struct max77854_fuelgauge_data {
 	struct mutex            fuelgauge_mutex;
 	struct max77854_platform_data *max77854_pdata;
 	sec_fuelgauge_platform_data_t *pdata;
-	struct power_supply		psy_fg;
+	struct power_supply		*psy_fg;
 	struct delayed_work isr_work;
 
 	int cable_type;
