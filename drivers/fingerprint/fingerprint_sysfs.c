@@ -15,6 +15,16 @@
 
 #include "fingerprint_sysfs.h"
 
+/* Export the shared state once when multiple sensor drivers are built. */
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+extern int fpsensor_goto_suspend;
+EXPORT_SYMBOL(fpsensor_goto_suspend);
+#ifdef CONFIG_SENSORS_FP_LOCKSCREEN_MODE
+extern bool fp_lockscreen_mode;
+EXPORT_SYMBOL(fp_lockscreen_mode);
+#endif
+#endif
+
 struct class *fingerprint_class;
 EXPORT_SYMBOL_GPL(fingerprint_class);
 
