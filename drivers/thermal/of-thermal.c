@@ -34,7 +34,7 @@
 
 #include "thermal_core.h"
 
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 #include <soc/samsung/ect_parser.h>
 #include "samsung/exynos_tmu.h"
 #endif
@@ -489,7 +489,7 @@ thermal_zone_of_sensor_register(struct device *dev, int sensor_id, void *data,
 	struct device_node *np, *child, *sensor_np;
 	struct thermal_zone_device *tzd = ERR_PTR(-ENODEV);
 
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 	struct thermal_instance *instance;
 	struct __thermal_zone *__tz;
 	void *thermal_block;
@@ -541,7 +541,7 @@ thermal_zone_of_sensor_register(struct device *dev, int sensor_id, void *data,
 		if (sensor_specs.np == sensor_np && id == sensor_id) {
 			tzd = thermal_zone_of_add_sensor(child, sensor_np,
 							 data, ops);
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 			__tz = tzd->devdata;
 			tmu_data = (struct exynos_tmu_data *)data;
 
@@ -634,7 +634,9 @@ thermal_zone_of_sensor_register(struct device *dev, int sensor_id, void *data,
 			else
 				tmu_data->hotplug_enable = false;
 #endif
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 ect_exit:
+#endif
 			of_node_put(sensor_specs.np);
 			of_node_put(child);
 			goto exit;

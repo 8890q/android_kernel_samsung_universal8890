@@ -28,7 +28,7 @@
 #include <linux/isp_cooling.h>
 
 #include <soc/samsung/tmu.h>
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 #include <soc/samsung/ect_parser.h>
 #endif
 #include "samsung/exynos_tmu.h"
@@ -493,7 +493,7 @@ EXPORT_SYMBOL_GPL(isp_cooling_unregister);
 int isp_cooling_table_init(struct platform_device *pdev)
 {
 	int ret = 0, i = 0;
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 	struct exynos_tmu_data *exynos_data;
 	void *thermal_block;
 	struct ect_ap_thermal_function *function;
@@ -503,7 +503,7 @@ int isp_cooling_table_init(struct platform_device *pdev)
 	u32 isp_idx_num = 0;
 #endif
 
-#if defined(CONFIG_ECT)
+#if defined(CONFIG_ECT) && !defined(CONFIG_SOC_EXYNOS8890)
 	exynos_data = platform_get_drvdata(pdev);
 
 	thermal_block = ect_get_block(BLOCK_AP_THERMAL);
