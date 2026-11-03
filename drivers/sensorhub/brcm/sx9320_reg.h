@@ -132,6 +132,7 @@ SX9320_REV_REG = 0xFE,
 #define SX9320_AVGTHRESH	"sx9320,avgthresh"
 #define SX9320_DEBOUNCER	"sx9320,debouncer"
 #define SX9320_NORMALTHD	"sx9320,normal_thd"
+#define SX9320_NORMALTHD_TA	"sx9320,normal_thd_ta"
 #define SX9320_AFEPH0		"sx9320,afeph0"
 #define SX9320_AFEPH1		"sx9320,afeph1"
 #define SX9320_AFEPH2		"sx9320,afeph2"

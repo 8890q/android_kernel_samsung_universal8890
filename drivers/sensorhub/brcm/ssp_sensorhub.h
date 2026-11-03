@@ -51,7 +51,7 @@
 
 struct sensorhub_event {
 	char *library_data;
-	char library_event_number;
+    char library_event_number;
 	int library_length;
 };
 

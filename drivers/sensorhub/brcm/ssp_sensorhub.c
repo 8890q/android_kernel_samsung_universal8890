@@ -178,13 +178,18 @@ static ssize_t ssp_sensorhub_read(struct file *file, char __user *buf,
 	length = event->library_length;
 
 	while (retries--) {
-		ret = copy_to_user(buf,
-			event->library_data, event->library_length);
+		if(unlikely(!access_ok(VERIFY_WRITE, buf, event->library_length))){
+			sensorhub_err("[SSP]: fail to access user space, read library data err(%d/%d), address(%pK/%pK)",  length, event->library_event_number, buf, event->library_data);
+		}
+		ret = copy_to_user(buf, event->library_data, event->library_length);
 		if (likely(!ret))
 			break;
 	}
-	if (unlikely(ret))
+
+	if (unlikely(ret)){
 		sensorhub_err("read library data err(%d/%d/%d)", ret, length, event->library_event_number);
+		DEBUG_SSP_PACKET_HEX_RECV(event->library_data, event->library_length);
+	}
 	else
 		ssp_sensorhub_log(__func__, event->library_data, event->library_length);
 
@@ -261,7 +266,7 @@ static long ssp_sensorhub_ioctl(struct file *file, unsigned int cmd,
 	return length;
 }
 
-static struct file_operations const ssp_sensorhub_fops = {
+static struct file_operations ssp_sensorhub_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.write = ssp_sensorhub_write,
@@ -356,7 +361,7 @@ static int ssp_sensorhub_list(struct ssp_sensorhub_data *hub_data,
 	}
 
 	ssp_sensorhub_log(__func__, dataframe, length);
-	pr_info("[SSP]: %s len: %d ev: %d\n", __func__, length, hub_data->event_number);
+    pr_info("[SSP]: %s len: %d ev: %d\n", __func__, length, hub_data->event_number);
 	/* overwrite new event if list is full */
 	if (unlikely(kfifo_is_full(&hub_data->fifo))) {
 		ret = kfifo_out(&hub_data->fifo, &event, sizeof(void *));
@@ -380,7 +385,7 @@ static int ssp_sensorhub_list(struct ssp_sensorhub_data *hub_data,
 	memcpy(hub_data->events[hub_data->event_number].library_data,
 		dataframe, length);
 	hub_data->events[hub_data->event_number].library_length = length;
-	hub_data->events[hub_data->event_number].library_event_number = hub_data->event_number;
+    hub_data->events[hub_data->event_number].library_event_number = hub_data->event_number;
 	/* add new event into the end of list */
 	event = &hub_data->events[hub_data->event_number];
 	ret = kfifo_in(&hub_data->fifo, &event, sizeof(void *));
@@ -470,8 +475,8 @@ void ssp_read_big_library_task(struct work_struct *work)
 	int buf_len, residue, ret = 0, index = 0, pos = 0;
 
 	mutex_lock(&hub_data->big_events_lock);
-
-	kfree(hub_data->big_events.library_data);
+	if (hub_data->big_events.library_data)
+		kfree(hub_data->big_events.library_data);
 
 	residue = big->length;
 	hub_data->big_events.library_length = big->length;

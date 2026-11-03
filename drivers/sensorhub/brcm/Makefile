@@ -4,7 +4,7 @@
 
 # Each configuration option enables a list of files.
 obj-$(CONFIG_SENSORS_SSP)		+= ssp_dev.o ssp_i2c.o ssp_data.o ssp_sysfs.o\
-						ssp_firmware.o ssp_debug.o ssp_dump.o
+						ssp_firmware.o ssp_debug.o
 obj-$(CONFIG_SENSORS_SYSFS)		+= sensors_core.o
 
 obj-$(CONFIG_IIO)			+= ssp_iio_ring.o ssp_iio_trigger.o
@@ -25,9 +25,7 @@ obj-$(CONFIG_SENSORS_SSP_TMG399x)	+= factory/light_tmg399x.o factory/gesture_tmg
 obj-$(CONFIG_SENSORS_SSP_TMD4903)	+= factory/light_tmg399x.o factory/gesture_tmg399x.o 
 obj-$(CONFIG_SENSORS_SSP_TMD4905)	+= factory/light_tmg399x.o factory/gesture_tmg399x.o
 obj-$(CONFIG_SENSORS_SSP_TMD4904)	+= factory/light_tmg399x.o
-obj-$(CONFIG_SENSORS_SSP_TMD4906)	+= factory/light_tmg399x.o
-obj-$(CONFIG_SENSORS_SSP_CM3323)	+= factory/light_cm3323.o
-
+obj-$(CONFIG_SENSORS_SSP_TMD3725)	+= factory/light_tmg399x.o
 obj-$(CONFIG_SENSORS_SSP_PROX_FACTORYCAL)	+= factory/prox_tmg399x.o
 obj-$(CONFIG_SENSORS_SSP_PROX_AUTOCAL_AMS)	+= factory/prox_autocal_ams.o
 obj-$(CONFIG_SENSORS_SSP_LIGHT_COLORID) += factory/light_colorid.o
@@ -43,14 +41,14 @@ obj-$(CONFIG_SENSORS_SSP_IRLED)		+= factory/irled_tmd4903.o
 obj-$(CONFIG_SENSORS_SSP_SX9306)	 += factory/grip_sx9306.o
 
 obj-$(CONFIG_SENSORS_SSP_SENSORHUB)	+= ssp_sensorhub.o ssp_misc.o
+
+# Grip sensor
 obj-$(CONFIG_SENSORS_SX9310)		+= sx9310.o
 obj-$(CONFIG_SENSORS_SX9320)		+= sx9320.o
-obj-$(CONFIG_SENSORS_SX9320_MULTI)	+= sx9320_multi2.o sx9320_multi3.o sx9320_multi4.o
+obj-$(CONFIG_SENSORS_SX9320_SUB)	+= sx9320_sub.o
 
 obj-$(CONFIG_SENSORS_SSP_BBD)           += ssp_bbd.o factory/mcu_bcm4774.o
 obj-$(CONFIG_SENSORS_SSP_BBD)           += bbdpl/
-obj-$(CONFIG_SSP_MOTOR_CALLBACK)        += ssp_motorcallback.o
-
 CURRENT_ANDROID_VERSION := $(shell echo $(ANDROID_VERSION))
 CURRENT_ANDROID_MAJOR_VERSION := $(shell echo $(ANDROID_MAJOR_VERSION))
 
@@ -58,8 +56,8 @@ $(warning ANDROID_MAJOR_VERSION : $(CURRENT_ANDROID_MAJOR_VERSION))
 $(warning ANDROID_PLATFORM_VERSION : $(CURRENT_ANDROID_VERSION))
 
 
-ifeq ($(shell echo $(ANDROID_MAJOR_VERSION)),n)
-	obj-$(CONFIG_SENSORS_SSP) += ssp_input.o
+ifeq ($(shell test $(ANDROID_VERSION) -ge 80000 && echo y),y)
+	obj-$(CONFIG_SENSORS_SSP) += ssp_iio.o ssp_dump.o
 else
-	obj-$(CONFIG_SENSORS_SSP) += ssp_iio.o
+	obj-$(CONFIG_SENSORS_SSP) += ssp_input.o ssp_dump_old.o
 endif

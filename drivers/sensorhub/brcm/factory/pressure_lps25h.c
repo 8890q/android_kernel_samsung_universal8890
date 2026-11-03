@@ -15,12 +15,7 @@
 #include "../ssp.h"
 
 #define	VENDOR		"STM"
-#if defined(CONFIG_SENSORS_SSP_LPS25H)
 #define	CHIP_ID		"LPS25H"
-#else
-#define	CHIP_ID		"UNKNOWN"
-#endif
-
 #define	LPS25H_REV	6
 
 
@@ -69,12 +64,13 @@ int pressure_open_calibration(struct ssp_data *data)
 		set_fs(old_fs);
 		return iErr;
 	}
-
-	iErr = vfs_read(cal_filp, chBuf, 10 * sizeof(char), &cal_filp->f_pos);
+	iErr = cal_filp->f_op->read(cal_filp,
+		chBuf, 10 * sizeof(char), &cal_filp->f_pos);
 	if (iErr < 0) {
-		pr_err("[SSP]: %s - Can't read the cal data from file (%d)\n", __func__, iErr);
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
+		pr_err("[SSP]: %s - Can't read the cal data from file (%d)\n",
+			__func__, iErr);
+        filp_close(cal_filp, current->files);
+        set_fs(old_fs);
 		return iErr;
 	}
 	filp_close(cal_filp, current->files);
@@ -130,6 +126,7 @@ static ssize_t eeprom_check_show(struct device *dev,
 	char chTempBuf  = 0;
 	int iRet = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
+
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
 	msg->cmd = PRESSURE_FACTORY;
@@ -146,7 +143,7 @@ static ssize_t eeprom_check_show(struct device *dev,
 
 	ssp_dbg("[SSP]: %s - %u\n", __func__, chTempBuf);
 
-exit:
+	exit:
 	return snprintf(buf, PAGE_SIZE, "%d", chTempBuf);
 }
 #endif

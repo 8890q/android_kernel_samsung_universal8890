@@ -28,7 +28,8 @@ static ssize_t irled_send_store(struct device *dev,
 	unsigned int iRet;
 
 	if (!(data->uSensorState & (1 << PROXIMITY_SENSOR))) {
-		pr_info("[SSP]: %s - Skip this function!!! irled_remote is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", irled_remote is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return FAIL;
 	}
@@ -43,6 +44,11 @@ static ssize_t irled_send_store(struct device *dev,
 	msg->length = buf_len;
 	msg->options = AP2HUB_WRITE;
 	msg->buffer = (char *) kzalloc(buf_len, GFP_KERNEL);
+	if ((msg->buffer) == NULL) {
+		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
+		kfree(msg);
+		return FAIL;
+	}
 	msg->free_buffer = 1;
 
 	memcpy(msg->buffer, buf, buf_len);
@@ -54,7 +60,7 @@ static ssize_t irled_send_store(struct device *dev,
 		return iRet;
 	}
 
-	pr_info("[SSP] %s IRLED SEND Success %d\n", __func__, iRet);
+	pr_info("[SSP] %s IRLED SEND Success %d \n", __func__, iRet);
 	return size;
 }
 
@@ -76,6 +82,10 @@ static ssize_t irled_send_result_show(struct device *dev,
 
 retries:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
+		return FAIL;
+	}
 	msg->cmd = MSG2SSP_AP_IRDATA_SEND_RESULT;
 	msg->length = 1;
 	msg->options = AP2HUB_READ;
@@ -94,20 +104,23 @@ retries:
 		}
 		return FAIL;
 	}
-	if (success_fail == SUCCESS) {
+	if(success_fail == SUCCESS)
+	{
 		pr_info("[SSP] %s - SUCCESS(%u)\n", __func__, success_fail);
 		return snprintf(buf, PAGE_SIZE, "%d\n", success_fail);
 	}
-
-	pr_info("[SSP] %s - FAIL(%u)\n", __func__, success_fail);
-	return snprintf(buf, PAGE_SIZE, "%d\n", success_fail);
+	else
+	{
+		pr_info("[SSP] %s - FAIL(%u)\n", __func__, success_fail);
+		return snprintf(buf, PAGE_SIZE, "%d\n", success_fail);
+	}
 }
 
 
-static DEVICE_ATTR(vendor, 0444, irled_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, irled_name_show, NULL);
-static DEVICE_ATTR(irled_send_result, 0444, irled_send_result_show, NULL);
-static DEVICE_ATTR(irled_send, 0664,
+static DEVICE_ATTR(vendor, S_IRUGO, irled_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, irled_name_show, NULL);
+static DEVICE_ATTR(irled_send_result, S_IRUGO, irled_send_result_show, NULL);
+static DEVICE_ATTR(irled_send, S_IRUGO | S_IWUSR | S_IWGRP,
 	irled_send_show, irled_send_store);
 
 

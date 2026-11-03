@@ -37,6 +37,10 @@
 #define MAX_ACCEL_2G		(16384/2)
 #define MIN_ACCEL_2G		(-16383/2)
 #define MAX_ACCEL_4G		(32768/2)
+#define CALDATATOTALMAX		20
+#define CALDATAFIELDLENGTH  17
+static u8 accelCalDataInfo[CALDATATOTALMAX][CALDATAFIELDLENGTH];
+static int accelCalDataIndx = -1;
 
 static ssize_t accel_vendor_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -96,7 +100,8 @@ int set_accel_cal(struct ssp_data *data)
 	s16 accel_cal[3];
 
 	if (!(data->uSensorState & (1 << ACCELEROMETER_SENSOR))) {
-		pr_info("[SSP]: %s - Skip this function!!!, accel sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", accel sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
@@ -105,10 +110,14 @@ int set_accel_cal(struct ssp_data *data)
 	accel_cal[2] = data->accelcal.z;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_MCU_SET_ACCEL_CAL;
 	msg->length = 6;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(6, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(6, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, accel_cal, 6);
@@ -128,7 +137,6 @@ static int enable_accel_for_cal(struct ssp_data *data)
 {
 	u8 uBuf[4] = { 0, };
 	s32 dMsDelay = get_msdelay(data->adDelayBuf[ACCELEROMETER_SENSOR]);
-
 	memcpy(&uBuf[0], &dMsDelay, 4);
 
 	if (atomic64_read(&data->aSensorEnable) & (1 << ACCELEROMETER_SENSOR)) {
@@ -149,7 +157,6 @@ static void disable_accel_for_cal(struct ssp_data *data, int iDelayChanged)
 {
 	u8 uBuf[4] = { 0, };
 	s32 dMsDelay = get_msdelay(data->adDelayBuf[ACCELEROMETER_SENSOR]);
-
 	memcpy(&uBuf[0], &dMsDelay, 4);
 
 	if (atomic64_read(&data->aSensorEnable) & (1 << ACCELEROMETER_SENSOR)) {
@@ -295,6 +302,10 @@ static ssize_t accel_reactive_alert_store(struct device *dev,
 		data->bAccelAlert = 0;
 
 		msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+		if (msg == NULL) {
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+			return -ENOMEM;
+		}
 		msg->cmd = ACCELEROMETER_FACTORY;
 		msg->length = 1;
 		msg->options = AP2HUB_READ;
@@ -345,6 +356,10 @@ static ssize_t accel_hw_selftest_show(struct device *dev,
 	struct ssp_msg *msg;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		goto exit;
+	}
 	msg->cmd = ACCELEROMETER_FACTORY;
 	msg->length = 8;
 	msg->options = AP2HUB_READ;
@@ -381,6 +396,10 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 	int iRet = 0, new_enable = 1;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory\n", __func__);
+		goto exit;
+	}
 
 	if (sysfs_streq(buf, "1"))
 		new_enable = 1;
@@ -392,7 +411,12 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 	msg->cmd = MSG2SSP_AP_SENSOR_LPF;
 	msg->length = 1;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(1, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(1, GFP_KERNEL);
+	if (msg->buffer == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory\n", __func__);
+		kfree(msg);
+		goto exit;
+	}
 
 	*msg->buffer = new_enable;
 	msg->free_buffer = 1;
@@ -406,17 +430,84 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 exit:
 	return size;
 }
+static ssize_t accel_scale_range_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+    struct ssp_data *data = dev_get_drvdata(dev);
 
-static DEVICE_ATTR(name, 0444, accel_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, accel_vendor_show, NULL);
-static DEVICE_ATTR(calibration, 0664,
+    return sprintf(buf, "\"FULL_SCALE\":\"%dG\"\n", data->dhrAccelScaleRange);
+}
+
+struct accel_cal_info {
+	u16 version;
+	u16 elapsed_time;
+	u8 updated_index;
+	u16 accuracy;
+	s16 bias[3];	//x, y, z
+	u16 cal_norm;
+	u16 uncal_norm;
+} __attribute__((__packed__));
+static char printCalData[1024*3] = {0, };
+
+static ssize_t accel_calibration_info_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+   // struct ssp_data *data = dev_get_drvdata(dev);
+	s32 i, j, float_accuracy, float_bias, float_calNorm, float_uncalNorm;
+	memset(printCalData, 0, sizeof(printCalData));
+
+	if (accelCalDataIndx == -1)
+		return 0;
+	for (i = 0; i <= accelCalDataIndx; i++) {
+		char temp[300] = {0, };
+		struct accel_cal_info infoFrame = {0, };
+
+		memcpy(&infoFrame, accelCalDataInfo[i], sizeof(struct accel_cal_info));
+
+		float_accuracy = infoFrame.accuracy % 100;
+		float_calNorm = (infoFrame.cal_norm % 1000) >  0 ? (infoFrame.cal_norm % 1000) : -(infoFrame.cal_norm % 1000);
+		float_uncalNorm = (infoFrame.uncal_norm % 1000) >  0 ? (infoFrame.uncal_norm % 1000) : -(infoFrame.uncal_norm % 1000);
+		sprintf(temp, "VERSION:%hd,ELAPSED_TIME_MIN:%hd,UPDATE_INDEX:%d,ACCURACY_INDEX:%d.%02d,",
+		infoFrame.version, infoFrame.elapsed_time, infoFrame.updated_index, infoFrame.accuracy / 100, float_accuracy);
+		strcat(printCalData, temp);
+		for (j = 0; j < 3; j++) {
+			float_bias = ((infoFrame.bias[j] % 1000) >  0 ? (infoFrame.bias[j] % 1000) : -(infoFrame.bias[j] % 1000));
+			if (infoFrame.bias[j] / 1000 == 0)
+				infoFrame.bias[j] > 0 ? (sprintf(temp, "BIAS_%c:0.%03d,", 'X'+j, float_bias)) : (sprintf(temp, "BIAS_%c:-0.%03d,", 'X'+j, float_bias));
+			else
+				sprintf(temp, "BIAS_%c:%d.%03d,", 'X'+j,  infoFrame.bias[j] / 1000, float_bias);
+			strcat(printCalData, temp);
+		}
+		sprintf(temp, "CALIBRATED_NORM:%d.%03d,UNCALIBRATED_NORM:%d.%03d;",
+				infoFrame.cal_norm / 1000, float_calNorm, infoFrame.uncal_norm / 1000, float_uncalNorm);
+		strcat(printCalData, temp);
+	}
+
+	accelCalDataIndx = -1;
+	return sprintf(buf, "%s", printCalData);
+}
+
+void set_AccelCalibrationInfoData(char *pchRcvDataFrame, int *iDataIdx)
+{
+	if (accelCalDataIndx < (CALDATATOTALMAX - 1))
+		memcpy(accelCalDataInfo[++accelCalDataIndx],  pchRcvDataFrame + *iDataIdx, CALDATAFIELDLENGTH);
+
+	*iDataIdx += CALDATAFIELDLENGTH;
+}
+
+
+static DEVICE_ATTR(name, 0440, accel_name_show, NULL);
+static DEVICE_ATTR(vendor, 0440, accel_vendor_show, NULL);
+static DEVICE_ATTR(calibration, 0660,
 	accel_calibration_show, accel_calibration_store);
-static DEVICE_ATTR(raw_data, 0444, raw_data_read, NULL);
-static DEVICE_ATTR(reactive_alert, 0664,
+static DEVICE_ATTR(raw_data, 0440, raw_data_read, NULL);
+static DEVICE_ATTR(reactive_alert, 0660,
 	accel_reactive_alert_show, accel_reactive_alert_store);
-static DEVICE_ATTR(selftest, 0444, accel_hw_selftest_show, NULL);
+static DEVICE_ATTR(selftest, 0440, accel_hw_selftest_show, NULL);
 static DEVICE_ATTR(lowpassfilter, 0220,
 	NULL, accel_lowpassfilter_store);
+static DEVICE_ATTR(dhr_sensor_info, 0440,	accel_scale_range_show, NULL);
+static DEVICE_ATTR(calibration_info, 0440,	accel_calibration_info_show, NULL);
 
 static struct device_attribute *acc_attrs[] = {
 	&dev_attr_name,
@@ -426,6 +517,8 @@ static struct device_attribute *acc_attrs[] = {
 	&dev_attr_reactive_alert,
 	&dev_attr_selftest,
 	&dev_attr_lowpassfilter,
+	&dev_attr_dhr_sensor_info,
+	&dev_attr_calibration_info,
 	NULL,
 };
 

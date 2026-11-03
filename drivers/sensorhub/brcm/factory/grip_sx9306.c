@@ -83,7 +83,7 @@ static int get_temp(void)
 	set_fs(KERNEL_DS);
 
 	filp = filp_open(TEMP_FILE_PATH, O_RDONLY | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(filp)) {
 		ret = PTR_ERR(filp);
 		if (ret != -ENOENT)
@@ -124,6 +124,12 @@ static int send_grip_factory_cmd(struct ssp_data *data,
 	int ret;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		return -ENOMEM;
+	}
+
 	msg->cmd = MSG2SSP_AP_MCU_GRIP_FACTORY;
 	msg->options = AP2HUB_WRITE;
 	msg->buffer = kzalloc(sizeof(reg_addr) + sizeof(value), GFP_KERNEL);
@@ -150,6 +156,12 @@ static int set_grip_factory_data(struct ssp_data *data,
 	int ret = 0;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		return -ENOMEM;
+	}
+
 	msg->cmd = cmd;
 	msg->options = AP2HUB_WRITE;
 	msg->buffer = buffer;
@@ -172,6 +184,12 @@ static int get_grip_factory_data(struct ssp_data *data,
 	int ret = 0;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		return -ENOMEM;
+	}
+
 	msg->cmd = cmd;
 	msg->options = AP2HUB_READ;
 	msg->buffer = buffer;
@@ -203,7 +221,7 @@ void open_grip_caldata(struct ssp_data *data)
 	set_fs(KERNEL_DS);
 
 	cal_filp = filp_open(CALIBRATION_FILE_PATH, O_RDONLY | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		ret = PTR_ERR(cal_filp);
 		if (ret != -ENOENT)
@@ -245,7 +263,7 @@ slope:
 	set_fs(KERNEL_DS);
 
 	cal_filp = filp_open(SLOPE_FILE_PATH, O_RDONLY | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		ret = PTR_ERR(cal_filp);
 		if (ret != -ENOENT)
@@ -281,7 +299,7 @@ temp:
 	set_fs(KERNEL_DS);
 
 	cal_filp = filp_open(TEMP_CAL_FILE_PATH, O_RDONLY | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		ret = PTR_ERR(cal_filp);
 		if (ret != -ENOENT)
@@ -426,7 +444,7 @@ static int get_grip_calibration(struct ssp_data *data)
 
 	cal_filp = filp_open(TEMP_CAL_FILE_PATH,
 			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		pr_err("[SSP]: %s - Can't open temp_cal file\n",
 			__func__);
@@ -613,7 +631,7 @@ static int save_caldata(struct ssp_data *data)
 
 	cal_filp = filp_open(CALIBRATION_FILE_PATH,
 			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		pr_err("[SSP]: %s - Can't open calibration file\n",
 			__func__);
@@ -682,7 +700,6 @@ static ssize_t onoff_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
 	return sprintf(buf, "%d\n", !data->grip_off);
 }
 
@@ -894,7 +911,6 @@ static ssize_t slope_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->gripcal.slope);
 }
 
@@ -919,7 +935,7 @@ static ssize_t slope_store(struct device *dev,
 
 	cal_filp = filp_open(SLOPE_FILE_PATH,
 			O_CREAT | O_TRUNC | O_WRONLY | O_SYNC | O_NOFOLLOW,
-			0664);
+			S_IRUGO | S_IWUSR | S_IWGRP);
 	if (IS_ERR(cal_filp)) {
 		pr_err("[SSP]: %s - Can't open slope file\n",
 			__func__);
@@ -940,16 +956,16 @@ static ssize_t slope_store(struct device *dev,
 
 	if (ret < 0) {
 		return ret;
-
-	data->gripcal.slope = slope;
-	return count;
+	} else {
+		data->gripcal.slope = slope;
+		return count;
+	}
 }
 
 static ssize_t temp_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->gripcal.temp);
 }
 
@@ -963,7 +979,6 @@ static ssize_t temp_cal_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
 	pr_info("[SSP]: %s - temp_cal = %d\n", __func__, data->gripcal.temp_cal);
 	return snprintf(buf, PAGE_SIZE, "%d\n", data->gripcal.temp_cal);
 }
@@ -1008,26 +1023,26 @@ static ssize_t capmain_show(struct device *dev,
 			cap_main_comp, cap_main_real, cap_main_cal);
 }
 
-static DEVICE_ATTR(name, 0444, name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, vendor_show, NULL);
-static DEVICE_ATTR(mode, 0444, mode_show, NULL);
-static DEVICE_ATTR(raw_data, 0444, raw_data_show, NULL);
-static DEVICE_ATTR(calibration, 0664,
+static DEVICE_ATTR(name, S_IRUGO, name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, vendor_show, NULL);
+static DEVICE_ATTR(mode, S_IRUGO, mode_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, raw_data_show, NULL);
+static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP,
 		calibration_show, calibration_store);
-static DEVICE_ATTR(onoff, 0664,
+static DEVICE_ATTR(onoff, S_IRUGO | S_IWUSR | S_IWGRP,
 		onoff_show, onoff_store);
-static DEVICE_ATTR(threshold, 0664,
+static DEVICE_ATTR(threshold, S_IRUGO | S_IWUSR | S_IWGRP,
 		threshold_show, threshold_store);
-static DEVICE_ATTR(readback, 0444, readback_show, NULL);
-static DEVICE_ATTR(register_read, 0664,
+static DEVICE_ATTR(readback, S_IRUGO, readback_show, NULL);
+static DEVICE_ATTR(register_read, S_IRUGO | S_IWUSR | S_IWGRP,
 		register_read_show, register_read_store);
-static DEVICE_ATTR(register_write, 0664,
+static DEVICE_ATTR(register_write, S_IRUGO | S_IWUSR | S_IWGRP,
 		register_write_show, register_write_store);
-static DEVICE_ATTR(start, 0664, start_show, start_store);
-static DEVICE_ATTR(slope, 0664, slope_show, slope_store);
-static DEVICE_ATTR(temp, 0664, temp_show, temp_store);
-static DEVICE_ATTR(temp_cal, 0664, temp_cal_show, temp_cal_store);
-static DEVICE_ATTR(capmain, 0444, capmain_show, NULL);
+static DEVICE_ATTR(start, S_IRUGO | S_IWUSR | S_IWGRP, start_show, start_store);
+static DEVICE_ATTR(slope, S_IRUGO | S_IWUSR | S_IWGRP, slope_show, slope_store);
+static DEVICE_ATTR(temp, S_IRUGO | S_IWUSR | S_IWGRP, temp_show, temp_store);
+static DEVICE_ATTR(temp_cal, S_IRUGO | S_IWUSR | S_IWGRP, temp_cal_show, temp_cal_store);
+static DEVICE_ATTR(capmain, S_IRUGO, capmain_show, NULL);
 
 
 static struct device_attribute *grip_attrs[] = {

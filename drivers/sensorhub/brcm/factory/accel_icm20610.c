@@ -88,7 +88,8 @@ int set_accel_cal(struct ssp_data *data)
 	s16 accel_cal[3];
 
 	if (!(data->uSensorState & (1 << ACCELEROMETER_SENSOR))) {
-		pr_info("[SSP]: %s - Skip this function!!, accel sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", accel sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
@@ -97,10 +98,14 @@ int set_accel_cal(struct ssp_data *data)
 	accel_cal[2] = data->accelcal.z;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_MCU_SET_ACCEL_CAL;
 	msg->length = 6;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(6, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(6, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, accel_cal, 6);
@@ -120,7 +125,6 @@ static int enable_accel_for_cal(struct ssp_data *data)
 {
 	u8 uBuf[4] = { 0, };
 	s32 dMsDelay = get_msdelay(data->adDelayBuf[ACCELEROMETER_SENSOR]);
-
 	memcpy(&uBuf[0], &dMsDelay, 4);
 
 	if (atomic64_read(&data->aSensorEnable) & (1 << ACCELEROMETER_SENSOR)) {
@@ -141,7 +145,6 @@ static void disable_accel_for_cal(struct ssp_data *data, int iDelayChanged)
 {
 	u8 uBuf[4] = { 0, };
 	s32 dMsDelay = get_msdelay(data->adDelayBuf[ACCELEROMETER_SENSOR]);
-
 	memcpy(&uBuf[0], &dMsDelay, 4);
 
 	if (atomic64_read(&data->aSensorEnable) & (1 << ACCELEROMETER_SENSOR)) {
@@ -287,6 +290,10 @@ static ssize_t accel_reactive_alert_store(struct device *dev,
 		data->bAccelAlert = 0;
 
 		msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+		if (msg == NULL) {
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+			return -ENOMEM;
+		}
 		msg->cmd = ACCELEROMETER_FACTORY;
 		msg->length = 1;
 		msg->options = AP2HUB_READ;
@@ -337,6 +344,10 @@ static ssize_t accel_hw_selftest_show(struct device *dev,
 	struct ssp_msg *msg;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		goto exit;
+	}
 	msg->cmd = ACCELEROMETER_FACTORY;
 	msg->length = 8;
 	msg->options = AP2HUB_READ;
@@ -373,6 +384,10 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 	int iRet = 0, new_enable = 1;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory\n", __func__);
+		goto exit;
+	}
 
 	if (sysfs_streq(buf, "1"))
 		new_enable = 1;
@@ -384,7 +399,7 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 	msg->cmd = MSG2SSP_AP_SENSOR_LPF;
 	msg->length = 1;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(1, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(1, GFP_KERNEL);
 	if (msg->buffer == NULL) {
 		pr_err("[SSP] %s, failed to alloc memory\n", __func__);
 		kfree(msg);
@@ -404,15 +419,15 @@ exit:
 	return size;
 }
 
-static DEVICE_ATTR(name, 0444, accel_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, accel_vendor_show, NULL);
-static DEVICE_ATTR(calibration, 0664,
+static DEVICE_ATTR(name, S_IRUGO, accel_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, accel_vendor_show, NULL);
+static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP,
 	accel_calibration_show, accel_calibration_store);
-static DEVICE_ATTR(raw_data, 0444, raw_data_read, NULL);
-static DEVICE_ATTR(reactive_alert, 0664,
+static DEVICE_ATTR(raw_data, S_IRUGO, raw_data_read, NULL);
+static DEVICE_ATTR(reactive_alert, S_IRUGO | S_IWUSR | S_IWGRP,
 	accel_reactive_alert_show, accel_reactive_alert_store);
-static DEVICE_ATTR(selftest, 0444, accel_hw_selftest_show, NULL);
-static DEVICE_ATTR(lowpassfilter, 0220,
+static DEVICE_ATTR(selftest, S_IRUGO, accel_hw_selftest_show, NULL);
+static DEVICE_ATTR(lowpassfilter, S_IWUSR | S_IWGRP,
 	NULL, accel_lowpassfilter_store);
 
 static struct device_attribute *acc_attrs[] = {

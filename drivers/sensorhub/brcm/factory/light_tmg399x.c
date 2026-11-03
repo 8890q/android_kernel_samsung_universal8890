@@ -20,15 +20,13 @@
 #elif defined(CONFIG_SENSORS_SSP_TMD3782)
 #define CHIP_ID		"TMD3782"
 #elif defined(CONFIG_SENSORS_SSP_TMD4903)
-#define CHIP_ID		"TMD4903"
+#define CHIP_ID 	"TMD4903"
 #elif defined(CONFIG_SENSORS_SSP_TMD4904)
-#define CHIP_ID		"TMD4904"
+#define CHIP_ID 	"TMD4904"
 #elif defined(CONFIG_SENSORS_SSP_TMD4905)
-#define CHIP_ID		"TMD4905"
-#elif defined(CONFIG_SENSORS_SSP_TMD4906)
-#define CHIP_ID		"TMD4906"
+#define CHIP_ID 	"TMD4905"
 #else
-#define CHIP_ID		"UNKNOWN"
+#define CHIP_ID 	"UNKNOWN"
 #endif
 
 /*************************************************************************/
@@ -43,7 +41,27 @@ static ssize_t light_vendor_show(struct device *dev,
 static ssize_t light_name_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
+#ifdef CONFIG_SENSORS_SSP_PROX_DUALIZATION
+	struct ssp_data *data = dev_get_drvdata(dev);
+	int device_id = 0;
+	device_id = get_proximity_device_id(data);
+
+	if(device_id == TMD4903)
+	{
+		return sprintf(buf, "%s\n", "TMD4903");
+	}
+	else if(device_id ==  TMD4904)
+	{
+		return sprintf(buf, "%s\n", "TMD4904");
+	}
+	else
+	{
+		pr_err("[SSP]: %s - Unkown proximity device \n", __func__);
+		return sprintf(buf, "%s\n", "UNKNOWN");
+	}
+#else
 	return sprintf(buf, "%s\n", CHIP_ID);
+#endif
 }
 
 static ssize_t light_lux_show(struct device *dev,
@@ -76,13 +94,17 @@ static ssize_t light_coef_show(struct device *dev,
 	struct ssp_msg *msg;
 	int coef_buf[7];
 
-	memset(coef_buf, 0, sizeof(int)*7);
+	memset(coef_buf,0,sizeof(int)*7);
 retries:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
+		return FAIL;
+	}
 	msg->cmd = MSG2SSP_AP_GET_LIGHT_COEF;
 	msg->length = 28;
 	msg->options = AP2HUB_READ;
-	msg->buffer = (u8 *)coef_buf;
+	msg->buffer = (u8*)coef_buf;
 	msg->free_buffer = 0;
 
 	iRet = ssp_spi_sync(data, msg, 1000);
@@ -97,11 +119,11 @@ retries:
 		return FAIL;
 	}
 
-	pr_info("[SSP] %s - %d %d %d %d %d %d %d\n", __func__,
-		coef_buf[0], coef_buf[1], coef_buf[2], coef_buf[3], coef_buf[4], coef_buf[5], coef_buf[6]);
+	pr_info("[SSP] %s - %d %d %d %d %d %d %d\n",__func__,
+		coef_buf[0],coef_buf[1],coef_buf[2],coef_buf[3],coef_buf[4],coef_buf[5],coef_buf[6]);
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d,%d,%d,%d,%d\n",
-		coef_buf[0], coef_buf[1], coef_buf[2], coef_buf[3], coef_buf[4], coef_buf[5], coef_buf[6]);
+		coef_buf[0],coef_buf[1],coef_buf[2],coef_buf[3],coef_buf[4],coef_buf[5],coef_buf[6]);
 }
 #ifdef CONFIG_SENSORS_SSP_PROX_SETTING
 static ssize_t light_coef_store(struct device *dev,
@@ -109,24 +131,26 @@ static ssize_t light_coef_store(struct device *dev,
 {
 	int iRet, i;
 	int coef[7];
-	char *token;
-	char *str;
+	char* token;
+	char* str;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	pr_info("[SSP] %s - %s\n", __func__, buf);
+	pr_info("[SSP] %s - %s\n", __func__,buf);
 
 	//parsing
-	str = (char *)buf;
-	for (i = 0; i < 7; i++) {
-		token = strsep(&str, "\n");
-		if (token == NULL) {
-			pr_err("[SSP] %s : too few arguments (7 needed)", __func__);
+	str = (char*)buf;
+	for(i=0 ; i<7; i++)
+	{
+		token = strsep(&str, " \n");
+		if(token == NULL)
+		{
+			pr_err("[SSP] %s : too few arguments (7 needed)",__func__);
 				return -EINVAL;
 		}
 
 		iRet = kstrtos32(token, 10, &coef[i]);
-		if (iRet < 0) {
-			pr_err("[SSP] %s : kstrtou8 error %d", __func__, iRet);
+		if (iRet<0) {
+			pr_err("[SSP] %s : kstrtou8 error %d",__func__,iRet);
 			return iRet;
 		}
 	}
@@ -139,15 +163,15 @@ static ssize_t light_coef_store(struct device *dev,
 }
 #endif
 
-static DEVICE_ATTR(vendor, 0440, light_vendor_show, NULL);
-static DEVICE_ATTR(name, 0440, light_name_show, NULL);
-static DEVICE_ATTR(lux, 0440, light_lux_show, NULL);
-static DEVICE_ATTR(raw_data, 0440, light_data_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, light_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, light_name_show, NULL);
+static DEVICE_ATTR(lux, S_IRUGO, light_lux_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, light_data_show, NULL);
 
 #ifdef CONFIG_SENSORS_SSP_PROX_SETTING
-static DEVICE_ATTR(coef, 0660, light_coef_show, light_coef_store);
+static DEVICE_ATTR(coef, S_IRUGO | S_IWUSR | S_IWGRP, light_coef_show, light_coef_store);
 #else
-static DEVICE_ATTR(coef, 0440, light_coef_show, NULL);
+static DEVICE_ATTR(coef, S_IRUGO, light_coef_show, NULL);
 #endif
 
 static struct device_attribute *light_attrs[] = {

@@ -97,7 +97,7 @@ int gyro_open_calibration(struct ssp_data *data)
 	return iRet;
 }
 
-int save_gyro_caldata(struct ssp_data *data, s32 *iCalData)
+int save_gyro_caldata(struct ssp_data *data, s16 *iCalData)
 {
 	int iRet = 0;
 	struct file *cal_filp = NULL;
@@ -153,7 +153,7 @@ int set_gyro_cal(struct ssp_data *data)
 	msg->cmd = MSG2SSP_AP_MCU_SET_GYRO_CAL;
 	msg->length = sizeof(gyro_cal);
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(sizeof(gyro_cal), GFP_KERNEL);
+	msg->buffer = kzalloc(sizeof(gyro_cal), GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, gyro_cal, sizeof(gyro_cal));
@@ -235,7 +235,7 @@ static ssize_t lsm6dsl_gyro_selftest(struct device *dev,
 	long avg[3] = {0,}, rms[3] = {0,};
 	int gyro_bias[3] = {0,};
 	s16 shift_ratio[3] = {0,}; //self_diff value
-	s32 iCalData[3] = {0,};
+	s16 iCalData[3] = {0,};
 	char a_name[3][2] = { "X", "Y", "Z" };
 	int iRet = 0;
 	int bias_thresh = DEF_BIAS_LSB_THRESH_SELF;
@@ -459,7 +459,7 @@ exit:
 static ssize_t gyro_selftest_dps_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	int iNewDps = 0;
+	int64_t iNewDps = 0;
 	int iRet = 0;
 	char chTempBuf = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
@@ -468,6 +468,7 @@ static ssize_t gyro_selftest_dps_store(struct device *dev,
 	if (!(data->uSensorState & (1 << GYROSCOPE_SENSOR)))
 		goto exit;
 
+//	data->IsGyroselftest = true;
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	msg->cmd = GYROSCOPE_DPS_FACTORY;
 	msg->length = 1;
@@ -475,7 +476,11 @@ static ssize_t gyro_selftest_dps_store(struct device *dev,
 	msg->buffer = &chTempBuf;
 	msg->free_buffer = 0;
 
-	sscanf(buf, "%d", &iNewDps);
+	iRet = kstrtoll(buf, 10, &iNewDps);
+	if (iRet < 0) {
+		kfree(msg);
+		return iRet;
+	}
 
 	if (iNewDps == GYROSCOPE_DPS250)
 		msg->options |= 0 << SSP_GYRO_DPS;
@@ -503,6 +508,7 @@ static ssize_t gyro_selftest_dps_store(struct device *dev,
 	data->uGyroDps = (unsigned int)iNewDps;
 	pr_err("[SSP]: %s - %u dps stored\n", __func__, data->uGyroDps);
 exit:
+//	data->IsGyroselftest = false;
 	return count;
 }
 
@@ -543,9 +549,12 @@ static ssize_t gyro_calibration_info_show(struct device *dev,
 		strcat(printCalData, temp);
 
 		for (j = 0; j < 3; j++) {
-			float_bias = ((infoFrame.bias[j] % 1000) >  0 ? (infoFrame.bias[j] % 1000) : -(infoFrame.bias[j] % 1000));
+			float_bias = ((infoFrame.bias[j] % 1000) >  0 ? (infoFrame.bias[j] % 1000)
+					: -(infoFrame.bias[j] % 1000));
+
 			if (infoFrame.bias[j] / 1000 == 0)
-				infoFrame.bias[j] > 0 ? (sprintf(temp, "BIAS_%c:0.%03d,", 'X'+j, float_bias)) : (sprintf(temp, "BIAS_%c:-0.%03d,", 'X'+j, float_bias));
+				infoFrame.bias[j] > 0 ? (sprintf(temp, "BIAS_%c:0.%03d,", 'X'+j, float_bias))
+					: (sprintf(temp, "BIAS_%c:-0.%03d,", 'X'+j, float_bias));
 			else
 				sprintf(temp, "BIAS_%c:%d.%03d,", 'X'+j,  infoFrame.bias[j] / 1000, float_bias);
 
@@ -565,6 +574,34 @@ void set_GyroCalibrationInfoData(char *pchRcvDataFrame, int *iDataIdx)
 		memcpy(gyroCalDataInfo[++gyroCalDataIndx],  pchRcvDataFrame + *iDataIdx, CALDATAFIELDLENGTH);
 
 	*iDataIdx += CALDATAFIELDLENGTH;
+}
+
+int send_vdis_flag(struct ssp_data *data, bool bFlag)
+{
+	int iRet = 0;
+	struct ssp_msg *msg;
+	char flag = bFlag;
+	if (!(data->uSensorState & (1 << GYROSCOPE_SENSOR))) {
+		pr_info("[SSP]: %s - Skip this function!!!, gyro sensor is not connected(0x%llx)\n",
+			__func__, data->uSensorState);
+		return iRet;
+	}
+
+	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	msg->cmd = MSG2SSP_INST_VDIS_FLAG;
+	msg->length = 1;
+	msg->options = AP2HUB_WRITE;
+	msg->buffer = &flag;
+
+	iRet = ssp_spi_async(data, msg);
+
+	if (iRet != SUCCESS) {
+		pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
+		iRet = ERROR;
+	}
+
+	pr_info("[SSP] Set VDIS FLAG %d\n", bFlag);
+	return iRet;
 }
 
 static DEVICE_ATTR(name, 0440, gyro_name_show, NULL);

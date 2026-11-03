@@ -82,6 +82,11 @@ config SENSORS_SSP_LSM6DSL
 	depends on SPI
 	help
 	  This option enables lsm6dsl 6axis sensor.
+	  If you say yes here you get lsm6dsl support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
 
 config SENSORS_SSP_AK09911
 	tristate "Sensors ssp ak09911"
@@ -265,13 +270,6 @@ config SENSORS_SSP_TMD4905
 	depends on SPI
 	help
 	  This option enables tmd4905 proxitmity sensor.
-	  
-config SENSORS_SSP_TMD4906
-	tristate "Sensors ssp tmd4906"
-	default n
-	depends on SPI
-	help
-	  This option enables tmd4906 proxitmity sensor.
 
 config SENSORS_SSP_TMD4904
 	tristate "Sensors ssp tmd4904"
@@ -291,6 +289,17 @@ config SENSORS_SSP_TMD4903
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
 
+config SENSORS_SSP_TMD3725
+	tristate "Sensors ssp tmd3725"
+	default n
+	depends on SPI
+	help
+	  tmd3725 file for factory test in ssp driver.
+          If you say yes here you get tmd3725 support for
+	  factory test.
+	  To compile this driver as a module, choose M here: the
+	  module will be called ssp.
+
 config SENSORS_SSP_TMG399x
 	tristate "Sensors ssp tmg399x"
 	default n
@@ -302,13 +311,6 @@ config SENSORS_SSP_TMG399x
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
 
-config SENSORS_SSP_CM3323
-	tristate "Sensors ssp cm3323"
-	default n
-	depends on SPI
-	help
-	  This option enables cm3323 proxitmity sensor.
-      
 config SENSORS_SSP_PROX_SETTING
 	tristate "Sensors ssp prox setting"
 	default n
@@ -340,7 +342,7 @@ config SENSORS_SSP_PROX_FACTORYCAL
 
 config SENSORS_SSP_LIGHT_REPORT_LUX
 	tristate "Sensors ssp light sensor reporting lux"
-	default n
+	default y if ANDROID_MAJOR_VERSION = "n"
 	depends on SPI
 	help
 	  If you want to report lux, it should be set.
@@ -448,16 +450,6 @@ config SENSORS_CAN
 	  Say Y here if you accept HERO CAN Grip sensor
 	  Say N here if you do not access HERO CAN Grip Sensor
 
-config SENSORS_SX9320_MULTI
-	depends on I2C
-	tristate "SX9320 driver"
-	default n
-	help
-	  Say Y here if you use four sx9320 multi.
-	  This option enables additional grip sensors using
-	  SemTech sx9320 device driver especially in multi grip.
-	  Say N here if you do not use four sx9320.
-
 config SENSORS_SX9320
 	depends on I2C
 	tristate "SX9320 driver"
@@ -476,6 +468,16 @@ config SENSORS_SX9320_NORMAL_TOUCH_THRESHOLD
 	  This value is the standard of normal touch using
 	  SemTech sx9320 device driver.
 
+config SENSORS_SX9320_SUB
+	depends on I2C
+	tristate "SX9320 sub driver"
+	default n
+	help
+	  Say Y here if you use sx9320 sub.
+	  This option enables grip sensors using
+	  SemTech sx9320 sub device driver.
+	  Say N here if you do not use sx9320 sub.
+
 config SENSORS_SSP_INTERRUPT_GYRO_SENSOR
          tristate "Sensors ssp interrpt gyro"
          default n
@@ -491,7 +493,7 @@ config SENSORS_SSP_HIFI_BATCHING
          	If you want to use hifi batching, it should be set.
          	
 config SENSORS_SSP_VLTE
-	tristate "V Project"
+	tristate "V Proejct"
 	default n
 	depends on SPI
 	help
@@ -502,7 +504,7 @@ config SENSORS_SSP_VLTE
  	  module will be called ssp.
 
 config SENSORS_SSP_NOBLELTE
-	tristate "NOBLE Project"
+	tristate "NOBLE Proejct"
 	default n
 	depends on SPI
 	help
@@ -513,7 +515,7 @@ config SENSORS_SSP_NOBLELTE
  	  module will be called ssp.
  	  
 config SENSORS_SSP_ZENLTE
-	tristate "ZEN Project"
+	tristate "ZEN Proejct"
 	default n
 	depends on SPI
 	help
@@ -524,7 +526,7 @@ config SENSORS_SSP_ZENLTE
  	  module will be called ssp.
 
 config SENSORS_SSP_LUCKY
-	tristate "LUCKY Project"
+	tristate "LUCKY Proejct"
 	default n
 	depends on SPI
 	help
@@ -535,7 +537,7 @@ config SENSORS_SSP_LUCKY
  	  module will be called ssp.
 
 config SENSORS_SSP_GRACE
-	tristate "GRACE Project"
+	tristate "GRACE Proejct"
 	default n
 	depends on SPI
 	help
@@ -545,30 +547,8 @@ config SENSORS_SSP_GRACE
  	  To compile this driver as a module, choose M here: the
  	  module will be called ssp.
 
-config SENSORS_SSP_DREAM
-	tristate "DREAM Project"
-	default n
-	depends on SPI
-	help
-	  Binary file for ssp driver.
-          If you say yes here you get GRACE project support for
-       	  factory test.
- 	  To compile this driver as a module, choose M here: the
- 	  module will be called ssp.
-      
-config SENSORS_SSP_GREAT
-	tristate "DREAM Project"
-	default n
-	depends on SPI
-	help
-	  Binary file for ssp driver.
-          If you say yes here you get GRACE project support for
-       	  factory test.
- 	  To compile this driver as a module, choose M here: the
- 	  module will be called ssp.
-      
-config SENSORS_SSP_LUGE
-	tristate "DREAM Project"
+config SENSORS_SSP_HAECHI
+	tristate "HAECHI Proejct"
 	default n
 	depends on SPI
 	help
@@ -578,19 +558,41 @@ config SENSORS_SSP_LUGE
  	  To compile this driver as a module, choose M here: the
  	  module will be called ssp.
 
-config SSP_MOTOR_CALLBACK
+config SENSORS_SSP_HAECHI_880
+	tristate "HAECHI Proejct"
+	default n
+	depends on SPI
+	help
+	  Binary file for ssp driver.
+          If you say yes here you get GRACE project support for
+       	  factory test.
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called ssp.
+
+config SENSORS_SSP_HAECHI_888
+	tristate "HAECHI Proejct"
+	default n
+	depends on SPI
+	help
+	  Binary file for ssp driver.
+          If you say yes here you get GRACE project support for
+       	  factory test.
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called ssp.
+
+config SSP_MOTOR
 	tristate "Sensors support motor"
 	default n
 	depends on SPI
 	help
 	  If you want to use royce project, it should be set.
-      
+
 config SSP_REGISTER_RW
 	tristate "SensorHub support Register RW"
 	default n
 	help
 	  If you want to use Register RW sysfs, it should be set.
-      
+
 config SSP_SUPPORT_MAGNETIC_OVERFLOW
 	tristate "SensorHub support Register RW"
 	default n

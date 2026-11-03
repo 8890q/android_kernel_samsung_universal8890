@@ -47,7 +47,7 @@ static long ssp_temphumidity_ioctl(struct file *file, unsigned int cmd,
 	int length;
 	int ret = 0;
 
-	if (data->bulk_buffer == NULL) {
+	if (data->bulk_buffer == NULL){
 		pr_err("[SSP] %s, buffer is null\n", __func__);
 		return -EINVAL;
 	}
@@ -55,99 +55,102 @@ static long ssp_temphumidity_ioctl(struct file *file, unsigned int cmd,
 	length = data->bulk_buffer->len;
 	mutex_lock(&data->bulk_temp_read_lock);
 	switch (cmd) {
-	case IOCTL_READ_COMPLETE: /* free */
-		kfree(data->bulk_buffer);
-		length = 1;
-		break;
+		case IOCTL_READ_COMPLETE: /* free */
+			if(data->bulk_buffer) {
+				kfree(data->bulk_buffer);
+				data->bulk_buffer = NULL;
+			}
+			length = 1;
+			break;
 
-	case IOCTL_READ_ADC_BATT_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->batt,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+		case IOCTL_READ_ADC_BATT_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->batt,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		case IOCTL_READ_ADC_CHG_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->chg,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		case IOCTL_READ_THM_SHTC1_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->temp,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		case IOCTL_READ_HUM_SHTC1_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->humidity,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		case IOCTL_READ_THM_BARO_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->baro,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		case IOCTL_READ_THM_GYRO_DATA:
+			while (retries--) {
+				ret = copy_to_user(argp,
+					data->bulk_buffer->gyro,
+					data->bulk_buffer->len*2);
+				if (likely(!ret))
+					break;
+			}
+			if (unlikely(ret)) {
+				pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
+				goto ioctl_error;
+			}
+			break;
+
+		default:
+			pr_err("[SSP] temp ioctl cmd err(%d)\n", cmd);
+			ret = EINVAL;
 			goto ioctl_error;
-		}
-		break;
-
-	case IOCTL_READ_ADC_CHG_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->chg,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
-			goto ioctl_error;
-		}
-		break;
-
-	case IOCTL_READ_THM_SHTC1_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->temp,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
-			goto ioctl_error;
-		}
-		break;
-
-	case IOCTL_READ_HUM_SHTC1_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->humidity,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
-			goto ioctl_error;
-		}
-		break;
-
-	case IOCTL_READ_THM_BARO_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->baro,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
-			goto ioctl_error;
-		}
-		break;
-
-	case IOCTL_READ_THM_GYRO_DATA:
-		while (retries--) {
-			ret = copy_to_user(argp,
-				data->bulk_buffer->gyro,
-				data->bulk_buffer->len*2);
-			if (likely(!ret))
-				break;
-		}
-		if (unlikely(ret)) {
-			pr_err("[SSP] read bluk adc1 data err(%d)\n", ret);
-			goto ioctl_error;
-		}
-		break;
-
-	default:
-		pr_err("[SSP] temp ioctl cmd err(%d)\n", cmd);
-		ret = EINVAL;
-		goto ioctl_error;
 	}
 	mutex_unlock(&data->bulk_temp_read_lock);
 	return length;
@@ -157,7 +160,7 @@ ioctl_error:
 	return -ret;
 }
 
-static struct file_operations const ssp_temphumidity_fops = {
+static struct file_operations ssp_temphumidity_fops = {
 	.owner = THIS_MODULE,
 	.open = nonseekable_open,
 	.unlocked_ioctl = ssp_temphumidity_ioctl,
@@ -234,6 +237,10 @@ static int hub_thm_get_adc(struct ssp_data *data, u32 channel)
 	u32 adc = 0;
 	int iRet = 0;
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return ERROR;
+	}
 
 	msg->cmd = MSG2SSP_AP_GET_THERM;
 	msg->length = 2;
@@ -443,7 +450,12 @@ static ssize_t temphumidity_crc_check(struct device *dev,
 	char chTempBuf = 0xff;
 	int iRet = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
+
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		goto exit;
+	}
 
 	msg->cmd = TEMPHUMIDITY_CRC_FACTORY;
 	msg->length = 1;
@@ -467,7 +479,7 @@ exit:
 	else if (chTempBuf == 2)
 		return sprintf(buf, "%s\n", "NG_NC");
 	else
-		return sprintf(buf, "%s\n", "NG");
+		return sprintf(buf, "%s\n","NG");
 }
 
 ssize_t temphumidity_send_accuracy(struct device *dev,
@@ -488,18 +500,18 @@ ssize_t temphumidity_send_accuracy(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(name, 0444, temphumidity_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, temphumidity_vendor_show, NULL);
-static DEVICE_ATTR(engine_ver, 0664,
+static DEVICE_ATTR(name, S_IRUGO, temphumidity_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, temphumidity_vendor_show, NULL);
+static DEVICE_ATTR(engine_ver, S_IRUGO | S_IWUSR | S_IWGRP,
 	engine_version_show, engine_version_store);
-static DEVICE_ATTR(cp_thm, 0444, pam_adc_show, NULL);
-static DEVICE_ATTR(cp_temperature, 0444, pam_temp_show, NULL);
-static DEVICE_ATTR(mcu_batt_adc, 0444, hub_batt_adc_show, NULL);
-static DEVICE_ATTR(mcu_chg_adc, 0444, hub_chg_adc_show, NULL);
-static DEVICE_ATTR(batt_temperature, 0444, hub_batt_thm_show, NULL);
-static DEVICE_ATTR(chg_temperature, 0444, hub_chg_thm_show, NULL);
-static DEVICE_ATTR(crc_check, 0444, temphumidity_crc_check, NULL);
-static DEVICE_ATTR(send_accuracy,  0220,
+static DEVICE_ATTR(cp_thm, S_IRUGO, pam_adc_show, NULL);
+static DEVICE_ATTR(cp_temperature, S_IRUGO, pam_temp_show, NULL);
+static DEVICE_ATTR(mcu_batt_adc, S_IRUGO, hub_batt_adc_show, NULL);
+static DEVICE_ATTR(mcu_chg_adc, S_IRUGO, hub_chg_adc_show, NULL);
+static DEVICE_ATTR(batt_temperature, S_IRUGO, hub_batt_thm_show, NULL);
+static DEVICE_ATTR(chg_temperature, S_IRUGO, hub_chg_thm_show, NULL);
+static DEVICE_ATTR(crc_check, S_IRUGO, temphumidity_crc_check, NULL);
+static DEVICE_ATTR(send_accuracy,  S_IWUSR | S_IWGRP,
 	NULL, temphumidity_send_accuracy);
 
 static struct device_attribute *temphumidity_attrs[] = {
@@ -539,8 +551,9 @@ void initialize_temphumidity_factorytest(struct ssp_data *data)
 	data->shtc1_device.fops = &ssp_temphumidity_fops;
 
 	ret = misc_register(&data->shtc1_device);
-	if (ret < 0)
+	if (ret < 0) {
 		pr_err("register temphumidity misc device err(%d)\n", ret);
+	}
 }
 
 void remove_temphumidity_factorytest(struct ssp_data *data)

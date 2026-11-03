@@ -111,7 +111,7 @@ int set_accel_cal(struct ssp_data *data)
 	msg->cmd = MSG2SSP_AP_MCU_SET_ACCEL_CAL;
 	msg->length = 6;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(6, GFP_KERNEL);
+	msg->buffer = kzalloc(6, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, accel_cal, 6);
@@ -398,7 +398,7 @@ static ssize_t accel_lowpassfilter_store(struct device *dev,
 	msg->cmd = MSG2SSP_AP_SENSOR_LPF;
 	msg->length = 1;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(1, GFP_KERNEL);
+	msg->buffer = kzalloc(1, GFP_KERNEL);
 
 	*msg->buffer = new_enable;
 	msg->free_buffer = 1;
@@ -435,6 +435,7 @@ static ssize_t accel_calibration_info_show(struct device *dev,
 {
    // struct ssp_data *data = dev_get_drvdata(dev);
 	s32 i, j, float_accuracy, float_bias, float_calNorm, float_uncalNorm;
+
 	memset(printCalData, 0, sizeof(printCalData));
 
 	if (accelCalDataIndx == -1)
@@ -446,15 +447,24 @@ static ssize_t accel_calibration_info_show(struct device *dev,
 		memcpy(&infoFrame, accelCalDataInfo[i], sizeof(struct accel_cal_info));
 
 		float_accuracy = infoFrame.accuracy % 100;
-		float_calNorm = (infoFrame.cal_norm % 1000) >  0 ? (infoFrame.cal_norm % 1000) : -(infoFrame.cal_norm % 1000);
-		float_uncalNorm = (infoFrame.uncal_norm % 1000) >  0 ? (infoFrame.uncal_norm % 1000) : -(infoFrame.uncal_norm % 1000);
+		float_calNorm = (infoFrame.cal_norm % 1000) >  0 ? (infoFrame.cal_norm % 1000)
+			: -(infoFrame.cal_norm % 1000);
+
+		float_uncalNorm = (infoFrame.uncal_norm % 1000) >  0 ? (infoFrame.uncal_norm % 1000)
+			: -(infoFrame.uncal_norm % 1000);
+
 		sprintf(temp, "VERSION:%hd,ELAPSED_TIME_MIN:%hd,UPDATE_INDEX:%d,ACCURACY_INDEX:%d.%02d,",
-		infoFrame.version, infoFrame.elapsed_time, infoFrame.updated_index, infoFrame.accuracy / 100, float_accuracy);
+		infoFrame.version, infoFrame.elapsed_time, infoFrame.updated_index,
+		infoFrame.accuracy / 100, float_accuracy);
+
 		strcat(printCalData, temp);
 		for (j = 0; j < 3; j++) {
-			float_bias = ((infoFrame.bias[j] % 1000) >  0 ? (infoFrame.bias[j] % 1000) : -(infoFrame.bias[j] % 1000));
+			float_bias = ((infoFrame.bias[j] % 1000) >  0 ? (infoFrame.bias[j] % 1000)
+					: -(infoFrame.bias[j] % 1000));
+
 			if (infoFrame.bias[j] / 1000 == 0)
-				infoFrame.bias[j] > 0 ? (sprintf(temp, "BIAS_%c:0.%03d,", 'X'+j, float_bias)) : (sprintf(temp, "BIAS_%c:-0.%03d,", 'X'+j, float_bias));
+				infoFrame.bias[j] > 0 ? (sprintf(temp, "BIAS_%c:0.%03d,", 'X'+j, float_bias))
+					: (sprintf(temp, "BIAS_%c:-0.%03d,", 'X'+j, float_bias));
 			else
 				sprintf(temp, "BIAS_%c:%d.%03d,", 'X'+j,  infoFrame.bias[j] / 1000, float_bias);
 			strcat(printCalData, temp);

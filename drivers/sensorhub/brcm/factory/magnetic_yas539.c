@@ -22,7 +22,6 @@
 #define VENDOR		"YAMAHA"
 #define CHIP_ID		"YAS539"
 #define MAG_HW_OFFSET_FILE_PATH	"/efs/FactoryApp/hw_offset"
-#define MAG_CAL_PARAM_FILE_PATH	"/efs/FactoryApp/mag_cal_param"
 
 int mag_open_hwoffset(struct ssp_data *data)
 {
@@ -77,30 +76,31 @@ int mag_store_hwoffset(struct ssp_data *data)
 	if (get_hw_offset(data) < 0) {
 		pr_err("[SSP]: %s - get_hw_offset failed\n", __func__);
 		return ERROR;
-	}
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	} else {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
 
-	cal_filp = filp_open(MAG_HW_OFFSET_FILE_PATH,
-		O_CREAT | O_TRUNC | O_WRONLY, 0660);
-	if (IS_ERR(cal_filp)) {
-		pr_err("[SSP]: %s - Can't open hw_offset file\n",
-			__func__);
+		cal_filp = filp_open(MAG_HW_OFFSET_FILE_PATH,
+			O_CREAT | O_TRUNC | O_WRONLY, 0660);
+		if (IS_ERR(cal_filp)) {
+			pr_err("[SSP]: %s - Can't open hw_offset file\n",
+				__func__);
+			set_fs(old_fs);
+			iRet = PTR_ERR(cal_filp);
+			return iRet;
+		}
+		iRet = cal_filp->f_op->write(cal_filp,
+			(char *)&data->magoffset,
+			3 * sizeof(char), &cal_filp->f_pos);
+		if (iRet != 3 * sizeof(char)) {
+			pr_err("[SSP]: %s - Can't write the hw_offset"
+				" to file\n", __func__);
+			iRet = -EIO;
+		}
+		filp_close(cal_filp, current->files);
 		set_fs(old_fs);
-		iRet = PTR_ERR(cal_filp);
 		return iRet;
 	}
-	iRet = cal_filp->f_op->write(cal_filp,
-		(char *)&data->magoffset,
-		3 * sizeof(char), &cal_filp->f_pos);
-	if (iRet != 3 * sizeof(char)) {
-		pr_err("[SSP]: %s - Can't write the hw_offset to file\n",
-			__func__);
-		iRet = -EIO;
-	}
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
-	return iRet;
 }
 
 int set_hw_offset(struct ssp_data *data)
@@ -109,16 +109,21 @@ int set_hw_offset(struct ssp_data *data)
 	struct ssp_msg *msg;
 
 	if (!(data->uSensorState & 0x04)) {
-		pr_info("[SSP]: %s - Skip this function!!!, magnetic sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", magnetic sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_SET_MAGNETIC_HWOFFSET;
 	msg->length = 3;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(3, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(3, GFP_KERNEL);
 	msg->free_buffer = 1;
 
 	msg->buffer[0] = data->magoffset.x;
@@ -144,16 +149,21 @@ int set_static_matrix(struct ssp_data *data)
 	s16 static_matrix[9] = YAS_STATIC_ELLIPSOID_MATRIX;
 
 	if (!(data->uSensorState & 0x04)) {
-		pr_info("[SSP]: %s - Skip this function!!!, magnetic sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", magnetic sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_SET_MAGNETIC_STATIC_MATRIX;
 	msg->length = 18;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(18, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(18, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	if (data->static_matrix == NULL)
@@ -167,7 +177,7 @@ int set_static_matrix(struct ssp_data *data)
 		pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
 		iRet = ERROR;
 	}
-	pr_info("[SSP]: %s: finished\n", __func__);
+	pr_info("[SSP]: %s: finished \n", __func__);
 
 	return iRet;
 }
@@ -176,8 +186,12 @@ int get_hw_offset(struct ssp_data *data)
 {
 	int iRet = 0;
 	char buffer[3] = { 0, };
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_GET_MAGNETIC_HWOFFSET;
 	msg->length = 3;
 	msg->options = AP2HUB_READ;
@@ -271,7 +285,6 @@ static ssize_t raw_data_store(struct device *dev,
 	int iRetries = 50;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	iRet = kstrtoll(buf, 10, &dEnable);
@@ -335,7 +348,6 @@ static ssize_t adc_data_read(struct device *dev,
 	int iRetries = 10;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	data->buf[GEOMAGNETIC_SENSOR].x = 0;
@@ -379,8 +391,12 @@ static ssize_t magnetic_get_selftest(struct device *dev,
 	s16 sx = 0, sy1 = 0, sy2 = 0, ohx = 0, ohy = 0, ohz = 0;
 	s8 err[7] = {-1, };
 	struct ssp_data *data = dev_get_drvdata(dev);
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		goto exit;
+	}
 	msg->cmd = GEOMAGNETIC_FACTORY;
 	msg->length = 24;
 	msg->options = AP2HUB_READ;
@@ -474,12 +490,10 @@ static ssize_t matrix_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
 	return sprintf(buf,
-			"%d %d %d %d %d %d %d %d %d\n",
-			data->static_matrix[0], data->static_matrix[1], data->static_matrix[2],
-			data->static_matrix[3], data->static_matrix[4], data->static_matrix[5],
-			data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
+			"%d %d %d %d %d %d %d %d %d\n", data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
+			, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
+			, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
 }
 
 static ssize_t matrix_store(struct device *dev,
@@ -488,33 +502,34 @@ static ssize_t matrix_store(struct device *dev,
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int iRet;
 	int i;
-	s16 val[9] = {0, };
-	char *token;
-	char *str;
+	s16 val[9]={0,};
+	char* token;
+	char* str;
 
-	str = (char *)buf;
+	str = (char*)buf;
 
-	for (i = 0; i < 9; i++) {
-		token = strsep(&str, "\n");
-		if (token == NULL) {
-			pr_err("[SSP] %s : too few arguments (9 needed)", __func__);
+	for(i=0;i<9;i++)
+	{
+		token = strsep(&str, " \n");
+		if(token == NULL)
+		{
+			pr_err("[SSP] %s : too few arguments (9 needed)",__func__);
 			return -EINVAL;
 		}
 
 		iRet = kstrtos16(token, 10, &val[i]);
-		if (iRet < 0) {
-			pr_err("[SSP] %s : kstros16 error %d", __func__, iRet);
+		if (iRet<0) {
+			pr_err("[SSP] %s : kstros16 error %d",__func__,iRet);
 			return iRet;
 		}
 	}
 
-	for (i = 0; i < 9; i++)
+	for(i=0 ;i<9;i++)
 		data->static_matrix[i] = val[i];
 
-	pr_info("[SSP] %s : %d %d %d %d %d %d %d %d %d\n", __func__,
-			data->static_matrix[0], data->static_matrix[1], data->static_matrix[2],
-			data->static_matrix[3], data->static_matrix[4], data->static_matrix[5],
-			data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
+	pr_info("[SSP] %s : %d %d %d %d %d %d %d %d %d\n",__func__,data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
+		, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
+		, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
 
 	set_static_matrix(data);
 
@@ -522,129 +537,14 @@ static ssize_t matrix_store(struct device *dev,
 }
 
 
-/* Get magnetic cal data from a file */
-int load_magnetic_cal_param_from_nvm(u8 *data, u8 length)
-{
-	int iRet = 0;
-	mm_segment_t old_fs;
-	struct file *cal_filp = NULL;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	cal_filp = filp_open(MAG_CAL_PARAM_FILE_PATH, O_RDONLY, 0);
-	if (IS_ERR(cal_filp)) {
-		pr_err("[SSP] %s: filp_open failed\n", __func__);
-		set_fs(old_fs);
-		iRet = PTR_ERR(cal_filp);
-
-		return iRet;
-	}
-
-	iRet = vfs_read(cal_filp, (char *)data, length * sizeof(char), &cal_filp->f_pos);
-	if (iRet != length * sizeof(char)) {
-		pr_err("[SSP] %s: filp_open failed\n", __func__);
-		iRet = -EIO;
-	}
-
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
-
-	return iRet;
-
-}
-
-
-
-int set_magnetic_cal_param_to_ssp(struct ssp_data *data)
-{
-	int iRet = 0;
-	u8 mag_caldata_akm[MAC_CAL_PARAM_SIZE_AKM] = {0, };
-	u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, };
-	u16 size = 0;
-
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
-
-	if (msg == NULL) {
-		iRet = -ENOMEM;
-		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
-		return iRet;
-	}
-
-	size = MAC_CAL_PARAM_SIZE_YAS;
-	load_magnetic_cal_param_from_nvm(mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
-	msg->cmd = MSG2SSP_AP_MAG_CAL_PARAM;
-	msg->length = MAC_CAL_PARAM_SIZE_YAS;
-	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(MAC_CAL_PARAM_SIZE_YAS, GFP_KERNEL);
-	msg->free_buffer = 1;
-	memcpy(msg->buffer, mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
-	pr_err("[SSP] %s,\n", __func__);
-
-	iRet = ssp_spi_async(data, msg);
-	if (iRet != SUCCESS) {
-		pr_err("[SSP] %s -fail to set. %d\n", __func__, iRet);
-		iRet = ERROR;
-	}
-
-	return iRet;
-}
-
-
-int save_magnetic_cal_param_to_nvm(struct ssp_data *data, char *pchRcvDataFrame, int *iDataIdx)
-{
-	int iRet = 0;
-	struct file *cal_filp = NULL;
-	mm_segment_t old_fs;
-	int i = 0;
-	int length = 0;
-	u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, }; // YAMAHA uses 7 byte.
-
-	if (data->mag_type == MAG_TYPE_YAS) {
-		//AKM uses 13 byte. YAMAHA uses 7 byte.
-		memcpy(mag_caldata_yas, pchRcvDataFrame + *iDataIdx, sizeof(mag_caldata_yas));
-		length = sizeof(mag_caldata_yas);
-	} else {
-		pr_err("[SSP] %s invalid mag type %d", __func__, data->mag_type);
-		return -EINVAL;
-	}
-
-	ssp_dbg("[SSP]: %s\n", __func__);
-	for (i = 0; i < length; i++)
-		ssp_dbg("[SSP] mag cal param[%d] %d\n", i, mag_caldata_yas[i]);
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
-	cal_filp = filp_open(MAG_CAL_PARAM_FILE_PATH, O_CREAT | O_TRUNC | O_WRONLY | O_NOFOLLOW | O_NONBLOCK, 0660);
-	if (IS_ERR(cal_filp)) {
-		set_fs(old_fs);
-		iRet = PTR_ERR(cal_filp);
-		pr_err("[SSP]: %s - Can't open mag cal file err(%d)\n", __func__, iRet);
-		return -EIO;
-	}
-
-	iRet = vfs_write(cal_filp, (char *)mag_caldata_yas, length * sizeof(char), &cal_filp->f_pos);
-	if (iRet != length * sizeof(char)) {
-		pr_err("[SSP]: %s - Can't write mag cal to file\n", __func__);
-		iRet = -EIO;
-	}
-
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
-
-	*iDataIdx += length;
-
-	return iRet;
-}
-static DEVICE_ATTR(name, 0444, magnetic_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, magnetic_vendor_show, NULL);
-static DEVICE_ATTR(raw_data, 0664,
+static DEVICE_ATTR(name, S_IRUGO, magnetic_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, magnetic_vendor_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO | S_IWUSR | S_IWGRP,
 	raw_data_show, raw_data_store);
-static DEVICE_ATTR(adc, 0444, adc_data_read, NULL);
-static DEVICE_ATTR(selftest, 0444, magnetic_get_selftest, NULL);
-static DEVICE_ATTR(hw_offset, 0444, hw_offset_show, NULL);
-static DEVICE_ATTR(matrix, 0664, matrix_show, matrix_store);
+static DEVICE_ATTR(adc, S_IRUGO, adc_data_read, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, magnetic_get_selftest, NULL);
+static DEVICE_ATTR(hw_offset, S_IRUGO, hw_offset_show, NULL);
+static DEVICE_ATTR(matrix, S_IRUGO | S_IWUSR | S_IWGRP, matrix_show, matrix_store);
 
 static struct device_attribute *mag_attrs[] = {
 	&dev_attr_name,
@@ -665,10 +565,6 @@ int initialize_magnetic_sensor(struct ssp_data *data)
 	if (ret < 0)
 		pr_err("[SSP]: %s - set_magnetic_static_matrix failed %d\n",
 			__func__, ret);
-
-	ret = set_magnetic_cal_param_to_ssp(data);
-	if (ret < 0)
-		pr_err("[SSP]: %s - set_magnetic_static_matrix failed %d\n", __func__, ret);
 
 	return ret;
 }

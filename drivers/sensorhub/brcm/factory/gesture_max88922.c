@@ -49,8 +49,8 @@ static ssize_t gesture_get_selftest_show(struct device *dev,
 	int iRet = 0;
 	char chTempBuf[8] = { 0, };
 	struct ssp_data *data = dev_get_drvdata(dev);
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	msg->cmd = GESTURE_FACTORY;
 	msg->length = 8;
 	msg->options = AP2HUB_READ;
@@ -64,7 +64,7 @@ static ssize_t gesture_get_selftest_show(struct device *dev,
 		goto exit;
 	}
 
-	pr_info("%x %x %x %x %x %x %x %x\n", chTempBuf[0], chTempBuf[1], chTempBuf[2], chTempBuf[3],
+	printk("%x %x %x %x %x %x %x %x \n", chTempBuf[0], chTempBuf[1], chTempBuf[2], chTempBuf[3],
 		chTempBuf[4], chTempBuf[5], chTempBuf[6], chTempBuf[7]);
 
 	raw_A = ((((s16)chTempBuf[0]) << 8) + ((s16)chTempBuf[1])) - 1023;
@@ -77,7 +77,7 @@ static ssize_t gesture_get_selftest_show(struct device *dev,
 
 exit:
 	return sprintf(buf, "%d,%d,%d,%d\n",
-	raw_A, raw_B, raw_C, raw_D);
+            raw_A, raw_B, raw_C, raw_D);
 }
 
 static ssize_t ir_current_show(struct device *dev,
@@ -99,38 +99,38 @@ static ssize_t ir_current_store(struct device *dev,
 	u16 current_index = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	static u16 set_current[2][16] = { {0, 6, 13, 20, 26, 33, 40, 46, 53, 60, 66, 73, 80, 86, 93, 100},
-					  {0<<4, 1<<4, 2<<4, 3<<4, 4<<4, 5<<4, 6<<4, 7<<4,
-						8<<4, 9<<4, 10<<4, 11<<4, 12<<4, 13<<4, 14<<4, 15<<4} };
+					  {0<<4, 1<<4, 2<<4, 3<<4, 4<<4, 5<<4, 6<<4, 7<<4, 8<<4, 9<<4, 10<<4, 11<<4, 12<<4, 13<<4, 14<<4, 15<<4} };
 
 	iRet = kstrtou16(buf, 10, &uNewIrCurrent);
 
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrtoint failed.(%d)\n", __func__, iRet);
 	else {
-		for (current_index = 0; current_index < 16; current_index++) {
+		for(current_index = 0; current_index < 16; current_index++) {
 			if (set_current[0][current_index] == uNewIrCurrent) {
 				data->uIr_Current = set_current[1][current_index];
 				break;
 			}
 		}
-		if (current_index == 16) {// current setting value wrong.
+		if(current_index == 16) // current setting value wrong.
+		{
 			return ERROR;
 		}
 		set_gesture_current(data, data->uIr_Current);
-		data->uIr_Current = uNewIrCurrent;
+		data->uIr_Current= uNewIrCurrent;
 	}
 
 	ssp_dbg("[SSP]: %s - new Ir_Current Setting : %d\n",
-	__func__, data->uIr_Current);
+        __func__, data->uIr_Current);
 
 	return size;
 }
 
-static DEVICE_ATTR(vendor, 0444, gestrue_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, gestrue_name_show, NULL);
-static DEVICE_ATTR(raw_data, 0444, raw_data_read, NULL);
-static DEVICE_ATTR(selftest, 0444, gesture_get_selftest_show, NULL);
-static DEVICE_ATTR(ir_current, 0664,
+static DEVICE_ATTR(vendor, S_IRUGO, gestrue_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, gestrue_name_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, raw_data_read, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, gesture_get_selftest_show, NULL);
+static DEVICE_ATTR(ir_current, S_IRUGO | S_IWUSR | S_IWGRP,
 	ir_current_show, ir_current_store);
 
 static struct device_attribute *gesture_attrs[] = {

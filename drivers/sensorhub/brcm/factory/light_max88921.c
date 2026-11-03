@@ -54,10 +54,10 @@ static ssize_t light_data_show(struct device *dev,
 		data->buf[LIGHT_SENSOR].ir_cmp, data->buf[LIGHT_SENSOR].amb_pga);
 }
 
-static DEVICE_ATTR(vendor, 0444, light_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, light_name_show, NULL);
-static DEVICE_ATTR(lux, 0444, light_lux_show, NULL);
-static DEVICE_ATTR(raw_data, 0444, light_data_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, light_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, light_name_show, NULL);
+static DEVICE_ATTR(lux, S_IRUGO, light_lux_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, light_data_show, NULL);
 
 static struct device_attribute *light_attrs[] = {
 	&dev_attr_vendor,

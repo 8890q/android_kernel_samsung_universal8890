@@ -300,13 +300,13 @@ static ssize_t gyro_selftest_dps_show(struct device *dev,
 	return sprintf(buf, "%u\n", data->uGyroDps);
 }
 
-static DEVICE_ATTR(name, 0444, gyro_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, gyro_vendor_show, NULL);
-static DEVICE_ATTR(power_off, 0444, gyro_power_off, NULL);
-static DEVICE_ATTR(power_on, 0444, gyro_power_on, NULL);
-static DEVICE_ATTR(temperature, 0444, gyro_get_temp, NULL);
-static DEVICE_ATTR(selftest, 0444, gyro_selftest_show, NULL);
-static DEVICE_ATTR(selftest_dps, 0664,
+static DEVICE_ATTR(name, S_IRUGO, gyro_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, gyro_vendor_show, NULL);
+static DEVICE_ATTR(power_off, S_IRUGO, gyro_power_off, NULL);
+static DEVICE_ATTR(power_on, S_IRUGO, gyro_power_on, NULL);
+static DEVICE_ATTR(temperature, S_IRUGO, gyro_get_temp, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, gyro_selftest_show, NULL);
+static DEVICE_ATTR(selftest_dps, S_IRUGO | S_IWUSR | S_IWGRP,
 	gyro_selftest_dps_show, gyro_selftest_dps_store);
 
 static struct device_attribute *gyro_attrs[] = {

@@ -47,7 +47,6 @@ static struct sensor_info info_table[] = {
 	SENSOR_INFO_LIGHT_CCT,
 	SENSOR_INFO_ACCEL_UNCALIBRATED,
 	SENSOR_INFO_META,
-	SENSOR_INFO_WAKE_UP_MOTION,
 };
 
 #define IIO_ST(si, rb, sb, sh)	\
@@ -70,6 +69,10 @@ int initialize_iio_buffer_and_device(struct iio_dev *indio_dev, struct ssp_data 
 	if (iRet)
 		goto err_config_ring_buffer;
 
+        iRet = iio_buffer_register(indio_dev, indio_dev->channels, indio_dev->num_channels);
+	if (iRet)
+		goto err_buffer_register;
+
 	iRet = iio_device_register(indio_dev);
 	if (iRet)
 		goto err_register_device;
@@ -81,6 +84,9 @@ int initialize_iio_buffer_and_device(struct iio_dev *indio_dev, struct ssp_data 
 err_register_device:
 	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
 	iio_device_unregister(indio_dev);
+err_buffer_register:
+	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
+	iio_buffer_unregister(indio_dev);
 err_config_ring_buffer:
 	pr_err("[SSP]: failed to configure %s buffer\n", indio_dev->name);
 	ssp_iio_unconfigure_ring(indio_dev);
@@ -379,15 +385,6 @@ void report_pickup_data(struct ssp_data *data,
 	pr_err("[SSP]: %s: %d", __func__,  pickup_data->pickup_gesture);
 }
 
-void report_wakeup_motion_data(struct ssp_data *data,
-		struct sensor_value *wakeup_motion_data)
-{
-	memcpy(&data->buf[WAKE_UP_MOTION], &wakeup_motion_data->wakeup_event, sensors_info[WAKE_UP_MOTION].get_data_len);
-	ssp_push_iio_buffer(data->indio_dev[WAKE_UP_MOTION], wakeup_motion_data->timestamp, 
-		(u8 *)(&data->buf[WAKE_UP_MOTION]), sensors_info[WAKE_UP_MOTION].report_data_len);
-	wake_lock_timeout(&data->ssp_wake_lock, 0.3*HZ);
-	pr_err("[SSP]: %s: %d", __func__,  wakeup_motion_data->wakeup_event);
-}
 void report_scontext_data(struct ssp_data *data,
 		struct sensor_value *scontextbuf)
 {

@@ -264,15 +264,15 @@ exit:
 		(bSuccess ? "OK" : "NG"), (bSuccess ? 1 : 0), 0, 0);
 }
 
-static DEVICE_ATTR(name, 0444, magnetic_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, magnetic_vendor_show, NULL);
-static DEVICE_ATTR(raw_data, 0444, raw_data_read, NULL);
-static DEVICE_ATTR(status, 0444,  magnetic_get_status, NULL);
-static DEVICE_ATTR(adc, 0444, adc_data_read, NULL);
-static DEVICE_ATTR(dac, 0444, magnetic_check_cntl, NULL);
-static DEVICE_ATTR(selftest, 0444, magnetic_get_selftest, NULL);
-static DEVICE_ATTR(ak8963_asa, 0444, magnetic_get_asa, NULL);
-static DEVICE_ATTR(ak8963_chk_registers, 0444,
+static DEVICE_ATTR(name, S_IRUGO, magnetic_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, magnetic_vendor_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, raw_data_read, NULL);
+static DEVICE_ATTR(status, S_IRUGO,  magnetic_get_status, NULL);
+static DEVICE_ATTR(adc, S_IRUGO, adc_data_read, NULL);
+static DEVICE_ATTR(dac, S_IRUGO, magnetic_check_cntl, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, magnetic_get_selftest, NULL);
+static DEVICE_ATTR(ak8963_asa, S_IRUGO, magnetic_get_asa, NULL);
+static DEVICE_ATTR(ak8963_chk_registers, S_IRUGO,
 	magnetic_check_registers, NULL);
 
 static struct device_attribute *mag_attrs[] = {
@@ -292,8 +292,12 @@ static int get_fuserom_data(struct ssp_data *data)
 {
 	int iRet = 0;
 	char buffer[3] = { 0, };
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_FUSEROM;
 	msg->length = 3;
 	msg->options = AP2HUB_READ;

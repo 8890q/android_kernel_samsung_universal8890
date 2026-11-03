@@ -17,7 +17,6 @@
 /*************************************************************************/
 /* factory Sysfs                                                         */
 /*************************************************************************/
-
 #define VENDOR_YAS		"YAMAHA"
 #define CHIP_ID_YAS		"YAS539"
 
@@ -37,7 +36,7 @@
 #define GM_SELFTEST_Z_SPEC_MIN	-1000
 #define GM_SELFTEST_Z_SPEC_MAX	-200
 
-#define YAS_STATIC_ELLIPSOID_MATRIX	{10000, 0, 0, 0, 10000, 0, 0, 0, 10000}
+#define YAS_STATIC_ELLIPSOID_MATRIX 	{10000, 0, 0, 0, 10000, 0, 0, 0, 10000}
 #define MAG_HW_OFFSET_FILE_PATH	"/efs/FactoryApp/hw_offset"
 #define MAG_CAL_PARAM_FILE_PATH	"/efs/FactoryApp/mag_cal_param"
 
@@ -46,13 +45,15 @@ static int check_data_spec(struct ssp_data *data, int sensortype)
 {
 	int data_spec_max = 0;
 	int data_spec_min = 0;
-
-	if (data->mag_type == MAG_TYPE_AKM) {
-		data_spec_max = GM_AKM_DATA_SPEC_MAX;
-		data_spec_min = GM_AKM_DATA_SPEC_MIN;
-	} else {
-		data_spec_max = GM_YAS_DATA_SPEC_MAX;
-		data_spec_min = GM_YAS_DATA_SPEC_MIN;
+	if(data->mag_type == MAG_TYPE_AKM)
+	{
+	    data_spec_max = GM_AKM_DATA_SPEC_MAX;
+	    data_spec_min = GM_AKM_DATA_SPEC_MIN;
+	}
+	else
+	{
+	    data_spec_max = GM_YAS_DATA_SPEC_MAX;
+	    data_spec_min = GM_YAS_DATA_SPEC_MIN;
 	}
 
 	if ((data->buf[sensortype].x == 0) &&
@@ -114,6 +115,11 @@ static ssize_t magnetic_check_cntl(struct device *dev,
 		pr_info("[SSP] %s - check cntl register before selftest",
 			__func__);
 		msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+		if (msg == NULL) {
+			pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+				__func__);
+			return -ENOMEM;
+		}
 		msg->cmd = GEOMAGNETIC_FACTORY;
 		msg->length = 22;
 		msg->options = AP2HUB_READ;
@@ -169,6 +175,11 @@ static ssize_t magnetic_get_selftest_akm(struct device *dev,
 
 Retry_selftest:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		goto exit;
+	}
 	msg->cmd = GEOMAGNETIC_FACTORY;
 	msg->length = 22;
 	msg->options = AP2HUB_READ;
@@ -276,16 +287,29 @@ static int set_pdc_matrix(struct ssp_data *data)
 	struct ssp_msg *msg;
 
 	if (!(data->uSensorState & 0x04)) {
-		pr_info("[SSP] %s - Skip this function!!!, magnetic sensor is not connected(0x%llx)\n",
+		pr_info("[SSP] %s - Skip this function!!!"\
+			", magnetic sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return ret;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp msg\n",
+			__func__);
+		return -ENOMEM;
+	}
+
 	msg->cmd = MSG2SSP_AP_SET_MAGNETIC_STATIC_MATRIX;
 	msg->length = sizeof(data->pdc_matrix);
 	msg->options = AP2HUB_WRITE;
 	msg->buffer = kzalloc(sizeof(data->pdc_matrix), GFP_KERNEL);
+	if (msg->buffer == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory\n", __func__);
+		kfree(msg);
+		return -ENOMEM;
+	}
+
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, data->pdc_matrix, sizeof(data->pdc_matrix));
 
@@ -304,8 +328,13 @@ int get_fuserom_data(struct ssp_data *data)
 {
 	int ret = 0;
 	char buffer[3] = { 0, };
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_FUSEROM;
 	msg->length = 3;
 	msg->options = AP2HUB_READ;
@@ -341,6 +370,12 @@ static ssize_t magnetic_logging_show(struct device *dev,
 	struct ssp_msg *msg;
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n",
+			__func__);
+		goto exit;
+	}
+
 	msg->cmd = MSG2SSP_AP_GEOMAG_LOGGING;
 	msg->length = 21;
 	msg->options = AP2HUB_READ;
@@ -384,8 +419,12 @@ static ssize_t magnetic_get_selftest_yas(struct device *dev,
 	s16 sx = 0, sy1 = 0, sy2 = 0, ohx = 0, ohy = 0, ohz = 0;
 	s8 err[7] = {-1, };
 	struct ssp_data *data = dev_get_drvdata(dev);
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		goto exit;
+	}
 	msg->cmd = GEOMAGNETIC_FACTORY;
 	msg->length = 24;
 	msg->options = AP2HUB_READ;
@@ -510,30 +549,31 @@ int mag_store_hwoffset(struct ssp_data *data)
 	if (get_hw_offset(data) < 0) {
 		pr_err("[SSP]: %s - get_hw_offset failed\n", __func__);
 		return ERROR;
-	}
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
+	} else {
+		old_fs = get_fs();
+		set_fs(KERNEL_DS);
 
-	cal_filp = filp_open(MAG_HW_OFFSET_FILE_PATH,
-		O_CREAT | O_TRUNC | O_WRONLY, 0660);
-	if (IS_ERR(cal_filp)) {
-		pr_err("[SSP]: %s - Can't open hw_offset file\n",
-			__func__);
+		cal_filp = filp_open(MAG_HW_OFFSET_FILE_PATH,
+			O_CREAT | O_TRUNC | O_WRONLY, 0660);
+		if (IS_ERR(cal_filp)) {
+			pr_err("[SSP]: %s - Can't open hw_offset file\n",
+				__func__);
+			set_fs(old_fs);
+			iRet = PTR_ERR(cal_filp);
+			return iRet;
+		}
+		iRet = cal_filp->f_op->write(cal_filp,
+			(char *)&data->magoffset,
+			3 * sizeof(char), &cal_filp->f_pos);
+		if (iRet != 3 * sizeof(char)) {
+			pr_err("[SSP]: %s - Can't write the hw_offset"
+				" to file\n", __func__);
+			iRet = -EIO;
+		}
+		filp_close(cal_filp, current->files);
 		set_fs(old_fs);
-		iRet = PTR_ERR(cal_filp);
 		return iRet;
 	}
-	iRet = cal_filp->f_op->write(cal_filp,
-		(char *)&data->magoffset,
-		3 * sizeof(char), &cal_filp->f_pos);
-	if (iRet != 3 * sizeof(char)) {
-		pr_err("[SSP]: %s - Can't write the hw_offset to file\n",
-			__func__);
-		iRet = -EIO;
-	}
-	filp_close(cal_filp, current->files);
-	set_fs(old_fs);
-	return iRet;
 }
 
 int set_hw_offset(struct ssp_data *data)
@@ -542,16 +582,21 @@ int set_hw_offset(struct ssp_data *data)
 	struct ssp_msg *msg;
 
 	if (!(data->uSensorState & 0x04)) {
-		pr_info("[SSP]: %s - Skip this function!!!, magnetic sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", magnetic sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_SET_MAGNETIC_HWOFFSET;
 	msg->length = 3;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(3, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(3, GFP_KERNEL);
 	msg->free_buffer = 1;
 
 	msg->buffer[0] = data->magoffset.x;
@@ -577,16 +622,21 @@ int set_static_matrix(struct ssp_data *data)
 	s16 static_matrix[9] = YAS_STATIC_ELLIPSOID_MATRIX;
 
 	if (!(data->uSensorState & 0x04)) {
-		pr_info("[SSP]: %s - Skip this function!!!, magnetic sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", magnetic sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return iRet;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_SET_MAGNETIC_STATIC_MATRIX;
 	msg->length = 18;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(18, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(18, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	if (data->static_matrix == NULL)
@@ -600,7 +650,7 @@ int set_static_matrix(struct ssp_data *data)
 		pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
 		iRet = ERROR;
 	}
-	pr_info("[SSP]: %s: finished\n", __func__);
+	pr_info("[SSP]: %s: finished \n", __func__);
 
 	return iRet;
 }
@@ -609,8 +659,12 @@ int get_hw_offset(struct ssp_data *data)
 {
 	int iRet = 0;
 	char buffer[3] = { 0, };
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
+		return -ENOMEM;
+	}
 	msg->cmd = MSG2SSP_AP_GET_MAGNETIC_HWOFFSET;
 	msg->length = 3;
 	msg->options = AP2HUB_READ;
@@ -661,21 +715,23 @@ static ssize_t matrix_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
-	if (data->mag_type == MAG_TYPE_AKM) {
+	if(data->mag_type == MAG_TYPE_AKM)
+	{
 		return sprintf(buf,
 			"%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
-			data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3],
-			data->pdc_matrix[4], data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7],
-			data->pdc_matrix[8], data->pdc_matrix[9], data->pdc_matrix[10], data->pdc_matrix[11],
-			data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14], data->pdc_matrix[15],
-			data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
-			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23],
-			data->pdc_matrix[24], data->pdc_matrix[25], data->pdc_matrix[26]);
-	} else {
-		return sprintf(buf, "%d %d %d %d %d %d %d %d %d\n", data->static_matrix[0], data->static_matrix[1],
-			data->static_matrix[2], data->static_matrix[3], data->static_matrix[4], data->static_matrix[5],
-			data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
+			data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3], data->pdc_matrix[4],
+			data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7], data->pdc_matrix[8], data->pdc_matrix[9],
+			data->pdc_matrix[10], data->pdc_matrix[11], data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14],
+			data->pdc_matrix[15], data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
+			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23], data->pdc_matrix[24],
+			data->pdc_matrix[25], data->pdc_matrix[26]);
+	}
+	else
+	{
+		return sprintf(buf,
+			"%d %d %d %d %d %d %d %d %d\n", data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
+			, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
+			, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
 	}
 }
 
@@ -685,64 +741,66 @@ static ssize_t matrix_store(struct device *dev,
 	struct ssp_data *data = dev_get_drvdata(dev);
 	int iRet;
 	int i;
-	char *token;
-	char *str;
+	char* token;
+	char* str;
+	str = (char*)buf;
 
-	str = (char *)buf;
-
-	if (data->mag_type == MAG_TYPE_AKM) {
-		u8 val[PDC_SIZE] = {0, };
-
-		for (i = 0; i < PDC_SIZE; i++) {
-			token = strsep(&str, "\n");
-			if (token == NULL) {
-				pr_err("[SSP] %s : too few arguments (%d needed)", __func__, PDC_SIZE);
+	if(data->mag_type == MAG_TYPE_AKM)
+	{
+		u8 val[PDC_SIZE]={0,};
+		for(i=0;i<PDC_SIZE;i++)
+		{
+			token = strsep(&str, " \n");
+			if(token == NULL)
+			{
+				pr_err("[SSP] %s : too few arguments (%d needed)",__func__,PDC_SIZE);
 				return -EINVAL;
 			}
 
 			iRet = kstrtou8(token, 10, &val[i]);
-			if (iRet < 0) {
-				pr_err("[SSP] %s : kstros16 error %d", __func__, iRet);
+			if (iRet<0) {
+				pr_err("[SSP] %s : kstros16 error %d",__func__,iRet);
 				return iRet;
 			}
 		}
 
-		for (i = 0; i < PDC_SIZE; i++)
+		for(i=0 ;i<PDC_SIZE;i++)
 			data->pdc_matrix[i] = val[i];
 
 		pr_info("[SSP] %s : %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\n",
-			__func__, data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3],
-			data->pdc_matrix[4], data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7],
-			data->pdc_matrix[8], data->pdc_matrix[9], data->pdc_matrix[10], data->pdc_matrix[11],
-			data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14], data->pdc_matrix[15],
-			data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
-			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23],
-			data->pdc_matrix[24], data->pdc_matrix[25], data->pdc_matrix[26]);
+			__func__, data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3], data->pdc_matrix[4],
+			data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7], data->pdc_matrix[8], data->pdc_matrix[9],
+			data->pdc_matrix[10], data->pdc_matrix[11], data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14],
+			data->pdc_matrix[15], data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
+			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23], data->pdc_matrix[24],
+			data->pdc_matrix[25], data->pdc_matrix[26]);
 		set_pdc_matrix(data);
-	} else {
-		s16 val[9] = {0, };
-
-		for (i = 0; i < 9; i++) {
-			token = strsep(&str, "\n");
-			if (token == NULL) {
-				pr_err("[SSP] %s : too few arguments (9 needed)", __func__);
+	}
+	else
+	{
+		s16 val[9]={0,};
+		for(i=0;i<9;i++)
+		{
+			token = strsep(&str, " \n");
+			if(token == NULL)
+			{
+				pr_err("[SSP] %s : too few arguments (9 needed)",__func__);
 				return -EINVAL;
 			}
 
 			iRet = kstrtos16(token, 10, &val[i]);
-			if (iRet < 0) {
-				pr_err("[SSP] %s : kstros16 error %d", __func__, iRet);
+			if (iRet<0) {
+				pr_err("[SSP] %s : kstros16 error %d",__func__,iRet);
 				return iRet;
 			}
 		}
 
-		for (i = 0; i < 9; i++)
+		for(i=0 ;i<9;i++)
 			data->static_matrix[i] = val[i];
 
-		pr_info("[SSP] %s : %d %d %d %d %d %d %d %d %d\n", __func__,
-			data->static_matrix[0], data->static_matrix[1], data->static_matrix[2],
-			data->static_matrix[3], data->static_matrix[4], data->static_matrix[5],
-			data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
+		pr_info("[SSP] %s : %d %d %d %d %d %d %d %d %d\n",__func__,data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
+			, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
+			, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
 
 		set_static_matrix(data);
 	}
@@ -757,7 +815,7 @@ static ssize_t magnetic_vendor_show(struct device *dev,
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	if (data->mag_type == MAG_TYPE_AKM)
+	if(data->mag_type == MAG_TYPE_AKM)
 		return sprintf(buf, "%s\n", VENDOR_AKM);
 	else
 		return sprintf(buf, "%s\n", VENDOR_YAS);
@@ -768,10 +826,10 @@ static ssize_t magnetic_name_show(struct device *dev,
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	if (data->mag_type == MAG_TYPE_AKM)
+	if(data->mag_type == MAG_TYPE_AKM)
 		return sprintf(buf, "%s\n", CHIP_ID_AKM);
 	else
-		return sprintf(buf, "%s\n", CHIP_ID_YAS);
+	    return sprintf(buf, "%s\n", CHIP_ID_YAS);
 }
 
 static ssize_t raw_data_show(struct device *dev,
@@ -795,7 +853,6 @@ static ssize_t raw_data_show(struct device *dev,
 		data->buf[GEOMAGNETIC_RAW].y,
 		data->buf[GEOMAGNETIC_RAW].z);
 }
-
 
 /* Get magnetic cal data from a file */
 int load_magnetic_cal_param_from_nvm(u8 *data, u8 length)
@@ -829,14 +886,12 @@ int load_magnetic_cal_param_from_nvm(u8 *data, u8 length)
 
 }
 
-
-
 int set_magnetic_cal_param_to_ssp(struct ssp_data *data)
 {
 	int iRet = 0;
-	u8 mag_caldata_akm[MAC_CAL_PARAM_SIZE_AKM] = {0, };
-	u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, };
-	u16 size = 0;
+    u8 mag_caldata_akm[MAC_CAL_PARAM_SIZE_AKM] = {0, };
+    u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, };
+    u16 size = 0;
 
 	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 
@@ -846,30 +901,31 @@ int set_magnetic_cal_param_to_ssp(struct ssp_data *data)
 		return iRet;
 	}
 
-	if (data->mag_type == MAG_TYPE_AKM) {
-		size = MAC_CAL_PARAM_SIZE_AKM;
-		load_magnetic_cal_param_from_nvm(mag_caldata_akm, MAC_CAL_PARAM_SIZE_AKM);
-		msg->cmd = MSG2SSP_AP_MAG_CAL_PARAM;
-		msg->length = MAC_CAL_PARAM_SIZE_AKM;
-		msg->options = AP2HUB_WRITE;
-		msg->buffer = (char *) kzalloc(MAC_CAL_PARAM_SIZE_AKM, GFP_KERNEL);
-		msg->free_buffer = 1;
-		memcpy(msg->buffer, mag_caldata_akm, MAC_CAL_PARAM_SIZE_AKM);
-		pr_err("[SSP] %s, %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d\n", __func__,
-		mag_caldata_akm[0], mag_caldata_akm[1], mag_caldata_akm[2], mag_caldata_akm[3], mag_caldata_akm[4],
-		mag_caldata_akm[5], mag_caldata_akm[6], mag_caldata_akm[7], mag_caldata_akm[8], mag_caldata_akm[9],
-		mag_caldata_akm[10], mag_caldata_akm[11], mag_caldata_akm[12]);
-	} else {
-		size = MAC_CAL_PARAM_SIZE_YAS;
-		load_magnetic_cal_param_from_nvm(mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
-		msg->cmd = MSG2SSP_AP_MAG_CAL_PARAM;
-		msg->length = MAC_CAL_PARAM_SIZE_YAS;
-		msg->options = AP2HUB_WRITE;
-		msg->buffer = (char *) kzalloc(MAC_CAL_PARAM_SIZE_YAS, GFP_KERNEL);
-		msg->free_buffer = 1;
-		memcpy(msg->buffer, mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
-		pr_err("[SSP] %s,\n", __func__);
-	}
+    if(data->mag_type == MAG_TYPE_AKM){
+        size = MAC_CAL_PARAM_SIZE_AKM;
+        load_magnetic_cal_param_from_nvm(mag_caldata_akm, MAC_CAL_PARAM_SIZE_AKM);
+        msg->cmd = MSG2SSP_AP_MAG_CAL_PARAM;
+        msg->length = MAC_CAL_PARAM_SIZE_AKM;
+        msg->options = AP2HUB_WRITE;
+        msg->buffer = (char *) kzalloc(MAC_CAL_PARAM_SIZE_AKM, GFP_KERNEL);
+        msg->free_buffer = 1;
+        memcpy(msg->buffer, mag_caldata_akm, MAC_CAL_PARAM_SIZE_AKM);
+        pr_err("[SSP] %s, %d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d \n", __func__,
+            mag_caldata_akm[0], mag_caldata_akm[1], mag_caldata_akm[2], mag_caldata_akm[3], mag_caldata_akm[4],
+            mag_caldata_akm[5], mag_caldata_akm[6], mag_caldata_akm[7], mag_caldata_akm[8], mag_caldata_akm[9],
+            mag_caldata_akm[10], mag_caldata_akm[11], mag_caldata_akm[12]);
+    }
+    else {
+        size = MAC_CAL_PARAM_SIZE_YAS;
+        load_magnetic_cal_param_from_nvm(mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
+        msg->cmd = MSG2SSP_AP_MAG_CAL_PARAM;
+        msg->length = MAC_CAL_PARAM_SIZE_YAS;
+        msg->options = AP2HUB_WRITE;
+        msg->buffer = (char *) kzalloc(MAC_CAL_PARAM_SIZE_YAS, GFP_KERNEL);
+        msg->free_buffer = 1;
+        memcpy(msg->buffer, mag_caldata_yas, MAC_CAL_PARAM_SIZE_YAS);
+        pr_err("[SSP] %s, \n", __func__);
+    }
 
 	iRet = ssp_spi_async(data, msg);
 	if (iRet != SUCCESS) {
@@ -880,34 +936,32 @@ int set_magnetic_cal_param_to_ssp(struct ssp_data *data)
 	return iRet;
 }
 
-
 int save_magnetic_cal_param_to_nvm(struct ssp_data *data, char *pchRcvDataFrame, int *iDataIdx)
 {
 	int iRet = 0;
 	struct file *cal_filp = NULL;
 	mm_segment_t old_fs;
-	int i = 0;
+    int i = 0;
 	int length = 0;
 	u8 mag_caldata_akm[MAC_CAL_PARAM_SIZE_AKM] = {0, }; //AKM uses 13 byte.
-	u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, }; // YAMAHA uses 7 byte.
+    u8 mag_caldata_yas[MAC_CAL_PARAM_SIZE_YAS] = {0, }; // YAMAHA uses 7 byte.
 
-	if (data->mag_type == MAG_TYPE_AKM) {
-		//AKM uses 13 byte. YAMAHA uses 7 byte.
-		memcpy(mag_caldata_akm, pchRcvDataFrame + *iDataIdx, sizeof(mag_caldata_akm));
+	if(data->mag_type == MAG_TYPE_AKM) {
+		memcpy(mag_caldata_akm, pchRcvDataFrame + *iDataIdx, sizeof(mag_caldata_akm));//AKM uses 13 byte. YAMAHA uses 7 byte.
 		length = sizeof(mag_caldata_akm);
-	} else {
-		//AKM uses 13 byte. YAMAHA uses 7 byte.
-		memcpy(mag_caldata_yas, pchRcvDataFrame + *iDataIdx, sizeof(mag_caldata_yas));
+	}
+	else {
+		memcpy(mag_caldata_yas, pchRcvDataFrame + *iDataIdx, sizeof(mag_caldata_yas));//AKM uses 13 byte. YAMAHA uses 7 byte.
 		length = sizeof(mag_caldata_yas);
 	}
 
 	ssp_dbg("[SSP]: %s\n", __func__);
-	for (i = 0; i < length; i++) {
-		if (data->mag_type == MAG_TYPE_AKM)
+    for(i = 0; i < length; i++){
+		if(data->mag_type == MAG_TYPE_AKM)
 			ssp_dbg("[SSP] mag cal param[%d] %d\n", i, mag_caldata_akm[i]);
 		else
 			ssp_dbg("[SSP] mag cal param[%d] %d\n", i, mag_caldata_yas[i]);
-	}
+    }
 
 	old_fs = get_fs();
 	set_fs(KERNEL_DS);
@@ -920,7 +974,7 @@ int save_magnetic_cal_param_to_nvm(struct ssp_data *data, char *pchRcvDataFrame,
 		return -EIO;
 	}
 
-	if (data->mag_type == MAG_TYPE_AKM)
+	if(data->mag_type == MAG_TYPE_AKM)
 		iRet = vfs_write(cal_filp, (char *)mag_caldata_akm, length * sizeof(char), &cal_filp->f_pos);
 	else
 		iRet = vfs_write(cal_filp, (char *)mag_caldata_yas, length * sizeof(char), &cal_filp->f_pos);
@@ -938,7 +992,6 @@ int save_magnetic_cal_param_to_nvm(struct ssp_data *data, char *pchRcvDataFrame,
 	return iRet;
 }
 
-
 static ssize_t raw_data_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -948,7 +1001,6 @@ static ssize_t raw_data_store(struct device *dev,
 	int retries = 50;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	ret = kstrtoll(buf, 10, &dEnable);
@@ -969,13 +1021,16 @@ static ssize_t raw_data_store(struct device *dev,
 				break;
 		} while (--retries);
 
-		if (retries > 0) {
+		if (retries > 0)
+		{
 			pr_info("[SSP] %s - success, %d\n", __func__, retries);
-			data->bGeomagneticRawEnabled = true;
-		} else {
+            data->bGeomagneticRawEnabled = true;
+		}
+		else
+		{
 			pr_err("[SSP] %s - wait timeout, %d\n", __func__,
 				retries);
-			data->bGeomagneticRawEnabled = false;
+            data->bGeomagneticRawEnabled = false;
 		}
 
 
@@ -997,7 +1052,6 @@ static ssize_t adc_data_read(struct device *dev,
 	int retries = 10;
 	struct ssp_data *data = dev_get_drvdata(dev);
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	data->buf[GEOMAGNETIC_SENSOR].x = 0;
@@ -1037,48 +1091,50 @@ static ssize_t magnetic_get_selftest(struct device *dev,
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	if (data->mag_type == MAG_TYPE_AKM)
-		return magnetic_get_selftest_akm(dev, attr, buf);
+	if(data->mag_type == MAG_TYPE_AKM)
+		return magnetic_get_selftest_akm(dev,attr,buf);
 	else
-		return magnetic_get_selftest_yas(dev, attr, buf);
+	    return magnetic_get_selftest_yas(dev,attr,buf);
 }
+
 static ssize_t si_param_show(struct device *dev,
 	struct device_attribute *attr, char *buf)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-
-	if (data->mag_type == MAG_TYPE_AKM) {
-		return sprintf(buf, "\"SI_PARAMETER\":\"%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\"\n",
-			data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3],
-			data->pdc_matrix[4], data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7],
-			data->pdc_matrix[8], data->pdc_matrix[9], data->pdc_matrix[10], data->pdc_matrix[11],
-			data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14], data->pdc_matrix[15],
-			data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
-			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23],
-			data->pdc_matrix[24], data->pdc_matrix[25], data->pdc_matrix[26]);
-	} else {
-		return sprintf(buf, "\"SI_PARAMETER\":\"%d %d %d %d %d %d %d %d %d\"\n"
-		, data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
-		, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
-		, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
+	if(data->mag_type == MAG_TYPE_AKM)
+	{
+		return sprintf(buf,"\"SI_PARAMETER\":\"%u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u %u\"\n",
+			data->pdc_matrix[0], data->pdc_matrix[1], data->pdc_matrix[2], data->pdc_matrix[3], data->pdc_matrix[4],
+			data->pdc_matrix[5], data->pdc_matrix[6], data->pdc_matrix[7], data->pdc_matrix[8], data->pdc_matrix[9],
+			data->pdc_matrix[10], data->pdc_matrix[11], data->pdc_matrix[12], data->pdc_matrix[13], data->pdc_matrix[14],
+			data->pdc_matrix[15], data->pdc_matrix[16], data->pdc_matrix[17], data->pdc_matrix[18], data->pdc_matrix[19],
+			data->pdc_matrix[20], data->pdc_matrix[21], data->pdc_matrix[22], data->pdc_matrix[23], data->pdc_matrix[24],
+			data->pdc_matrix[25], data->pdc_matrix[26]);
+	}
+	else
+	{
+		return sprintf(buf,"\"SI_PARAMETER\":\"%d %d %d %d %d %d %d %d %d\"\n"
+            , data->static_matrix[0], data->static_matrix[1], data->static_matrix[2]
+			, data->static_matrix[3], data->static_matrix[4], data->static_matrix[5]
+			, data->static_matrix[6], data->static_matrix[7], data->static_matrix[8]);
 	}
 }
 
-static DEVICE_ATTR(name, 0440, magnetic_name_show, NULL);
-static DEVICE_ATTR(vendor, 0440, magnetic_vendor_show, NULL);
-static DEVICE_ATTR(raw_data, 0660,
+static DEVICE_ATTR(name, S_IRUGO, magnetic_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, magnetic_vendor_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO | S_IWUSR | S_IWGRP,
 		raw_data_show, raw_data_store);
-static DEVICE_ATTR(adc, 0440, adc_data_read, NULL);
-static DEVICE_ATTR(selftest, 0440, magnetic_get_selftest, NULL);
+static DEVICE_ATTR(adc, S_IRUGO, adc_data_read, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, magnetic_get_selftest, NULL);
 
-static DEVICE_ATTR(status, 0440,  magnetic_get_status, NULL);
-static DEVICE_ATTR(dac, 0440, magnetic_check_cntl, NULL);
-static DEVICE_ATTR(ak09911_asa, 0440, magnetic_get_asa, NULL);
-static DEVICE_ATTR(logging_data, 0440, magnetic_logging_show, NULL);
+static DEVICE_ATTR(status, S_IRUGO,  magnetic_get_status, NULL);
+static DEVICE_ATTR(dac, S_IRUGO, magnetic_check_cntl, NULL);
+static DEVICE_ATTR(ak09911_asa, S_IRUGO, magnetic_get_asa, NULL);
+static DEVICE_ATTR(logging_data, S_IRUGO, magnetic_logging_show, NULL);
 
-static DEVICE_ATTR(hw_offset, 0440, hw_offset_show, NULL);
-static DEVICE_ATTR(matrix, 0660, matrix_show, matrix_store);
-static DEVICE_ATTR(dhr_sensor_info, 0440, si_param_show, NULL);
+static DEVICE_ATTR(hw_offset, S_IRUGO, hw_offset_show, NULL);
+static DEVICE_ATTR(matrix, S_IRUGO | S_IWUSR | S_IWGRP, matrix_show, matrix_store);
+static DEVICE_ATTR(dhr_sensor_info, S_IRUSR | S_IRGRP, si_param_show,NULL);
 
 static struct device_attribute *mag_attrs[] = {
 	&dev_attr_name,
@@ -1092,7 +1148,7 @@ static struct device_attribute *mag_attrs[] = {
 	&dev_attr_logging_data,
 	&dev_attr_hw_offset,
 	&dev_attr_matrix,
-	&dev_attr_dhr_sensor_info,
+    &dev_attr_dhr_sensor_info,
 	NULL,
 };
 
@@ -1100,7 +1156,8 @@ int initialize_magnetic_sensor(struct ssp_data *data)
 {
 	int ret;
 
-	if (data->mag_type == MAG_TYPE_AKM) {
+	if(data->mag_type == MAG_TYPE_AKM)
+	{
 		ret = get_fuserom_data(data);
 		if (ret < 0)
 			pr_err("[SSP] %s - get_fuserom_data failed %d\n",
@@ -1110,15 +1167,17 @@ int initialize_magnetic_sensor(struct ssp_data *data)
 		if (ret < 0)
 			pr_err("[SSP] %s - set_magnetic_pdc_matrix failed %d\n",
 				__func__, ret);
-	} else {
+	}
+	else
+	{
 		ret = set_static_matrix(data);
 		if (ret < 0)
 			pr_err("[SSP]: %s - set_magnetic_static_matrix failed %d\n",
 				__func__, ret);
 	}
 	ret = set_magnetic_cal_param_to_ssp(data);
-	if (ret < 0)
-		pr_err("[SSP]: %s - set_magnetic_static_matrix failed %d\n", __func__, ret);
+        if (ret < 0)
+	    pr_err("[SSP]: %s - set_magnetic_static_matrix failed %d\n", __func__, ret);
 
 	return ret < 0 ? ret : SUCCESS;
 }

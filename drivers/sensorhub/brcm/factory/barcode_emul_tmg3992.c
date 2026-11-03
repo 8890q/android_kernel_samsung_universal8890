@@ -21,7 +21,10 @@ static struct reg_index_table reg_id_table[15] = {
 #define REGISTER_TEST	49 /* 1 */
 #define DATA_TEST	50 /* 2 */
 
-#define OFFSET_REGISTER_SET	 2
+#define OFFSET_DATA_SET 2
+#define DATA_MAX_LEN    128
+
+
 enum {
 	dataset = 0,
 	registerset,
@@ -34,7 +37,7 @@ enum {
 	index,
 };
 
-void mobeam_write(struct ssp_data *data, int type, u8 *u_buf, u8 length)
+void mobeam_write(struct ssp_data *data, int type, u8 *u_buf)
 {
 	int iRet = 0;
 	u8 command = -1;
@@ -43,40 +46,45 @@ void mobeam_write(struct ssp_data *data, int type, u8 *u_buf, u8 length)
 	struct ssp_msg *msg;
 
 	if (!(data->uSensorState & (1 << PROXIMITY_SENSOR))) {
-		pr_info("[SSP]: %s - Skip this function!!!, proximity sensor is not connected(0x%llx)\n",
+		pr_info("[SSP]: %s - Skip this function!!!"\
+			", proximity sensor is not connected(0x%llx)\n",
 			__func__, data->uSensorState);
 		return;
 	}
 
 	pr_info("[SSP] %s start, command_type = %d\n", __func__, type);
 	switch (type) {
-	case dataset:
-		command = MSG2SSP_AP_MOBEAM_DATA_SET;
-		data_length = length;
-		break;
-	case registerset:
-		command = MSG2SSP_AP_MOBEAM_REGISTER_SET;
-		data_length = length;
-		break;
-	case countset:
-		command = MSG2SSP_AP_MOBEAM_COUNT_SET;
-		data_length = length;
-		break;
-	case start:
-		command = MSG2SSP_AP_MOBEAM_START;
-		data_length = length;
-		is_beaming = BEAMING_ON;
-		break;
-	default:
-		pr_info("[SSP] %s - unknown cmd type\n", __func__);
-		break;
+		case dataset:
+			command = MSG2SSP_AP_MOBEAM_DATA_SET;
+			data_length = 128;
+			break;
+		case registerset:
+			command = MSG2SSP_AP_MOBEAM_REGISTER_SET;
+			data_length = 6;
+			break;
+		case countset:
+			command = MSG2SSP_AP_MOBEAM_COUNT_SET;
+			data_length = 1;
+			break;
+		case start:
+			command = MSG2SSP_AP_MOBEAM_START;
+			data_length = 1;
+			is_beaming = BEAMING_ON;
+			break;
+		default:
+			pr_info("[SSP] %s - unknown cmd type\n", __func__);
+			break;
 	}
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
+		return;
+	}
 	msg->cmd = command;
-	msg->length = data_length + 1; // for including '\n'
+	msg->length = data_length;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = kzalloc(data_length, GFP_KERNEL);
+	msg->buffer = (char *) kzalloc(data_length, GFP_KERNEL);
 	if ((msg->buffer) == NULL) {
 		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
 		kfree(msg);
@@ -84,8 +92,7 @@ void mobeam_write(struct ssp_data *data, int type, u8 *u_buf, u8 length)
 	}
 	msg->free_buffer = 1;
 
-	u_buf[data_length] = '\0'; // for including '\n', because sensorhub uses strlen func.
-	memcpy(msg->buffer, u_buf, data_length + 1);
+	memcpy(msg->buffer, u_buf, data_length);
 
 	iRet = ssp_spi_async(data, msg);
 
@@ -95,6 +102,7 @@ void mobeam_write(struct ssp_data *data, int type, u8 *u_buf, u8 length)
 	}
 
 	pr_info("[SSP] %s command = 0x%X\n", __func__, command);
+	return;
 }
 
 void mobeam_stop_set(struct ssp_data *data)
@@ -105,6 +113,10 @@ void mobeam_stop_set(struct ssp_data *data)
 
 retries:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	if (msg == NULL) {
+		pr_err("[SSP]: %s - failed to allocate memory\n", __func__);
+		return;
+	}
 	msg->cmd = MSG2SSP_AP_MOBEAM_STOP;
 	msg->length = 1;
 	msg->options = AP2HUB_READ;
@@ -124,6 +136,7 @@ retries:
 		is_beaming = BEAMING_OFF;
 		pr_info("[SSP] %s - success(%u)\n", __func__, is_beaming);
 	}
+	return;
 }
 
 static ssize_t mobeam_vendor_show(struct device *dev,
@@ -143,9 +156,9 @@ static ssize_t barcode_emul_store(struct device *dev,
 		const char *buf, size_t size)
 {
 	struct ssp_data *data = dev_get_drvdata(dev);
-	u8 send_buf[128] = { 0, };
-	int i, len;
-
+	u8 send_buf[DATA_MAX_LEN] = { 0, };
+	int i;
+	int len;
 	if(size <= 1) {
 		pr_info("[SSP] %s - not enough size of input data(%d)", __func__, (int)size);
 		return -EINVAL;
@@ -156,8 +169,7 @@ static ssize_t barcode_emul_store(struct device *dev,
 		pr_info("[SSP] %s - START BEAMING(0x%X, 0x%X)\n", __func__,
 			buf[0], buf[1]);
 		send_buf[1] = buf[1];
-		len = 1;
-		mobeam_write(data, start, &send_buf[1], len);
+		mobeam_write(data, start, &send_buf[1]);
 	} else if (buf[0] == 0xFF && buf[1] == STOP_BEAMING) {
 		pr_info("[SSP] %s - STOP BEAMING(0x%X, 0x%X)\n", __func__,
 			buf[0], buf[1]);
@@ -167,18 +179,21 @@ static ssize_t barcode_emul_store(struct device *dev,
 			pr_info("[SSP] %s - skip stop command\n", __func__);
 	} else if (buf[0] == 0x00) {
 		pr_info("[SSP] %s - DATA SET\n", __func__);
-		len = ((int)size - OFFSET_REGISTER_SET > 128) ? 128 : ((int)size-OFFSET_REGISTER_SET);
-		memcpy(send_buf, &buf[OFFSET_REGISTER_SET], len);
+
+            len = (int)size - OFFSET_DATA_SET;
+            if (len > DATA_MAX_LEN) {
+                len = DATA_MAX_LEN;
+            }
+            memcpy(send_buf, &buf[2], len);
 
 		pr_info("[SSP] %s - %u %u %u %u %u %u\n", __func__,
 			send_buf[0], send_buf[1], send_buf[2],
 			send_buf[3], send_buf[4], send_buf[5]);
-		mobeam_write(data, dataset, send_buf, len);
+		mobeam_write(data, dataset, send_buf);
 	} else if (buf[0] == 0x80) {
 		pr_info("[SSP] %s - HOP COUNT SET(0x%X)\n", __func__, buf[1]);
 		hop_count = buf[1];
-		len = 1;
-		mobeam_write(data, countset, &hop_count, len);
+		mobeam_write(data, countset, &hop_count);
 	} else {
 		pr_info("[SSP] %s - REGISTER SET(0x%X)\n", __func__, buf[0]);
 		if(size < 8) {
@@ -194,8 +209,7 @@ static ssize_t barcode_emul_store(struct device *dev,
 		send_buf[3] = buf[4];
 		send_buf[4] = buf[5];
 		send_buf[5] = buf[7];
-		len = 6;
-		mobeam_write(data, registerset, send_buf, len);
+		mobeam_write(data, registerset, send_buf);
 	}
 	return size;
 }
@@ -229,16 +243,14 @@ static ssize_t barcode_emul_test_store(struct device *dev,
 	u8 barcode_data[14] = {0xFF, 0xAC, 0xDB, 0x36, 0x42, 0x85,
 			0x0A, 0xA8, 0xD1, 0xA3, 0x46, 0xC5, 0xDA, 0xFF};
 	u8 test_data[128] = { 0, };
-	int len = 0;
 
 	memset(test_data, 0xFF, 128);
 	if (buf[0] == COUNT_TEST) {
 		test_data[0] = 0x80;
 		test_data[1] = 1;
-		len = 1;
 		pr_info("[SSP] %s, COUNT_TEST - 0x%X, %u\n", __func__,
 			test_data[0], test_data[1]);
-		mobeam_write(data, countset, &test_data[1], len);
+		mobeam_write(data, countset, &test_data[1]);
 	} else if (buf[0] == REGISTER_TEST) {
 		test_data[0] = 0;
 		test_data[1] = 10;
@@ -246,28 +258,26 @@ static ssize_t barcode_emul_test_store(struct device *dev,
 		test_data[3] = 30;
 		test_data[4] = 40;
 		test_data[5] = 50;
-		len = 6;
 		pr_info("[SSP] %s, REGISTER_TEST - %u: %u %u %u %u %u\n",
 			__func__, test_data[0], test_data[1], test_data[2],
 			test_data[3], test_data[4], test_data[5]);
-		mobeam_write(data, registerset, test_data, len);
+		mobeam_write(data, registerset, test_data);
 	} else if (buf[0] == DATA_TEST) {
 		memcpy(test_data, &barcode_data[1], 13);
-		len = 13;
 		pr_info("[SSP] %s, DATA_TEST - 0x%X 0x%X 0x%X 0x%X 0x%X 0x%X\n",
 			__func__, test_data[0], test_data[1], test_data[2],
 			test_data[3], test_data[4], test_data[5]);
-		mobeam_write(data, dataset, test_data, len);
+		mobeam_write(data, dataset, test_data);
 	}
 	return size;
 }
-static DEVICE_ATTR(vendor, 0444, mobeam_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, mobeam_name_show, NULL);
-static DEVICE_ATTR(barcode_send, 0664,
+static DEVICE_ATTR(vendor, S_IRUGO, mobeam_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, mobeam_name_show, NULL);
+static DEVICE_ATTR(barcode_send, S_IRUGO | S_IWUSR | S_IWGRP,
 	barcode_emul_show, barcode_emul_store);
-static DEVICE_ATTR(barcode_led_status, 0444,	barcode_led_status_show, NULL);
-static DEVICE_ATTR(barcode_ver_check, 0444, barcode_ver_check_show, NULL);
-static DEVICE_ATTR(barcode_test_send, 0220,
+static DEVICE_ATTR(barcode_led_status, S_IRUGO,	barcode_led_status_show, NULL);
+static DEVICE_ATTR(barcode_ver_check, S_IRUGO, barcode_ver_check_show, NULL);
+static DEVICE_ATTR(barcode_test_send, S_IWUSR | S_IWGRP,
 	NULL, barcode_emul_test_store);
 
 void initialize_mobeam(struct ssp_data *data)

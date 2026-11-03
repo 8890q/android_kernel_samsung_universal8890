@@ -1291,6 +1291,7 @@ static void sx9310_debug_work_func(struct work_struct *work)
 {
 	struct sx9310_p *data = container_of((struct delayed_work *)work,
 		struct sx9310_p, debug_work);
+
 	static int hall_flag = 1;
 
 	if (atomic_read(&data->enable) == ON) {

@@ -54,9 +54,9 @@ static ssize_t proximity_avg_show(struct device *dev,
 	struct ssp_data *data = dev_get_drvdata(dev);
 
 	return snprintf(buf, PAGE_SIZE, "%d,%d,%d\n",
-		data->buf[PROXIMITY_RAW].prox_raw[1],
-		data->buf[PROXIMITY_RAW].prox_raw[2],
-		data->buf[PROXIMITY_RAW].prox_raw[3]);
+		data->buf[PROXIMITY_RAW].prox[1],
+		data->buf[PROXIMITY_RAW].prox[2],
+		data->buf[PROXIMITY_RAW].prox[3]);
 }
 
 static ssize_t proximity_avg_store(struct device *dev,
@@ -68,7 +68,6 @@ static ssize_t proximity_avg_store(struct device *dev,
 	struct ssp_data *data = dev_get_drvdata(dev);
 
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	iRet = kstrtoll(buf, 10, &dEnable);
@@ -93,17 +92,16 @@ static u16 get_proximity_rawdata(struct ssp_data *data)
 	char chTempbuf[4] = { 0 };
 
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	if (data->bProximityRawEnabled == false) {
 		send_instruction(data, ADD_SENSOR, PROXIMITY_RAW, chTempbuf, 4);
 		msleep(200);
-		uRowdata = data->buf[PROXIMITY_RAW].prox_raw[0];
+		uRowdata = data->buf[PROXIMITY_RAW].prox[0];
 		send_instruction(data, REMOVE_SENSOR, PROXIMITY_RAW,
 			chTempbuf, 4);
 	} else {
-		uRowdata = data->buf[PROXIMITY_RAW].prox_raw[0];
+		uRowdata = data->buf[PROXIMITY_RAW].prox[0];
 	}
 
 	return uRowdata;
@@ -369,7 +367,7 @@ static ssize_t proximity_thresh_high_store(struct device *dev,
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrtoint failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & 0xfc00)
+		if(uNewThresh & 0xfc00)
 			pr_err("[SSP]: %s - allow 10bits.(%d)\n", __func__, uNewThresh);
 		else {
 			uNewThresh &= 0x03ff;
@@ -408,7 +406,7 @@ static ssize_t proximity_thresh_low_store(struct device *dev,
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrtoint failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & 0xfc00)
+		if(uNewThresh & 0xfc00)
 			pr_err("[SSP]: %s - allow 10bits.(%d)\n", __func__, uNewThresh);
 		else {
 			uNewThresh &= 0x03ff;
@@ -460,21 +458,21 @@ static ssize_t barcode_emul_enable_store(struct device *dev,
 	return size;
 }
 
-static DEVICE_ATTR(vendor, 0444, prox_vendor_show, NULL);
-static DEVICE_ATTR(name, 0444, prox_name_show, NULL);
-static DEVICE_ATTR(state, 0444, proximity_state_show, NULL);
-static DEVICE_ATTR(raw_data, 0444, proximity_raw_data_show, NULL);
-static DEVICE_ATTR(barcode_emul_en, 0664,
+static DEVICE_ATTR(vendor, S_IRUGO, prox_vendor_show, NULL);
+static DEVICE_ATTR(name, S_IRUGO, prox_name_show, NULL);
+static DEVICE_ATTR(state, S_IRUGO, proximity_state_show, NULL);
+static DEVICE_ATTR(raw_data, S_IRUGO, proximity_raw_data_show, NULL);
+static DEVICE_ATTR(barcode_emul_en, S_IRUGO | S_IWUSR | S_IWGRP,
 	barcode_emul_enable_show, barcode_emul_enable_store);
-static DEVICE_ATTR(prox_avg, 0664,
+static DEVICE_ATTR(prox_avg, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_avg_show, proximity_avg_store);
-static DEVICE_ATTR(prox_cal, 0664,
+static DEVICE_ATTR(prox_cal, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_cancel_show, proximity_cancel_store);
-static DEVICE_ATTR(thresh_high, 0664,
+static DEVICE_ATTR(thresh_high, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_high_show, proximity_thresh_high_store);
-static DEVICE_ATTR(thresh_low, 0664,
+static DEVICE_ATTR(thresh_low, S_IRUGO | S_IWUSR | S_IWGRP,
 	proximity_thresh_low_show, proximity_thresh_low_store);
-static DEVICE_ATTR(prox_offset_pass, 0444, proximity_cancel_pass_show, NULL);
+static DEVICE_ATTR(prox_offset_pass, S_IRUGO, proximity_cancel_pass_show, NULL);
 
 static struct device_attribute *prox_attrs[] = {
 	&dev_attr_vendor,

@@ -46,6 +46,25 @@ ssize_t mcu_reset_show(struct device *dev,
 	return sprintf(buf, "OK\n");
 }
 
+ssize_t mcu_dump_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	struct ssp_data *data = dev_get_drvdata(dev);
+	int status = 1, iDelaycnt = 0;
+
+	data->bDumping = true;
+	set_big_data_start(data, BIG_TYPE_DUMP, 0);
+	msleep(300);
+	while (data->bDumping) {
+		mdelay(10);
+		if (iDelaycnt++ > 1000) {
+			status = 0;
+			break;
+		}
+	}
+	return sprintf(buf, "%s\n", status ? "OK" : "NG");
+}
+
 static char buffer[FACTORY_DATA_MAX];
 
 ssize_t mcu_factorytest_store(struct device *dev,

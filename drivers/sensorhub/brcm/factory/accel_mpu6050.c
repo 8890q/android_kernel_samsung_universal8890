@@ -277,12 +277,12 @@ static ssize_t accel_reactive_alert_show(struct device *dev,
 	return sprintf(buf, "%u\n", bSuccess);
 }
 
-static DEVICE_ATTR(name, 0444, accel_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, accel_vendor_show, NULL);
-static DEVICE_ATTR(calibration, 0664,
+static DEVICE_ATTR(name, S_IRUGO, accel_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, accel_vendor_show, NULL);
+static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP,
 	accel_calibration_show, accel_calibration_store);
-static DEVICE_ATTR(raw_data, 0444, raw_data_read, NULL);
-static DEVICE_ATTR(reactive_alert, 0664,
+static DEVICE_ATTR(raw_data, S_IRUGO, raw_data_read, NULL);
+static DEVICE_ATTR(reactive_alert, S_IRUGO | S_IWUSR | S_IWGRP,
 	accel_reactive_alert_show, accel_reactive_alert_store);
 
 static struct device_attribute *acc_attrs[] = {

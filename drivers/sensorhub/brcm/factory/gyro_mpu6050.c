@@ -301,11 +301,11 @@ static ssize_t gyro_selftest_show(struct device *dev,
 	pr_err("[SSP] init: %d, total cnt: %d\n", initialized, total_count);
 	pr_err("[SSP] avg %+8ld %+8ld %+8ld (LSB)\n", avg[0], avg[1], avg[2]);
 	pr_err("[SSP] rms %+8ld %+8ld %+8ld (LSB)\n", rms[0], rms[1], rms[2]);
-	/*
-	 *avg[0] /= total_count;
-	 *avg[1] /= total_count;
-	 *avg[2] /= total_count;
-	 */
+/*
+	avg[0] /= total_count;
+	avg[1] /= total_count;
+	avg[2] /= total_count;
+*/
 	pr_info("[SSP] bias : %+8ld %+8ld %+8ld (LSB)\n",
 		avg[0], avg[1], avg[2]);
 
@@ -327,18 +327,16 @@ static ssize_t gyro_selftest_show(struct device *dev,
 	}
 	for (j = 0; j < 3; j++) {
 		if (abs(avg[j]) > DEF_BIAS_LSB_THRESH_SELF) {
-			pr_info("[SSP] %s-Gyro bias (%ld) exceeded threshold (threshold = %d LSB)\n",
-				a_name[j],
+			pr_info("[SSP] %s-Gyro bias (%ld) exceeded threshold "
+				"(threshold = %d LSB)\n", a_name[j],
 				avg[j], DEF_BIAS_LSB_THRESH_SELF);
 			ret_val |= 1 << (3 + j);
 		}
 	}
-/*
- *3rd, check RMS for dead gyros
- *If any of the RMS noise value returns zero,
- *then we might have dead gyro or FIFO/register failure,
- *the part is sleeping, or the part is not responsive
- */
+	/* 3rd, check RMS for dead gyros
+	   If any of the RMS noise value returns zero,
+	   then we might have dead gyro or FIFO/register failure,
+	   the part is sleeping, or the part is not responsive */
 	if (rms[0] == 0 || rms[1] == 0 || rms[2] == 0)
 		ret_val |= 1 << 6;
 
@@ -350,8 +348,8 @@ static ssize_t gyro_selftest_show(struct device *dev,
 
 	for (j = 0; j < 3; j++) {
 		if (rms[j] / total_count > DEF_RMS_THRESH) {
-			pr_info("[SSP] %s-Gyro rms (%ld) exceeded threshold (threshold = %d LSB)\n",
-				a_name[j],
+			pr_info("[SSP] %s-Gyro rms (%ld) exceeded threshold "
+				"(threshold = %d LSB)\n", a_name[j],
 				rms[j] / total_count, DEF_RMS_THRESH);
 			ret_val |= 1 << (7 + j);
 		}
@@ -396,7 +394,10 @@ static ssize_t gyro_selftest_show(struct device *dev,
 	}
 
 exit:
-	ssp_dbg("[SSP]: Gyro Selftest - %d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d\n",
+	ssp_dbg("[SSP]: Gyro Selftest - %d,"
+		"%d.%03d,%d.%03d,%d.%03d,"
+		"%d.%03d,%d.%03d,%d.%03d,"
+		"%d,%d,%d\n",
 		ret_val,
 		(int)abs(gyro_bias[0]/1000),
 		(int)abs(gyro_bias[0])%1000,
@@ -414,7 +415,10 @@ exit:
 		(int)(total_count/3),
 		(int)(total_count/3));
 
-	return sprintf(buf, "%d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d.%03d,%d,%d,%d\n",
+	return sprintf(buf, "%d,"
+		"%d.%03d,%d.%03d,%d.%03d,"
+		"%d.%03d,%d.%03d,%d.%03d,"
+		"%d,%d,%d\n",
 		ret_val,
 		(int)abs(gyro_bias[0]/1000),
 		(int)abs(gyro_bias[0])%1000,
@@ -492,13 +496,13 @@ static ssize_t gyro_selftest_dps_show(struct device *dev,
 	return sprintf(buf, "%u\n", data->uGyroDps);
 }
 
-static DEVICE_ATTR(name, 0444, gyro_name_show, NULL);
-static DEVICE_ATTR(vendor, 0444, gyro_vendor_show, NULL);
-static DEVICE_ATTR(power_off, 0444, gyro_power_off, NULL);
-static DEVICE_ATTR(power_on, 0444, gyro_power_on, NULL);
-static DEVICE_ATTR(temperature, 0444, gyro_get_temp, NULL);
-static DEVICE_ATTR(selftest, 0444, gyro_selftest_show, NULL);
-static DEVICE_ATTR(selftest_dps, 0664,
+static DEVICE_ATTR(name, S_IRUGO, gyro_name_show, NULL);
+static DEVICE_ATTR(vendor, S_IRUGO, gyro_vendor_show, NULL);
+static DEVICE_ATTR(power_off, S_IRUGO, gyro_power_off, NULL);
+static DEVICE_ATTR(power_on, S_IRUGO, gyro_power_on, NULL);
+static DEVICE_ATTR(temperature, S_IRUGO, gyro_get_temp, NULL);
+static DEVICE_ATTR(selftest, S_IRUGO, gyro_selftest_show, NULL);
+static DEVICE_ATTR(selftest_dps, S_IRUGO | S_IWUSR | S_IWGRP,
 	gyro_selftest_dps_show, gyro_selftest_dps_store);
 
 static struct device_attribute *gyro_attrs[] = {

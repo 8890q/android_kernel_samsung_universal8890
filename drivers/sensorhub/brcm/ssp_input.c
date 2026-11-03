@@ -19,10 +19,9 @@
 #include <linux/iio/events.h>
 #include <linux/iio/buffer.h>
 #include <linux/iio/types.h>
-#include <linux/iio/kfifo_buf.h>
 
 /*************************************************************************/
-/* SSP Kernel -> HAL input evnet function								*/
+/* SSP Kernel -> HAL input evnet function                                */
 /*************************************************************************/
 #define IIO_BUFFER_12_BYTES		 20 /* 12 + timestamp 8*/
 #define IIO_BUFFER_6_BYTES		  14
@@ -55,48 +54,44 @@ void report_meta_data(struct ssp_data *data, struct sensor_value *s)
 
 	if (s->meta_data.sensor == ACCELEROMETER_SENSOR) {
 		s16 accel_buf[3];
-
 		memset(accel_buf, 0, sizeof(s16) * 3);
-		ssp_push_iio_buffer(data->accel_indio_dev, 0, (u8 *)accel_buf, sizeof(accel_buf));
+		ssp_push_iio_buffer(data->accel_indio_dev, 0, (u8*)accel_buf, sizeof(accel_buf));
 	} else if (s->meta_data.sensor == GYROSCOPE_SENSOR) {
 		int gyro_buf[3];
-
 		memset(gyro_buf, 0, sizeof(int) * 3);
-		ssp_push_iio_buffer(data->gyro_indio_dev, 0, (u8 *)gyro_buf, sizeof(gyro_buf));
+		ssp_push_iio_buffer(data->gyro_indio_dev, 0, (u8*)gyro_buf, sizeof(gyro_buf));
 	} else if (s->meta_data.sensor == GYRO_UNCALIB_SENSOR) {
+#if ANDROID_VERSION < 80000
+		s16 uncal_gyro_buf[6];
+		memset(uncal_gyro_buf, 0, sizeof(s16) * 6);
+#else
 		s32 uncal_gyro_buf[6];
-
 		memset(uncal_gyro_buf, 0, sizeof(s32) * 6);
-		ssp_push_iio_buffer(data->uncal_gyro_indio_dev,	0, (u8 *)uncal_gyro_buf, sizeof(uncal_gyro_buf));
+#endif
+		ssp_push_iio_buffer(data->uncal_gyro_indio_dev,	0, (u8*)uncal_gyro_buf, sizeof(uncal_gyro_buf));
 	} else if (s->meta_data.sensor == GEOMAGNETIC_SENSOR) {
 		u8 mag_buf[7];
-
-		memset(mag_buf, 0, 7);
-		ssp_push_iio_buffer(data->mag_indio_dev, 0, (u8 *)mag_buf, sizeof(mag_buf));
+		memset(mag_buf, 0 , 7);
+		ssp_push_iio_buffer(data->mag_indio_dev, 0, (u8*)mag_buf, sizeof(mag_buf));
 	} else if (s->meta_data.sensor == GEOMAGNETIC_UNCALIB_SENSOR) {
 		s16 uncal_mag_buf[6];
-
 		memset(uncal_mag_buf, 0, sizeof(s16) * 6);
-		ssp_push_iio_buffer(data->uncal_mag_indio_dev, 0, (u8 *)uncal_mag_buf, sizeof(uncal_mag_buf));
+		ssp_push_iio_buffer(data->uncal_mag_indio_dev, 0, (u8*)uncal_mag_buf, sizeof(uncal_mag_buf));
 	} else if (s->meta_data.sensor == PRESSURE_SENSOR) {
 		int pressure_buf[3];
-
 		memset(pressure_buf, 0, sizeof(int) * 3);
-		ssp_push_iio_buffer(data->pressure_indio_dev, 0, (u8 *)pressure_buf, sizeof(pressure_buf));
+		ssp_push_iio_buffer(data->pressure_indio_dev, 0, (u8*)pressure_buf, sizeof(pressure_buf));
 	} else if (s->meta_data.sensor == ROTATION_VECTOR) {
 		int rot_buf[5];
-
 		memset(rot_buf, 0, sizeof(int) * 5);
-		ssp_push_iio_buffer(data->rot_indio_dev, 0, (u8 *)rot_buf, sizeof(rot_buf));
+		ssp_push_iio_buffer(data->rot_indio_dev, 0, (u8*)rot_buf, sizeof(rot_buf));
 	} else if (s->meta_data.sensor == GAME_ROTATION_VECTOR) {
 		int grot_buf[5];
-
 		memset(grot_buf, 0, sizeof(int) * 5);
-		ssp_push_iio_buffer(data->game_rot_indio_dev, 0, (u8 *)grot_buf, sizeof(grot_buf));
+		ssp_push_iio_buffer(data->game_rot_indio_dev, 0, (u8*)grot_buf, sizeof(grot_buf));
 	} else if (s->meta_data.sensor == STEP_DETECTOR) {
 		u8 step_buf[1] = {0};
-
-		ssp_push_iio_buffer(data->step_det_indio_dev, 0, (u8 *)step_buf, sizeof(step_buf));
+		ssp_push_iio_buffer(data->step_det_indio_dev, 0, (u8*)step_buf, sizeof(step_buf));
 	} else {
 		input_report_rel(data->meta_input_dev, REL_DIAL,
 			s->meta_data.what);
@@ -110,67 +105,60 @@ void report_acc_data(struct ssp_data *data, struct sensor_value *accdata)
 {
 	s16 accel_buf[3];
 
-/*
- *#if defined (CONFIG_SENSORS_SSP_VLTE)
- *        if(data->change_axis == true && folder_state == true)
- *        {
- *                //pr_info("[SSP] %s folder_state %d, changed axis changed %d\n",
- *                __func__, folder_state, data->change_axis);
- *                data->buf[ACCELEROMETER_SENSOR].x = (accdata->x) * (-1);
- *                data->buf[ACCELEROMETER_SENSOR].y = (accdata->y);
- *                data->buf[ACCELEROMETER_SENSOR].z = (accdata->z) * (-1);
- *        }
- *        else
- *        {
- *                data->change_axis = false;
- *                //pr_info("[SSP] %s unfolder_state %d, changed axis changed %d\n",
- *                __func__, folder_state, data->change_axis);
- *                data->buf[ACCELEROMETER_SENSOR].x = accdata->x;
- *                data->buf[ACCELEROMETER_SENSOR].y = accdata->y;
- *                data->buf[ACCELEROMETER_SENSOR].z = accdata->z;
- *        }
- *#else
- */
+#if defined (CONFIG_SENSORS_SSP_VLTE)
+	if(data->change_axis == true && folder_state == true)
+	{
+		//pr_info("[SSP] %s folder_state %d, changed axis changed %d \n", __func__, folder_state, data->change_axis);
+		data->buf[ACCELEROMETER_SENSOR].x = (accdata->x) * (-1);
+		data->buf[ACCELEROMETER_SENSOR].y = (accdata->y);
+		data->buf[ACCELEROMETER_SENSOR].z = (accdata->z) * (-1);
+	}
+	else
+	{
+		data->change_axis = false;
+		//pr_info("[SSP] %s unfolder_state %d, changed axis changed %d \n", __func__, folder_state, data->change_axis);
+		data->buf[ACCELEROMETER_SENSOR].x = accdata->x;
+		data->buf[ACCELEROMETER_SENSOR].y = accdata->y;
+		data->buf[ACCELEROMETER_SENSOR].z = accdata->z;
+	}
+#else
 	data->buf[ACCELEROMETER_SENSOR].x = accdata->x;
 	data->buf[ACCELEROMETER_SENSOR].y = accdata->y;
 	data->buf[ACCELEROMETER_SENSOR].z = accdata->z;
-//#endif
+#endif
 	accel_buf[0] = data->buf[ACCELEROMETER_SENSOR].x;
 	accel_buf[1] = data->buf[ACCELEROMETER_SENSOR].y;
 	accel_buf[2] = data->buf[ACCELEROMETER_SENSOR].z;
 
-	ssp_push_iio_buffer(data->accel_indio_dev, accdata->timestamp, (u8 *)accel_buf, sizeof(accel_buf));
+	ssp_push_iio_buffer(data->accel_indio_dev, accdata->timestamp, (u8*)accel_buf, sizeof(accel_buf));
 }
 
 void report_gyro_data(struct ssp_data *data, struct sensor_value *gyrodata)
 {
 	int lTemp[3] = {0,};
 
-/*
- *#if defined (CONFIG_SENSORS_SSP_VLTE)
- *        if(data->change_axis == true && folder_state == true)
- *        {
- *                //pr_info("[SSP] %s folder_state %d, changed axis %d\n",
- *                __func__, folder_state, data->change_axis);
- *                data->buf[GYROSCOPE_SENSOR].x = (gyrodata->x) * (-1);
- *                data->buf[GYROSCOPE_SENSOR].y = (gyrodata->y);
- *                data->buf[GYROSCOPE_SENSOR].z = (gyrodata->z) * (-1);
- *        }
- *        else
- *        {
- *                data->change_axis = false;
- *                //pr_info("[SSP] %s unfolder_state %d, changed axis %d\n",
- *                __func__, folder_state, data->change_axis);
- *                data->buf[GYROSCOPE_SENSOR].x = gyrodata->x;
- *                data->buf[GYROSCOPE_SENSOR].y = gyrodata->y;
- *                data->buf[GYROSCOPE_SENSOR].z = gyrodata->z;
- *        }
- *#else
- */
-	data->buf[GYROSCOPE_SENSOR].gyro.x = gyrodata->gyro.x;
+#if ANDROID_VERSION < 80000
+	data->buf[GYROSCOPE_SENSOR].x = gyrodata->x;
+	data->buf[GYROSCOPE_SENSOR].y = gyrodata->y;
+	data->buf[GYROSCOPE_SENSOR].z = gyrodata->z;
+
+	if (data->uGyroDps == GYROSCOPE_DPS500) {
+		lTemp[0] = (int)data->buf[GYROSCOPE_SENSOR].x >> 2;
+		lTemp[1] = (int)data->buf[GYROSCOPE_SENSOR].y >> 2;
+		lTemp[2] = (int)data->buf[GYROSCOPE_SENSOR].z >> 2;
+	} else if (data->uGyroDps == GYROSCOPE_DPS250) {
+		lTemp[0] = (int)data->buf[GYROSCOPE_SENSOR].x >> 3;
+		lTemp[1] = (int)data->buf[GYROSCOPE_SENSOR].y >> 3;
+		lTemp[2] = (int)data->buf[GYROSCOPE_SENSOR].z >> 3;
+	} else {
+		lTemp[0] = (int)data->buf[GYROSCOPE_SENSOR].x;
+		lTemp[1] = (int)data->buf[GYROSCOPE_SENSOR].y;
+		lTemp[2] = (int)data->buf[GYROSCOPE_SENSOR].z;
+	}
+#else
+data->buf[GYROSCOPE_SENSOR].gyro.x = gyrodata->gyro.x;
 	data->buf[GYROSCOPE_SENSOR].gyro.y = gyrodata->gyro.y;
 	data->buf[GYROSCOPE_SENSOR].gyro.z = gyrodata->gyro.z;
-//#endif
 
 	if (data->uGyroDps == GYROSCOPE_DPS500) {
 		lTemp[0] = (int)data->buf[GYROSCOPE_SENSOR].gyro.x >> 2;
@@ -185,13 +173,38 @@ void report_gyro_data(struct ssp_data *data, struct sensor_value *gyrodata)
 		lTemp[1] = (int)data->buf[GYROSCOPE_SENSOR].gyro.y;
 		lTemp[2] = (int)data->buf[GYROSCOPE_SENSOR].gyro.z;
 	}
-
-	ssp_push_iio_buffer(data->gyro_indio_dev, gyrodata->timestamp, (u8 *)lTemp, sizeof(lTemp));
+#endif
+	ssp_push_iio_buffer(data->gyro_indio_dev, gyrodata->timestamp, (u8*)lTemp, sizeof(lTemp));
 }
 
 #ifdef CONFIG_SENSORS_SSP_INTERRUPT_GYRO_SENSOR
 void report_interrupt_gyro_data(struct ssp_data *data, struct sensor_value *gyrodata)
 {
+#if ANDROID_VERSION < 80000
+	int lTemp[3] = {0,};
+
+	data->buf[INTERRUPT_GYRO_SENSOR].x = gyrodata->x;
+	data->buf[INTERRUPT_GYRO_SENSOR].y = gyrodata->y;
+	data->buf[INTERRUPT_GYRO_SENSOR].z = gyrodata->z;
+
+	if (data->uGyroDps == GYROSCOPE_DPS500) {
+		lTemp[0] = (int)data->buf[INTERRUPT_GYRO_SENSOR].x >> 2;
+		lTemp[1] = (int)data->buf[INTERRUPT_GYRO_SENSOR].y >> 2;
+		lTemp[2] = (int)data->buf[INTERRUPT_GYRO_SENSOR].z >> 2;
+	} else if (data->uGyroDps == GYROSCOPE_DPS250) {
+		lTemp[0] = (int)data->buf[INTERRUPT_GYRO_SENSOR].x >> 3;
+		lTemp[1] = (int)data->buf[INTERRUPT_GYRO_SENSOR].y >> 3;
+		lTemp[2] = (int)data->buf[INTERRUPT_GYRO_SENSOR].z >> 3;
+	} else {
+		lTemp[0] = (int)data->buf[INTERRUPT_GYRO_SENSOR].x;
+		lTemp[1] = (int)data->buf[INTERRUPT_GYRO_SENSOR].y;
+		lTemp[2] = (int)data->buf[INTERRUPT_GYRO_SENSOR].z;
+	}
+
+	input_report_rel(data->interrupt_gyro_input_dev, REL_RX, data->buf[INTERRUPT_GYRO_SENSOR].x);
+	input_report_rel(data->interrupt_gyro_input_dev, REL_RY, data->buf[INTERRUPT_GYRO_SENSOR].y);
+	input_report_rel(data->interrupt_gyro_input_dev, REL_RZ, data->buf[INTERRUPT_GYRO_SENSOR].z);
+#else
 	data->buf[INTERRUPT_GYRO_SENSOR].gyro.x = gyrodata->gyro.x;
 	data->buf[INTERRUPT_GYRO_SENSOR].gyro.y = gyrodata->gyro.y;
 	data->buf[INTERRUPT_GYRO_SENSOR].gyro.z = gyrodata->gyro.z;
@@ -199,7 +212,7 @@ void report_interrupt_gyro_data(struct ssp_data *data, struct sensor_value *gyro
 	input_report_rel(data->interrupt_gyro_input_dev, REL_RX, data->buf[INTERRUPT_GYRO_SENSOR].gyro.x);
 	input_report_rel(data->interrupt_gyro_input_dev, REL_RY, data->buf[INTERRUPT_GYRO_SENSOR].gyro.y);
 	input_report_rel(data->interrupt_gyro_input_dev, REL_RZ, data->buf[INTERRUPT_GYRO_SENSOR].gyro.z);
-
+#endif
 	input_sync(data->interrupt_gyro_input_dev);
 }
 #endif
@@ -214,39 +227,55 @@ void report_geomagnetic_raw_data(struct ssp_data *data,
 
 void report_mag_data(struct ssp_data *data, struct sensor_value *magdata)
 {
-	u8 lTemp[8] = { 0, };
+    u8 lTemp[8] = { 0, };
 
-	data->buf[GEOMAGNETIC_SENSOR].cal_x = magdata->cal_x;
-	data->buf[GEOMAGNETIC_SENSOR].cal_y = magdata->cal_y;
-	data->buf[GEOMAGNETIC_SENSOR].cal_z = magdata->cal_z;
-	data->buf[GEOMAGNETIC_SENSOR].accuracy = magdata->accuracy;
+    data->buf[GEOMAGNETIC_SENSOR].cal_x = magdata->cal_x;
+    data->buf[GEOMAGNETIC_SENSOR].cal_y = magdata->cal_y;
+    data->buf[GEOMAGNETIC_SENSOR].cal_z = magdata->cal_z;
+    data->buf[GEOMAGNETIC_SENSOR].accuracy = magdata->accuracy;
 #ifdef CONFIG_SSP_SUPPORT_MAGNETIC_OVERFLOW
-	data->buf[GEOMAGNETIC_SENSOR].overflow = magdata->overflow;
+    data->buf[GEOMAGNETIC_SENSOR].overflow = magdata->overflow;
 #endif
 
-	memcpy(lTemp, magdata, sizeof(u8)*MAGNETIC_SIZE);
-	ssp_push_iio_buffer(data->mag_indio_dev, magdata->timestamp, (u8 *)lTemp, sizeof(u8)*MAGNETIC_SIZE);
+    memcpy(lTemp, magdata, sizeof(u8)*MAGNETIC_SIZE);
+    ssp_push_iio_buffer(data->mag_indio_dev, magdata->timestamp, (u8*)lTemp, sizeof(u8)*MAGNETIC_SIZE);
 }
 
 void report_mag_uncaldata(struct ssp_data *data, struct sensor_value *magdata)
 {
-	u8 lTemp[13] = {0,};
-
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_x = magdata->uncal_x;
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_y = magdata->uncal_y;
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_z = magdata->uncal_z;
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_x = magdata->offset_x;
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_y = magdata->offset_y;
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_z = magdata->offset_z;
+    u8 lTemp[13] = {0,};
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_x = magdata->uncal_x;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_y = magdata->uncal_y;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncal_z = magdata->uncal_z;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_x= magdata->offset_x;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_y= magdata->offset_y;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].offset_z= magdata->offset_z;
 #ifdef CONFIG_SSP_SUPPORT_MAGNETIC_OVERFLOW
-	data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncaloverflow = magdata->uncaloverflow;
+    data->buf[GEOMAGNETIC_UNCALIB_SENSOR].uncaloverflow= magdata->uncaloverflow;
 #endif
 
-	memcpy(lTemp, magdata, sizeof(u8)*UNCAL_MAGNETIC_SIZE);
-	ssp_push_iio_buffer(data->uncal_mag_indio_dev, magdata->timestamp, (u8 *)lTemp, sizeof(u8)*UNCAL_MAGNETIC_SIZE);
+    memcpy(lTemp, magdata, sizeof(u8)*UNCAL_MAGNETIC_SIZE);
+    ssp_push_iio_buffer(data->uncal_mag_indio_dev, magdata->timestamp, (u8*)lTemp, sizeof(u8)*UNCAL_MAGNETIC_SIZE);
 }
+
 void report_uncalib_gyro_data(struct ssp_data *data, struct sensor_value *gyrodata)
 {
+#if ANDROID_VERSION < 80000
+	s16 lTemp[6] = {0,};
+	data->buf[GYRO_UNCALIB_SENSOR].uncal_x = gyrodata->uncal_x;
+	data->buf[GYRO_UNCALIB_SENSOR].uncal_y = gyrodata->uncal_y;
+	data->buf[GYRO_UNCALIB_SENSOR].uncal_z = gyrodata->uncal_z;
+	data->buf[GYRO_UNCALIB_SENSOR].offset_x = gyrodata->offset_x;
+	data->buf[GYRO_UNCALIB_SENSOR].offset_y = gyrodata->offset_y;
+	data->buf[GYRO_UNCALIB_SENSOR].offset_z = gyrodata->offset_z;
+
+	lTemp[0] = gyrodata->uncal_x;
+	lTemp[1] = gyrodata->uncal_y;
+	lTemp[2] = gyrodata->uncal_z;
+	lTemp[3] = gyrodata->offset_x;
+	lTemp[4] = gyrodata->offset_y;
+	lTemp[5] = gyrodata->offset_z;
+#else
 	int lTemp[6] = {0,};
 
 	data->buf[GYRO_UNCALIB_SENSOR].uncal_gyro.x = gyrodata->uncal_gyro.x;
@@ -262,8 +291,8 @@ void report_uncalib_gyro_data(struct ssp_data *data, struct sensor_value *gyroda
 	lTemp[3] = gyrodata->uncal_gyro.offset_x;
 	lTemp[4] = gyrodata->uncal_gyro.offset_y;
 	lTemp[5] = gyrodata->uncal_gyro.offset_z;
-
-	ssp_push_iio_buffer(data->uncal_gyro_indio_dev,	gyrodata->timestamp, (u8 *)lTemp, sizeof(lTemp));
+#endif
+	ssp_push_iio_buffer(data->uncal_gyro_indio_dev,	gyrodata->timestamp, (u8*)lTemp, sizeof(lTemp));
 }
 
 void report_sig_motion_data(struct ssp_data *data,
@@ -323,9 +352,9 @@ void report_game_rot_data(struct ssp_data *data, struct sensor_value *grvec_data
 void report_gesture_data(struct ssp_data *data, struct sensor_value *gesdata)
 {
 	int i = 0;
-
-	for (i = 0; i < 20; i++)
+	for (i=0; i<20; i++) {
 		data->buf[GESTURE_SENSOR].data[i] = gesdata->data[i];
+	}
 
 	input_report_abs(data->gesture_input_dev,
 		ABS_X, data->buf[GESTURE_SENSOR].data[0]);
@@ -383,11 +412,28 @@ void report_pressure_data(struct ssp_data *data, struct sensor_value *predata)
 	temp[1] = data->buf[PRESSURE_SENSOR].temperature;
 	temp[2] = data->sealevelpressure;
 
-	ssp_push_iio_buffer(data->pressure_indio_dev, predata->timestamp, (u8 *)temp, sizeof(temp));
+	ssp_push_iio_buffer(data->pressure_indio_dev, predata->timestamp, (u8*)temp, sizeof(temp));
 }
 
 void report_light_data(struct ssp_data *data, struct sensor_value *lightdata)
 {
+	if((data->sensor_dump_flag_light==true))
+	{
+		if(data->light_log_cnt!=0)
+		{
+			/*If current light sensor data is same with previous sensor data*/
+			if(	(data->buf[LIGHT_SENSOR].r != lightdata->r) ||
+				(data->buf[LIGHT_SENSOR].g != lightdata->g) ||
+				(data->buf[LIGHT_SENSOR].b != lightdata->b) ||
+				(data->buf[LIGHT_SENSOR].w != lightdata->w) ||
+				(data->buf[LIGHT_SENSOR].a_time != lightdata->a_time) ||
+				(data->buf[LIGHT_SENSOR].a_gain != lightdata->a_gain))
+			{
+				data->sensor_dump_flag_light = false;
+			}
+		}
+	}
+
 #ifdef CONFIG_SENSORS_SSP_LIGHT_REPORT_LUX
 	data->buf[LIGHT_SENSOR].lux = lightdata->lux;
 	data->buf[LIGHT_SENSOR].cct = lightdata->cct;
@@ -397,13 +443,13 @@ void report_light_data(struct ssp_data *data, struct sensor_value *lightdata)
 	data->buf[LIGHT_SENSOR].b = lightdata->b;
 	data->buf[LIGHT_SENSOR].w = lightdata->w;
 	data->buf[LIGHT_SENSOR].a_time = lightdata->a_time;
-	data->buf[LIGHT_SENSOR].a_gain = lightdata->a_gain;
+	data->buf[LIGHT_SENSOR].a_gain = (0x07) & (lightdata->a_gain);
 
 #ifdef CONFIG_SENSORS_SSP_LIGHT_REPORT_LUX
 	input_report_rel(data->light_input_dev, REL_RX,
-		data->buf[LIGHT_SENSOR].lux + 1);
+		data->buf[LIGHT_SENSOR].lux +1);
 	input_report_rel(data->light_input_dev, REL_X,
-		data->buf[LIGHT_SENSOR].cct + 1);
+		data->buf[LIGHT_SENSOR].cct +1);
 #endif
 	input_report_rel(data->light_input_dev, REL_HWHEEL,
 		data->buf[LIGHT_SENSOR].r + 1);
@@ -419,16 +465,17 @@ void report_light_data(struct ssp_data *data, struct sensor_value *lightdata)
 	input_report_rel(data->light_input_dev, REL_RZ,
 		data->buf[LIGHT_SENSOR].a_gain + 1);
 
-	if (data->light_log_cnt < 3) {
+	if(data->light_log_cnt < 3)
+	{
 #ifdef CONFIG_SENSORS_SSP_LIGHT_REPORT_LUX
 		ssp_dbg("[SSP] #>L lux=%u cct=%d r=%d g=%d b=%d c=%d atime=%d again=%d",
-			data->buf[LIGHT_SENSOR].lux, data->buf[LIGHT_SENSOR].cct,
-			data->buf[LIGHT_SENSOR].r, data->buf[LIGHT_SENSOR].g, data->buf[LIGHT_SENSOR].b,
-			data->buf[LIGHT_SENSOR].w, data->buf[LIGHT_SENSOR].a_time, data->buf[LIGHT_SENSOR].a_gain);
+			data->buf[LIGHT_SENSOR].lux,data->buf[LIGHT_SENSOR].cct,
+			data->buf[LIGHT_SENSOR].r,data->buf[LIGHT_SENSOR].g,data->buf[LIGHT_SENSOR].b,
+			data->buf[LIGHT_SENSOR].w,data->buf[LIGHT_SENSOR].a_time,data->buf[LIGHT_SENSOR].a_gain);
 #else
 		ssp_dbg("[SSP] #>L r=%d g=%d b=%d c=%d atime=%d again=%d",
-			data->buf[LIGHT_SENSOR].r, data->buf[LIGHT_SENSOR].g, data->buf[LIGHT_SENSOR].b,
-			data->buf[LIGHT_SENSOR].w, data->buf[LIGHT_SENSOR].a_time, data->buf[LIGHT_SENSOR].a_gain);
+			data->buf[LIGHT_SENSOR].r,data->buf[LIGHT_SENSOR].g,data->buf[LIGHT_SENSOR].b,
+			data->buf[LIGHT_SENSOR].w,data->buf[LIGHT_SENSOR].a_time,data->buf[LIGHT_SENSOR].a_gain);
 #endif
 		data->light_log_cnt++;
 	}
@@ -440,12 +487,12 @@ void report_light_data(struct ssp_data *data, struct sensor_value *lightdata)
 void report_light_ir_data(struct ssp_data *data, struct sensor_value *lightirdata)
 {
 	data->buf[LIGHT_IR_SENSOR].irdata = lightirdata->irdata;
-	data->buf[LIGHT_IR_SENSOR].ir_r = lightirdata->ir_r;
+	data->buf[LIGHT_IR_SENSOR].ir_r= lightirdata->ir_r;
 	data->buf[LIGHT_IR_SENSOR].ir_g = lightirdata->ir_g;
 	data->buf[LIGHT_IR_SENSOR].ir_b = lightirdata->ir_b;
 	data->buf[LIGHT_IR_SENSOR].ir_w = lightirdata->ir_w;
 	data->buf[LIGHT_IR_SENSOR].ir_a_time = lightirdata->ir_a_time;
-	data->buf[LIGHT_IR_SENSOR].ir_a_gain = lightirdata->ir_a_gain;
+	data->buf[LIGHT_IR_SENSOR].ir_a_gain = (0x07) & (lightirdata->ir_a_gain);
 
 	input_report_rel(data->light_ir_input_dev, REL_RX,
 		data->buf[LIGHT_IR_SENSOR].irdata + 1);
@@ -465,11 +512,11 @@ void report_light_ir_data(struct ssp_data *data, struct sensor_value *lightirdat
 
 	input_sync(data->light_ir_input_dev);
 
-	if (data->light_ir_log_cnt < 3) {
-		ssp_dbg("[SSP]#>IR irdata=%d r=%d g=%d b=%d c=%d atime=%d again=%d\n",
-			data->buf[LIGHT_IR_SENSOR].irdata, data->buf[LIGHT_IR_SENSOR].ir_r,
-			data->buf[LIGHT_IR_SENSOR].ir_g, data->buf[LIGHT_IR_SENSOR].ir_b,
-			data->buf[LIGHT_IR_SENSOR].ir_w, data->buf[LIGHT_IR_SENSOR].ir_a_time,
+	if(data->light_ir_log_cnt < 3)
+	{
+		ssp_dbg("[SSP]#>IR irdata=%d r=%d g=%d b=%d c=%d atime=%d again=%d \n",
+			data->buf[LIGHT_IR_SENSOR].irdata,data->buf[LIGHT_IR_SENSOR].ir_r,data->buf[LIGHT_IR_SENSOR].ir_g,
+			data->buf[LIGHT_IR_SENSOR].ir_b,data->buf[LIGHT_IR_SENSOR].ir_w,data->buf[LIGHT_IR_SENSOR].ir_a_time,
 			data->buf[LIGHT_IR_SENSOR].ir_a_gain);
 		data->light_ir_log_cnt++;
 	}
@@ -491,12 +538,10 @@ void report_light_flicker_data(struct ssp_data *data, struct sensor_value *light
 void report_prox_data(struct ssp_data *data, struct sensor_value *proxdata)
 {
 	u32 ts_high, ts_low;
-
 	ts_high = (u32)((proxdata->timestamp)>>32);
 	ts_low = (u32)((proxdata->timestamp)&0x00000000ffffffff);
 
-	usleep_range(500, 1000);
-
+	data->sensor_dump_flag_proximity = false;
 	ssp_dbg("[SSP] Proximity Sensor Detect : %u, raw : %u ts : %llu %d %d\n",
 		proxdata->prox_detect, proxdata->prox_adc, proxdata->timestamp, ts_high, ts_low);
 
@@ -545,7 +590,6 @@ void report_prox_raw_data(struct ssp_data *data,
 void report_prox_alert_data(struct ssp_data *data, struct sensor_value *prox_alert_data)
 {
 	u32 ts_high, ts_low;
-
 	ts_high = (u32)((prox_alert_data->timestamp)>>32);
 	ts_low = (u32)((prox_alert_data->timestamp)&0x00000000ffffffff);
 
@@ -601,7 +645,7 @@ void report_step_det_data(struct ssp_data *data,
 		struct sensor_value *stepdet_data)
 {
 	data->buf[STEP_DETECTOR].step_det = stepdet_data->step_det;
-	ssp_push_iio_buffer(data->step_det_indio_dev, stepdet_data->timestamp, (u8 *)&stepdet_data->step_det, 1);
+	ssp_push_iio_buffer(data->step_det_indio_dev, stepdet_data->timestamp, (u8*)&stepdet_data->step_det, 1);
 }
 
 void report_step_cnt_data(struct ssp_data *data,
@@ -812,6 +856,10 @@ static const struct iio_chan_spec uncal_gyro_channels[] = {
 		.type = IIO_TIMESTAMP,
 		.channel = -1,
 		.scan_index = 3,
+#if ANDROID_VERSION < 80000
+		.scan_type = IIO_ST('s', IIO_BUFFER_12_BYTES * 8,
+			IIO_BUFFER_12_BYTES * 8, 0)
+#else
 		.scan_type = {
 			.sign = 's',
 			.realbits = 16 * 8,
@@ -819,6 +867,7 @@ static const struct iio_chan_spec uncal_gyro_channels[] = {
 			.shift = 0,
 			.repeat = 2
 		}
+#endif
 	}
 };
 
@@ -958,6 +1007,10 @@ int initialize_iio_buffer_and_device(struct iio_dev *indio_dev)
 	if (iRet)
 		goto err_config_ring_buffer;
 
+        iRet = iio_buffer_register(indio_dev, indio_dev->channels, indio_dev->num_channels);
+	if (iRet)
+		goto err_buffer_register;
+
 	iRet = iio_device_register(indio_dev);
 	if (iRet)
 		goto err_register_device;
@@ -967,6 +1020,9 @@ int initialize_iio_buffer_and_device(struct iio_dev *indio_dev)
 err_register_device:
 	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
 	iio_device_unregister(indio_dev);
+err_buffer_register:
+	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
+	iio_buffer_unregister(indio_dev);
 err_config_ring_buffer:
 	pr_err("[SSP]: failed to configure %s buffer\n", indio_dev->name);
 	ssp_iio_unconfigure_ring(indio_dev);
@@ -1130,15 +1186,15 @@ int initialize_input_dev(struct ssp_data *data)
 	if (data->light_input_dev) {
 		data->light_input_dev->name = "light_sensor";
 #ifdef CONFIG_SENSORS_SSP_LIGHT_REPORT_LUX
-		input_set_capability(data->light_input_dev, EV_REL, REL_RX);
-		input_set_capability(data->light_input_dev, EV_REL, REL_X);
+	input_set_capability(data->light_input_dev, EV_REL, REL_RX);
+	input_set_capability(data->light_input_dev, EV_REL, REL_X);
 #endif
-		input_set_capability(data->light_input_dev, EV_REL, REL_HWHEEL);
-		input_set_capability(data->light_input_dev, EV_REL, REL_DIAL);
-		input_set_capability(data->light_input_dev, EV_REL, REL_WHEEL);
-		input_set_capability(data->light_input_dev, EV_REL, REL_MISC);
-		input_set_capability(data->light_input_dev, EV_REL, REL_RY);
-		input_set_capability(data->light_input_dev, EV_REL, REL_RZ);
+	input_set_capability(data->light_input_dev, EV_REL, REL_HWHEEL);
+	input_set_capability(data->light_input_dev, EV_REL, REL_DIAL);
+	input_set_capability(data->light_input_dev, EV_REL, REL_WHEEL);
+	input_set_capability(data->light_input_dev, EV_REL, REL_MISC);
+	input_set_capability(data->light_input_dev, EV_REL, REL_RY);
+	input_set_capability(data->light_input_dev, EV_REL, REL_RZ);
 
 		iRet = initialize_input_device(data->light_input_dev, data);
 	}
@@ -1157,6 +1213,7 @@ int initialize_input_dev(struct ssp_data *data)
 
 		iRet = initialize_input_device(data->light_ir_input_dev, data);
 	}
+	input_set_drvdata(data->light_ir_input_dev, data);
 #endif
 	// light_flicker_sensor
 	data->light_flicker_input_dev = input_allocate_device();
@@ -1193,7 +1250,7 @@ int initialize_input_dev(struct ssp_data *data)
 		iRet = initialize_input_device(data->grip_input_dev, data);
 	}
 #endif
-	// temperature sensor
+
 	data->temp_humi_input_dev = input_allocate_device();
 	if (data->temp_humi_input_dev) {
 		data->temp_humi_input_dev->name = "temp_humidity_sensor";

@@ -3,18 +3,18 @@
 #define	VENDOR		"AMS"
 
 #if defined(CONFIG_SENSORS_SSP_TMD4903)
-#define CHIP_ID		"TMD4903"
+#define CHIP_ID 	"TMD4903"
 #elif defined(CONFIG_SENSORS_SSP_TMD4904)
-#define CHIP_ID		"TMD4904"
+#define CHIP_ID 	"TMD4904"
 #elif defined(CONFIG_SENSORS_SSP_TMD4905)
-#define CHIP_ID		"TMD4905"
-#elif defined(CONFIG_SENSORS_SSP_TMD4906)
-#define CHIP_ID		"TMD4906"
+#define CHIP_ID 	"TMD4905"
+#elif defined(CONFIG_SENSORS_SSP_TMD3725)
+#define CHIP_ID 	"TMD3725"
 #else
-#define CHIP_ID		"UNKNOWN"
+#define CHIP_ID 	"UNKNOWN"
 #endif
 
-#define PROX_ADC_BITS_NUM		14
+#define PROX_ADC_BITS_NUM 		14
 
 /*************************************************************************/
 /* Functions                                                             */
@@ -26,7 +26,6 @@ static u16 get_proximity_rawdata(struct ssp_data *data)
 	char chTempbuf[4] = { 0 };
 
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	if (data->bProximityRawEnabled == false) {
@@ -89,22 +88,22 @@ static ssize_t proximity_thresh_high_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	u16 uNewThresh;
-	int iRet, i = 0;
+	int iRet, i=0;
 	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	while (i < PROX_ADC_BITS_NUM)
+	while(i<PROX_ADC_BITS_NUM)
 		prox_bits_mask += (1 << i++);
 
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
+	while(i<16)
+		prox_non_bits_mask += (1<<i++);
 
 	iRet = kstrtou16(buf, 10, &uNewThresh);
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrto16 failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & prox_non_bits_mask)
-			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM, uNewThresh);
+		if(uNewThresh & prox_non_bits_mask)
+			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM,uNewThresh);
 		else {
 			uNewThresh &= prox_bits_mask;
 			data->uProxHiThresh = uNewThresh;
@@ -130,22 +129,22 @@ static ssize_t proximity_thresh_low_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	u16 uNewThresh;
-	int iRet, i = 0;
+	int iRet, i=0;
 	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	while (i < PROX_ADC_BITS_NUM)
+	while(i<PROX_ADC_BITS_NUM)
 		prox_bits_mask += (1 << i++);
 
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
+	while(i<16)
+		prox_non_bits_mask += (1<<i++);
 
 	iRet = kstrtou16(buf, 10, &uNewThresh);
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrto16 failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & prox_non_bits_mask)
-			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM, uNewThresh);
+		if(uNewThresh & prox_non_bits_mask)
+			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM,uNewThresh);
 		else {
 			uNewThresh &= prox_bits_mask;
 			data->uProxLoThresh = uNewThresh;
@@ -171,22 +170,22 @@ static ssize_t proximity_thresh_detect_high_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	u16 uNewThresh;
-	int iRet, i = 0;
+	int iRet, i=0;
 	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	while (i < PROX_ADC_BITS_NUM)
+	while(i<PROX_ADC_BITS_NUM)
 		prox_bits_mask += (1 << i++);
 
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
+	while(i<16)
+		prox_non_bits_mask += (1<<i++);
 
 	iRet = kstrtou16(buf, 10, &uNewThresh);
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrto16 failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & prox_non_bits_mask)
-			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM, uNewThresh);
+		if(uNewThresh & prox_non_bits_mask)
+			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM,uNewThresh);
 		else {
 			uNewThresh &= prox_bits_mask;
 			data->uProxHiThresh_detect = uNewThresh;
@@ -212,22 +211,22 @@ static ssize_t proximity_thresh_detect_low_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
 	u16 uNewThresh;
-	int iRet, i = 0;
+	int iRet, i=0;
 	u16 prox_bits_mask = 0, prox_non_bits_mask = 0;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	while (i < PROX_ADC_BITS_NUM)
+	while(i<PROX_ADC_BITS_NUM)
 		prox_bits_mask += (1 << i++);
 
-	while (i < 16)
-		prox_non_bits_mask += (1 << i++);
+	while(i<16)
+		prox_non_bits_mask += (1<<i++);
 
 	iRet = kstrtou16(buf, 10, &uNewThresh);
 	if (iRet < 0)
 		pr_err("[SSP]: %s - kstrto16 failed.(%d)\n", __func__, iRet);
 	else {
-		if (uNewThresh & prox_non_bits_mask)
-			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM, uNewThresh);
+		if(uNewThresh & prox_non_bits_mask)
+			pr_err("[SSP]: %s - allow %ubits.(%d)\n", __func__, PROX_ADC_BITS_NUM,uNewThresh);
 		else {
 			uNewThresh &= prox_bits_mask;
 			data->uProxLoThresh_detect = uNewThresh;
@@ -292,8 +291,8 @@ static ssize_t proximity_avg_show(struct device *dev,
 }
 
 /*
- *	Proximity Raw Sensor Register/Unregister
- */
+	Proximity Raw Sensor Register/Unregister
+*/
 static ssize_t proximity_avg_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t size)
 {
@@ -303,7 +302,6 @@ static ssize_t proximity_avg_store(struct device *dev,
 	struct ssp_data *data = dev_get_drvdata(dev);
 
 	s32 dMsDelay = 20;
-
 	memcpy(&chTempbuf[0], &dMsDelay, 4);
 
 	iRet = kstrtoll(buf, 10, &dEnable);
@@ -361,12 +359,12 @@ static ssize_t proximity_setting_store(struct device *dev,
 {
 	int iRet;
 	u8 val[2];
-	char *token;
-	char *str;
+	char* token;
+	char* str;
 	struct ssp_msg *msg;
 	struct ssp_data *data = dev_get_drvdata(dev);
 
-	pr_info("[SSP] %s - %s\n", __func__, buf);
+	pr_info("[SSP] %s - %s\n", __func__,buf);
 
 	//parsing
 	str = (char *)buf;
@@ -377,8 +375,8 @@ static ssize_t proximity_setting_store(struct device *dev,
 	}
 
 	iRet = kstrtou8(token, 10, &val[0]);
-	if (iRet < 0) {
-		pr_err("[SSP] %s : kstrtou8 error %d", __func__, iRet);
+	if (iRet<0) {
+		pr_err("[SSP] %s : kstrtou8 error %d",__func__,iRet);
 		return iRet;
 	}
 
@@ -389,18 +387,18 @@ static ssize_t proximity_setting_store(struct device *dev,
 	}
 
 	iRet = kstrtou8(token, 16, &val[1]);
-	if (iRet < 0) {
-		pr_err("[SSP] %s : kstrtou8 error %d", __func__, iRet);
+	if (iRet<0) {
+		pr_err("[SSP] %s : kstrtou8 error %d",__func__,iRet);
 		return iRet;
 	}
 
-	pr_info("[SSP] %s - index = %d value = 0x%x\n", __func__, val[0], val[1]);
+	pr_info("[SSP] %s - index = %d value = 0x%x\n", __func__, val[0],val[1]);
 
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	msg->cmd = MSG2SSP_AP_SET_PROX_SETTING;
 	msg->length = 2;
 	msg->options = AP2HUB_WRITE;
-	msg->buffer = (char *) kzalloc(2, GFP_KERNEL);
+	msg->buffer = (char*) kzalloc(2, GFP_KERNEL);
 
 	msg->free_buffer = 1;
 	memcpy(msg->buffer, val, 2);
@@ -459,10 +457,10 @@ static ssize_t prox_light_get_dhr_sensor_info_show(struct device *dev,
 	}
 
 	chipId = buffer[0];
-	threshold_high = ((((u16) buffer[2]) << 8) & 0xff00) | ((((u16) buffer[1])) & 0x00ff);
-	threshold_low = ((((u16) buffer[4]) << 8) & 0xff00) | ((((u16) buffer[3])) & 0x00ff);
-	threshold_detect_high = ((((u16) buffer[6]) << 8) & 0xff00) | ((((u16) buffer[5])) & 0x00ff);
-	threshold_detect_low = ((((u16) buffer[8]) << 8) & 0xff00) | ((((u16) buffer[7])) & 0x00ff);
+	threshold_high = ((((u16) buffer[2]) << 8 ) & 0xff00 ) | ((((u16) buffer[1])) & 0x00ff );
+	threshold_low = ((((u16) buffer[4]) << 8 ) & 0xff00 ) | ((((u16) buffer[3])) & 0x00ff );
+	threshold_detect_high = ((((u16) buffer[6]) << 8 ) & 0xff00 ) | ((((u16) buffer[5])) & 0x00ff );
+	threshold_detect_low = ((((u16) buffer[8]) << 8 ) & 0xff00 ) | ((((u16) buffer[7])) & 0x00ff );
 	p_drive_current = buffer[9];
 	persistant_time = buffer[10];
 	p_pulse = buffer[11];
