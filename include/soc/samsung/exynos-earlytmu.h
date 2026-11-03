@@ -14,7 +14,7 @@
 #if defined(CONFIG_EXYNOS_EARLY_TMU)
 extern int exynos_earlytmu_get_boot_freq(int);
 #else
-static inline int exynos_earlytmu_get_boot_freq(int) { return -1; }
+static inline int exynos_earlytmu_get_boot_freq(int cpu) { return -1; }
 #endif
 
 #endif
