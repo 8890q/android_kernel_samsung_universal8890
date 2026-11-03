@@ -20,6 +20,9 @@
 #define SEC_TS_I2C_NAME "sec_ts"
 #define SEC_TS_DEVICE_NAME "SEC_TS"
 
+/* The S7 palm axis retains code 0x3e, named CUSTOM in this input ABI. */
+#define ABS_MT_PALM ABS_MT_CUSTOM
+
 #ifdef CONFIG_SEC_FACTORY
 #undef CONFIG_TOUCHSCREEN_SUPPORT_MULTIMEDIA
 #endif
