@@ -234,7 +234,7 @@ EXPORT_SYMBOL(mcu_ipc_send_command);
 
 u32 mbox_get_value(enum mcu_ipc_region id, u32 mbx_num)
 {
-	if (mbx_num < 64)
+	if (id < MCU_MAX && mcu_dat[id].ioaddr && mbx_num < 64)
 		return mcu_ipc_readl(id, EXYNOS_MCU_IPC_ISSR0 + (4 * mbx_num));
 	else
 		return 0;
@@ -243,7 +243,7 @@ EXPORT_SYMBOL(mbox_get_value);
 
 void mbox_set_value(enum mcu_ipc_region id, u32 mbx_num, u32 msg)
 {
-	if (mbx_num < 64)
+	if (id < MCU_MAX && mcu_dat[id].ioaddr && mbx_num < 64)
 		mcu_ipc_writel(id, msg, EXYNOS_MCU_IPC_ISSR0 + (4 * mbx_num));
 }
 EXPORT_SYMBOL(mbox_set_value);

@@ -644,7 +644,7 @@
 		compatible = "samsung,exynos8890-mailbox";
 		reg = <0x0 0x10540000 0x180>;
 		mcu,name = "mcu_ipc";
-		mcu,id = <1>;
+		mcu,id = <0>;
 		interrupts = <0 338 0 >;
 	};
 
