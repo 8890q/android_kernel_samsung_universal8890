@@ -15,10 +15,10 @@
 #include "fimc-is-interface-ddk.h"
 
 struct fimc_is_hw_isp {
-	struct fimc_is_lib_isp		lib[FIMC_IS_STREAM_COUNT];
+	struct fimc_is_lib_isp		lib[FIMC_IS_MAX_NODES];
 	struct fimc_is_lib_support	*lib_support;
 	struct lib_interface_func	*lib_func;
-	struct isp_param_set		param_set[FIMC_IS_STREAM_COUNT];
+	struct isp_param_set		param_set[FIMC_IS_MAX_NODES];
 };
 
 int fimc_is_hw_isp_probe(struct fimc_is_hw_ip *hw_ip, struct fimc_is_interface *itf,
@@ -36,13 +36,12 @@ int fimc_is_hw_isp_set_param(struct fimc_is_hw_ip *hw_ip, struct is_region *regi
 	u32 lindex, u32 hindex, u32 instance, ulong hw_map);
 void fimc_is_hw_isp_update_param(struct fimc_is_hw_ip *hw_ip, struct is_region *region,
 	struct isp_param_set *param_set, u32 lindex, u32 hindex, u32 instance);
-int fimc_is_hw_isp_get_meta(struct fimc_is_hw_ip *hw_ip, struct fimc_is_frame *frame,
-	ulong hw_map);
 int fimc_is_hw_isp_frame_ndone(struct fimc_is_hw_ip *hw_ip, struct fimc_is_frame *frame,
-	u32 instance, enum ShotErrorType done_type);
+	u32 instance, bool late_flag);
 int fimc_is_hw_isp_reset(struct fimc_is_hw_ip *hw_ip);
-int fimc_is_hw_isp_load_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_map);
-int fimc_is_hw_isp_apply_setfile(struct fimc_is_hw_ip *hw_ip, u32 scenario,
+int fimc_is_hw_isp_load_setfile(struct fimc_is_hw_ip *hw_ip, int index,
+	u32 instance, ulong hw_map);
+int fimc_is_hw_isp_apply_setfile(struct fimc_is_hw_ip *hw_ip, int index,
 	u32 instance, ulong hw_map);
 int fimc_is_hw_isp_delete_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance,
 	ulong hw_map);

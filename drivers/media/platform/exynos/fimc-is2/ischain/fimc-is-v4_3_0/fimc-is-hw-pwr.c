@@ -79,7 +79,7 @@ int fimc_is_sensor_runtime_resume_pre(struct device *dev)
 		goto p_err;
 	}
 
-#ifndef CONFIG_PM
+#ifndef CONFIG_PM_RUNTIME
 	{
 		u32 try_count;
 		unsigned int state;
@@ -138,7 +138,7 @@ p_err:
 
 int fimc_is_ischain_runtime_suspend_post(struct device *dev)
 {
-#ifndef CONFIG_PM
+#ifndef CONFIG_PM_RUNTIME
 	u32 try_count;
 	unsigned int state;
 
@@ -235,7 +235,7 @@ int fimc_is_ischain_runtime_resume_pre(struct device *dev)
 		ret = -ETIME;
 		goto p_err;
 	}
-#ifndef CONFIG_PM
+#ifndef CONFIG_PM_RUNTIME
 	{
 		u32 try_count;
 		unsigned int state;

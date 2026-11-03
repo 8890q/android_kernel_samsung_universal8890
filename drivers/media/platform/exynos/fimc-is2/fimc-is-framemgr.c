@@ -38,10 +38,12 @@
 
 #include "fimc-is-device-sensor.h"
 
-int frame_fcount(struct fimc_is_frame *frame, void *data)
-{
-	return frame->fcount - (u32)(ulong)data;
-}
+static const char * const frame_state_name[NR_FRAME_STATE] = {
+	"Free",
+	"Request",
+	"Process",
+	"Complete"
+};
 
 int put_frame(struct fimc_is_framemgr *this, struct fimc_is_frame *frame,
 			enum fimc_is_frame_state state)
@@ -74,8 +76,10 @@ struct fimc_is_frame *get_frame(struct fimc_is_framemgr *this,
 	if (state == FS_INVALID)
 		return NULL;
 
-	if (!this->queued_count[state])
+	if (!this->queued_count[state]) {
+		err("%s frame queue is empty", frame_state_name[state]);
 		return NULL;
+	}
 
 	frame = list_first_entry(&this->queued_list[state],
 						struct fimc_is_frame, list);
@@ -99,8 +103,7 @@ int trans_frame(struct fimc_is_framemgr *this, struct fimc_is_frame *frame,
 		return -EINVAL;
 
 	if (!this->queued_count[frame->state]) {
-		err("%s frame queue is empty (0x%08x)", frame_state_name[frame->state],
-							this->id);
+		err("%s frame queue is empty", frame_state_name[frame->state]);
 		return -EINVAL;
 	}
 
@@ -149,8 +152,7 @@ struct fimc_is_frame *find_frame(struct fimc_is_framemgr *this,
 		return NULL;
 
 	if (!this->queued_count[state]) {
-		err("%s frame queue is empty (0x%08x)", frame_state_name[state],
-							this->id);
+		err("%s frame queue is empty", frame_state_name[state]);
 		return NULL;
 	}
 
@@ -190,7 +192,7 @@ void print_frame_info_queue(struct fimc_is_framemgr *this,
 	if (!(TRACE_ID & this->id))
 			return;
 
-	pr_info("[FRM_INFO] %s(0x%08x, %d) :", hw_frame_state_name[state],
+	pr_info("[FRM_INFO] %s(0x%08x, %d) :", frame_state_name[state],
 					this->id, this->queued_count[state]);
 
 	list_for_each_entry_safe(frame, temp, &this->queued_list[state], list) {
@@ -202,12 +204,11 @@ void print_frame_info_queue(struct fimc_is_framemgr *this,
 		usec[INFO_CONFIG_LOCK]    = do_div(when[INFO_CONFIG_LOCK], NSEC_PER_SEC);
 		usec[INFO_FRAME_END_PROC] = do_div(when[INFO_FRAME_END_PROC], NSEC_PER_SEC);
 
-		pr_cont("%d[%d][%d]([%5lu.%06lu],[%5lu.%06lu],[%5lu.%06lu][C:0x%lx])->",
+		pr_cont("%d[%d][%d]([%5lu.%06lu],[%5lu.%06lu],[%5lu.%06lu])->",
 			frame->index, frame->fcount, frame->type,
 			(unsigned long)when[INFO_FRAME_START],    usec[INFO_FRAME_START] / NSEC_PER_USEC,
 			(unsigned long)when[INFO_CONFIG_LOCK],    usec[INFO_CONFIG_LOCK] / NSEC_PER_USEC,
-			(unsigned long)when[INFO_FRAME_END_PROC], usec[INFO_FRAME_END_PROC] / NSEC_PER_USEC,
-			frame->core_flag);
+			(unsigned long)when[INFO_FRAME_END_PROC], usec[INFO_FRAME_END_PROC] / NSEC_PER_USEC);
 	}
 
 	pr_cont("X\n");
@@ -278,7 +279,6 @@ int frame_manager_open(struct fimc_is_framemgr *this, u32 buffers)
 
 int frame_manager_close(struct fimc_is_framemgr *this)
 {
-	u32 i;
 	unsigned long flag;
 
 	spin_lock_irqsave(&this->slock, flag);
@@ -286,13 +286,6 @@ int frame_manager_close(struct fimc_is_framemgr *this)
 	if (this->frames) {
 		kfree(this->frames);
 		this->frames = NULL;
-	}
-
-	this->num_frames = 0;
-
-	for (i = 0; i < NR_FRAME_STATE; i++) {
-		this->queued_count[i] = 0;
-		INIT_LIST_HEAD(&this->queued_list[i]);
 	}
 
 	spin_unlock_irqrestore(&this->slock, flag);

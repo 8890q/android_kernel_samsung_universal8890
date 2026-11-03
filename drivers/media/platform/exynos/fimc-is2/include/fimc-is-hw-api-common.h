@@ -54,11 +54,11 @@ struct fimc_is_field {
 	int			reset;
 };
 
-u32 fimc_is_hw_get_reg(void __iomem *base_addr, const struct fimc_is_reg *reg);
-void fimc_is_hw_set_reg(void __iomem *base_addr, const struct fimc_is_reg *reg, u32 val);
-u32 fimc_is_hw_get_field(void __iomem *base_addr, const struct fimc_is_reg *reg, const struct fimc_is_field *field);
-void fimc_is_hw_set_field(void __iomem *base_addr, const struct fimc_is_reg *reg, const struct fimc_is_field *field, u32 val);
-u32 fimc_is_hw_get_field_value(u32 reg_value, const struct fimc_is_field *field);
-u32 fimc_is_hw_set_field_value(u32 reg_value, const struct fimc_is_field *field, u32 val);
-void fimc_is_hw_dump_regs(void __iomem *base_addr, const struct fimc_is_reg *regs, u32 total_cnt);
+u32 fimc_is_hw_get_reg(void __iomem *base_addr, struct fimc_is_reg *reg);
+void fimc_is_hw_set_reg(void __iomem *base_addr, struct fimc_is_reg *reg, u32 val);
+u32 fimc_is_hw_get_field(void __iomem *base_addr, struct fimc_is_reg *reg, struct fimc_is_field *field);
+void fimc_is_hw_set_field(void __iomem *base_addr, struct fimc_is_reg *reg, struct fimc_is_field *field, u32 val);
+u32 fimc_is_hw_get_field_value(u32 reg_value, struct fimc_is_field *field);
+u32 fimc_is_hw_set_field_value(u32 reg_value, struct fimc_is_field *field, u32 val);
+void fimc_is_hw_dump_regs(void __iomem *base_addr, struct fimc_is_reg *regs, u32 total_cnt);
 #endif

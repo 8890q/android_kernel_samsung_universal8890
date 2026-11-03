@@ -16,9 +16,6 @@
 #include "fimc-is-param.h"
 #include "fimc-is-video.h"
 #include "fimc-is-type.h"
-#ifdef ENABLE_HWFC
-#include "../../../smfc/smfc-sync.h"
-#endif
 
 static int fimc_is_ischain_mxp_cfg(struct fimc_is_subdev *subdev,
 	void *device_data,
@@ -111,7 +108,6 @@ static int fimc_is_ischain_mxp_cfg(struct fimc_is_subdev *subdev,
 	*hindex |= HIGHBIT_OF(subdev->param_dma_ot);
 	(*indexes)++;
 
-
 p_err:
 	return ret;
 }
@@ -139,14 +135,14 @@ static int fimc_is_ischain_mxp_adjust_crop(struct fimc_is_device_ischain *device
 	if (*output_crop_w < (input_crop_w + 23) / 24) {
 		mwarn("Cannot be scaled down beyond 1/16 times(%d -> %d)",
 			device, input_crop_w, *output_crop_w);
-		*output_crop_w = (input_crop_w + 23) / 24;
+		*output_crop_w = ALIGN((input_crop_w + 23) / 24, 16);
 		changed |= 0x10;
 	}
 
 	if (*output_crop_h < (input_crop_h + 23) / 24) {
 		mwarn("Cannot be scaled down beyond 1/16 times(%d -> %d)",
 			device, input_crop_h, *output_crop_h);
-		*output_crop_h = (input_crop_h + 23) / 24;
+		*output_crop_h = ALIGN((input_crop_h + 23) / 24, 2);
 		changed |= 0x20;
 	}
 
@@ -313,7 +309,7 @@ static int fimc_is_ischain_mxp_tag(struct fimc_is_subdev *subdev,
 	struct camera2_node *node)
 {
 	int ret = 0;
-	struct fimc_is_group *head;
+	struct fimc_is_group *parent;
 	struct fimc_is_subdev *leader;
 	struct fimc_is_queue *queue;
 	struct mcs_param *mcs_param;
@@ -447,12 +443,12 @@ static int fimc_is_ischain_mxp_tag(struct fimc_is_subdev *subdev,
 			 * For supporting multi input to single output.
 			 * But this function is not supported in full OTF chain.
 			 */
-			if (device->group_mcs.head)
-				head = device->group_mcs.head;
+			if (device->group_mcs.parent)
+				parent = device->group_mcs.parent;
 			else
-				head = &device->group_mcs;
+				parent = &device->group_mcs;
 
-			if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &head->state) && (head->asyn_shots == 1)) {
+			if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &parent->state) && (parent->asyn_shots == 1)) {
 				ret = down_interruptible(&subdev->vctx->video->smp_multi_input);
 				if (ret)
 					mswarn(" smp_multi_input down fail(%d)", device, subdev, ret);
@@ -490,20 +486,6 @@ static int fimc_is_ischain_mxp_tag(struct fimc_is_subdev *subdev,
 		mrerr("fimc_is_itf_s_param is fail(%d)", device, ldr_frame, ret);
 		goto p_err;
 	}
-
-#ifdef ENABLE_HWFC
-	if (test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &device->state)) {
-		if (node->vid == FIMC_IS_VIDEO_M3P_NUM)
-			ret = exynos_smfc_wait_done(mcs_output->hwfc);
-	} else {
-		if (node->vid == FIMC_IS_VIDEO_M3P_NUM || node->vid == FIMC_IS_VIDEO_M4P_NUM)
-			ret = exynos_smfc_wait_done(mcs_output->hwfc);
-	}
-	if (ret) {
-		mrerr("exynos_smfc_wait_done is fail(%d)", device, ldr_frame, ret);
-		goto p_err;
-	}
-#endif
 
 p_err:
 	return ret;

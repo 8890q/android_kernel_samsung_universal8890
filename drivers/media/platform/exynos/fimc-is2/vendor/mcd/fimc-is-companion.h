@@ -25,8 +25,8 @@
 #ifdef CONFIG_COMPANION_C3_USE
 #define FIMC_IS_COMPANION_VERSION_EVT0 0x00A0
 #define FIMC_IS_COMPANION_VERSION_EVT1 0x00A1
-#define COMP_DEFAULT_VOUT_VAL 800000
-#define COMP_DEFAULT_VOUT_STR "0.800"
+#define COMP_DEFAULT_VOUT_VAL 825000
+#define COMP_DEFAULT_VOUT_STR "0.825"
 #else
 #define FIMC_IS_COMPANION_VERSION_EVT0 0x00A0
 #define FIMC_IS_COMPANION_VERSION_EVT1 0x00B0
@@ -64,16 +64,11 @@ struct dcdc_power {
 
 int fimc_is_comp_is_valid(void *core_data);
 #ifdef CONFIG_COMPANION_FACTORY_VALIDATION
-void fimc_is_comp_i2c_config(struct i2c_client *client, bool onoff);
 int fimc_is_comp_is_valid_fac(void *core_data);
 #endif
 int fimc_is_comp_loadfirm(void *core_data);
 #ifdef CONFIG_PREPROCESSOR_STANDBY_USE
 int fimc_is_comp_retention(void *core_data);
-int fimc_is_comp_run_CRC_on_Close(void *core_data);
-#if defined(CONFIG_COMPANION_C3_USE) && defined(CONFIG_USE_DIRECT_IS_CONTROL)
-bool fimc_is_comp_check_CRC_Valid(void *core_data);
-#endif
 #endif
 int fimc_is_comp_loadsetf(void *core_data);
 int fimc_is_comp_loadcal(void *core_data, int position);
@@ -89,6 +84,4 @@ int fimc_is_comp_set_voltage(char *, int);
 #ifdef CONFIG_COMPANION_FACTORY_VALIDATION
 int fimc_is_comp_fac_valid(void *core_data);
 #endif
-int fimc_is_comp_i2c_read(struct i2c_client *client, u16 addr, u16 *data);
-int fimc_is_comp_i2c_write(struct i2c_client *client, u16 addr, u16 data);
 #endif /* FIMC_IS_COMPANION_H */

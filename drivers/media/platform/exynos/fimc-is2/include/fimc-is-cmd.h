@@ -140,9 +140,6 @@ enum is_subscenario_id {
 
 enum is_scenario_is {
 	FIMC_IS_SCENARIO_SWVDIS = 1,
-	FIMC_IS_SCENARIO_COLOR_IRIS = 2,
-	FIMC_IS_SCENARIO_AUTO_DUAL = 3,
-	FIMC_IS_SCENARIO_FHD_60FPS = 4,
 };
 
 enum is_system_control_id {
@@ -164,11 +161,7 @@ struct is_setfile_header_element {
 	u32 binary_size;
 };
 
-#ifdef CONFIG_USE_SENSOR_GROUP
-#define MAX_ACTIVE_GROUP 6
-#else
 #define MAX_ACTIVE_GROUP 5
-#endif
 struct fimc_is_path_info {
 	u32 sensor_name;
 	u32 mipi_csi;

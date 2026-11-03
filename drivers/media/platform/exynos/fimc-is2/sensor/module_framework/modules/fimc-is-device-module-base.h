@@ -29,7 +29,5 @@ int sensor_module_log_status(struct v4l2_subdev *subdev);
 /* Video ops */
 int sensor_module_s_stream(struct v4l2_subdev *subdev, int enable);
 int sensor_module_s_param(struct v4l2_subdev *subdev, struct v4l2_streamparm *param);
-int sensor_module_s_format(struct v4l2_subdev *subdev,
-	struct v4l2_subdev_pad_config *cfg,
-	struct v4l2_subdev_format *fmt);
+int sensor_module_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_framefmt *fmt);
 #endif

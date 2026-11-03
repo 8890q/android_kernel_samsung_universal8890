@@ -13,22 +13,16 @@
 #ifndef FIMC_IS_VENDOR_CONFIG_H
 #define FIMC_IS_VENDOR_CONFIG_H
 
-#define USE_BINARY_PADDING_DATA_ADDED
-
-#if defined(USE_BINARY_PADDING_DATA_ADDED) && defined(CONFIG_USE_SIGNED_BINARY)
-#define USE_TZ_CONTROLLED_MEM_ATTRIBUTE
-#endif
-
-#if defined(CONFIG_CAMERA_DREAM2) || defined(CONFIG_CAMERA_HERO2DREAM2)
-#include "fimc-is-vendor-config_dream2.h"
-#elif defined(CONFIG_CAMERA_DREAM)
-#include "fimc-is-vendor-config_dream.h"
-#elif defined(CONFIG_CAMERA_GREAT)
-#include "fimc-is-vendor-config_great.h"
-#elif defined(CONFIG_CAMERA_VALLEY)
-#include "fimc-is-vendor-config_valley.h"
+#if defined(CONFIG_CAMERA_HERO)
+#include "fimc-is-vendor-config_hero.h"
+#elif defined(CONFIG_CAMERA_GRACE)
+#include "fimc-is-vendor-config_grace.h"
+#elif defined(CONFIG_CAMERA_VJFLTE)
+#include "fimc-is-vendor-config_vjflte.h"
+#elif defined(CONFIG_CAMERA_ULTE)
+#include "fimc-is-vendor-config_ulte.h"
 #else
-#include "fimc-is-vendor-config_dream.h" /* Default */
+#include "fimc-is-vendor-config_hero.h" /* Default */
 #endif
 
 #endif

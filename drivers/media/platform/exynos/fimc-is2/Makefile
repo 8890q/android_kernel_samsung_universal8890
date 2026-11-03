@@ -7,7 +7,6 @@ fimc-is-objs	:= fimc-is-core.o \
 		fimc-is-framemgr.o \
 		fimc-is-groupmgr.o \
 		fimc-is-resourcemgr.o \
-		fimc-is-devicemgr.o \
 		fimc-is-video.o \
 		fimc-is-video-sensor.o \
 		fimc-is-video-3aa.o \
@@ -17,7 +16,6 @@ fimc-is-objs	:= fimc-is-core.o \
 		fimc-is-video-ispc.o \
 		fimc-is-video-ispp.o \
 		fimc-is-video-dis.o \
-		fimc-is-video-disc.o \
 		fimc-is-video-scc.o \
 		fimc-is-video-scp.o \
 		fimc-is-video-mcs.o \
@@ -29,6 +27,7 @@ fimc-is-objs	:= fimc-is-core.o \
 		fimc-is-video-ssvc3.o \
 		fimc-is-subdev-ctrl.o \
 		fimc-is-device-flite.o \
+		fimc-is-device-sensor.o \
 		fimc-is-device-ischain.o \
 		fimc-is-time.o \
 		fimc-is-dvfs.o \
@@ -46,15 +45,8 @@ fimc-is-objs += fimc-is-interface-wrap-fw.o
 fimc-is-objs += fimc-is-interface.o
 endif
 
-ifeq ($(CONFIG_USE_SENSOR_GROUP),y)
-fimc-is-objs += fimc-is-device-sensor_v2.o
-else
-fimc-is-objs += fimc-is-device-sensor.o
-endif
-
 obj-$(CONFIG_EXYNOS_DEVICE_MIPI_CSIS) += fimc-is-device-csi.o
 obj-$(CONFIG_EXYNOS_DEVICE_MIPI_CSIS_VER2) += fimc-is-device-csi_v2.o
-obj-$(CONFIG_EXYNOS_DEVICE_MIPI_CSIS_VER3) += fimc-is-device-csi_v3.o
 
 obj-$(CONFIG_VIDEO_EXYNOS_FIMC_IS2) += fimc-is.o
 obj-$(CONFIG_VIDEO_EXYNOS_FIMC_IS2) += sensor/
@@ -72,16 +64,10 @@ subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/hardware
 subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/hardware/api
 subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/vendor
 subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/sensor/csi
-subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/sensor/module_framework
-subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/vendor/mcd/preprocessor
 subdir-ccflags-$(CONFIG_FIMC_IS_V3_1_1) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v3_1_1
 subdir-ccflags-$(CONFIG_FIMC_IS_V3_11_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v3_11_0
-subdir-ccflags-$(CONFIG_FIMC_IS_V3_20_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v3_20_0
 subdir-ccflags-$(CONFIG_FIMC_IS_V4_0_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v4_0_0
 subdir-ccflags-$(CONFIG_FIMC_IS_V4_3_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v4_3_0
-subdir-ccflags-$(CONFIG_FIMC_IS_V5_10_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v5_10_0
-subdir-ccflags-$(CONFIG_FIMC_IS_V5_2_0) += -Idrivers/media/platform/exynos/fimc-is2/ischain/fimc-is-v5_2_0
-
 ifeq ($(CONFIG_VENDER_MCD),y)
 subdir-ccflags-y += -Idrivers/media/platform/exynos/fimc-is2/vendor/mcd
 else

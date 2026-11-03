@@ -31,14 +31,12 @@ int fimc_is_clk_gate_init(struct fimc_is_core *core)
 	spin_lock_init(&gate_ctrl->lock);
 	core->resourcemgr.clk_gate_ctrl.gate_info = core->pdata->gate_info;
 
-#if defined(ENABLE_IS_CORE)
 	/* ISSR53 is clock gating debugging region.
 	 * High means clock on state.
 	 * To prevent telling A5 wrong clock off state,
 	 * clock on state should be set before clock off is set.
 	 */
 	writel(0xFFFFFFFF, core->ischain[0].interface->regs + ISSR53);
-#endif
 
 	return 0;
 }
@@ -100,7 +98,6 @@ inline bool fimc_is_group_otf(struct fimc_is_device_ischain *device, int group_i
 		group = &device->group_isp;
 		break;
 	case GROUP_ID_DIS0:
-	case GROUP_ID_DIS1:
 		group = &device->group_dis;
 		break;
 	default:
@@ -119,13 +116,11 @@ int fimc_is_clk_gate_set(struct fimc_is_core *core,
 			int group_id, bool is_on, bool skip_set_state, bool user_scenario)
 {
 	int ret = 0;
+	int cfg = 0;
 	int i;
 	struct fimc_is_clk_gate_ctrl *gate_ctrl;
 	struct exynos_fimc_is_clk_gate_info *gate_info;
-#if defined(ENABLE_IS_CORE)
-	int cfg = 0;
 	u32 mask_on, mask_off, mask_cond_depend;
-#endif
 
 	gate_ctrl = &core->resourcemgr.clk_gate_ctrl;
 	gate_info = gate_ctrl->gate_info;
@@ -152,7 +147,7 @@ int fimc_is_clk_gate_set(struct fimc_is_core *core,
 		if ((gate_ctrl->msk_cnt[group_id]) == 0)
 			clear_bit(group_id, &gate_ctrl->msk_state);
 		/* if there's some processing group shot, don't clock off */
-		if (test_bit_variables(group_id, &gate_ctrl->msk_state))
+		if (test_bit(group_id, &gate_ctrl->msk_state))
 			goto exit;
 		gate_info->groups[group_id].mask_clk_off_self_mod =
 			gate_info->groups[group_id].mask_clk_off_self_org;
@@ -187,7 +182,6 @@ int fimc_is_clk_gate_set(struct fimc_is_core *core,
 		}
 	}
 
-#if defined(ENABLE_IS_CORE)
 	/* Get the region for clock gating debug */
 	cfg = readl(core->ischain[0].interface->regs + ISSR53);
 
@@ -229,7 +223,6 @@ int fimc_is_clk_gate_set(struct fimc_is_core *core,
 			writel(cfg, core->ischain[0].interface->regs + ISSR53);
 		}
 	}
-#endif
 exit:
 	spin_unlock(&gate_ctrl->lock);
 	pr_debug("%s out\n", __func__);

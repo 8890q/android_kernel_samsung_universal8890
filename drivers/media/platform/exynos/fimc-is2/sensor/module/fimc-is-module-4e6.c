@@ -380,16 +380,23 @@ static int sensor_4e6_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_fram
 static const struct v4l2_subdev_video_ops video_ops = {
 	.s_stream = sensor_4e6_s_stream,
 	.s_parm = sensor_4e6_s_param,
+
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return sensor_4e6_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = sensor_4e6_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 int sensor_4e6_stream_on(struct v4l2_subdev *subdev)
@@ -669,11 +676,14 @@ static int sensor_4e6_power_setpin(struct platform_device *pdev,
 	/* FRONT CAMERA  - POWER ON */
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_standby, "standby_low", PIN_OUTPUT, 0, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
+#if !defined(CONFIG_COMPANION_USE)
+	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDDD_CORE_0.8V_COMP", PIN_REGULATOR, 1, 0);
+#endif
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDDA_2.9V_VT", PIN_REGULATOR, 1, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 1, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 1, 1000);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "rst_high", PIN_OUTPUT, 1, 40);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 4000);
+	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 0);
 
 	/* FRONT CAMERA  - POWER OFF */
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
@@ -684,6 +694,9 @@ static int sensor_4e6_power_setpin(struct platform_device *pdev,
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 0, 2000);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDDA_2.9V_VT", PIN_REGULATOR, 0, 2000);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 0, 2000);
+#if !defined(CONFIG_COMPANION_USE)
+	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDDD_CORE_0.8V_COMP", PIN_REGULATOR, 0, 0);
+#endif
 
 	/* VISION CAMERA  - POWER ON */
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_standby, "standby_low", PIN_OUTPUT, 0, 0);
@@ -692,7 +705,7 @@ static int sensor_4e6_power_setpin(struct platform_device *pdev,
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 1, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 1, 1000);
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_standby, "standby_high", PIN_OUTPUT, 1, 40);
-	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 4000);
+	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 0);
 
 	/* VISION CAMERA  - POWER OFF */
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
@@ -933,6 +946,7 @@ int sensor_4e6_probe(struct platform_device *pdev)
 	module->sensor_maker = "SLSI";
 	module->sensor_name = "S5K4E6";
 	module->setfile_name = "setfile_4e6.bin";
+
 	module->cfgs = ARRAY_SIZE(config_4e6);
 	module->cfg = config_4e6;
 	module->private_data = kzalloc(sizeof(struct fimc_is_module_4e6), GFP_KERNEL);

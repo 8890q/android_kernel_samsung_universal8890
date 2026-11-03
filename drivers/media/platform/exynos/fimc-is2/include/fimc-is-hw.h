@@ -13,9 +13,13 @@
 #define FIMC_IS_HW_H
 
 #include "fimc-is-type.h"
-#include "fimc-is-hw-chain.h"
-#include "fimc-is-framemgr.h"
-#include "fimc-is-device-ischain.h"
+
+/* TODO: remove defined config to code clean */
+#if defined(CONFIG_FIMC_IS_V4_0_0)
+#include "../ischain/fimc-is-v4_0_0/fimc-is-hw-chain.h"
+#elif defined(CONFIG_FIMC_IS_V3_11_0)
+#include "../ischain/fimc-is-v3_11_0/fimc-is-hw-chain.h"
+#endif
 
 #define CSI_VIRTUAL_CH_0	0
 #define CSI_VIRTUAL_CH_1	1
@@ -33,7 +37,6 @@
 #define CSI_MODE_VC_ONLY	2
 #define CSI_MODE_VC_DT		3
 
-#define HW_FORMAT_EMBEDDED_8BIT	0x12
 #define HW_FORMAT_YUV420_8BIT	0x18
 #define HW_FORMAT_YUV420_10BIT	0x19
 #define HW_FORMAT_YUV422_8BIT	0x1E
@@ -49,10 +52,6 @@
 #define HW_FORMAT_RAW14 	0x2D
 #define HW_FORMAT_USER		0x30
 #define HW_FORMAT_UNKNOWN	0x3F
-
-#define SHARED_META_INIT	0
-#define SHARED_META_SHOT	1
-#define SHARED_META_SHOT_DONE	2
 
 /*
  * Get each lane speed (Mbps)
@@ -131,10 +130,6 @@ enum csis_hw_err_id {
 	CSIS_ERR_DMA_ERR_DMAFIFO_FULL = 9,
 	CSIS_ERR_DMA_ERR_TRXFIFO_FULL = 10,
 	CSIS_ERR_DMA_ERR_BRESP_ERR = 11,
-	CSIS_ERR_INVALID_CODE_HS = 12,
-	CSIS_ERR_SOT_SYNC_HS = 13,
-	CSIS_ERR_MAL_CRC = 14,
-	CSIS_ERR_DMA_ABORT_DONE = 15,
 	CSIS_ERR_END
 };
 
@@ -146,7 +141,6 @@ enum csis_hw_control_id {
 	CSIS_CTRL_LINE_RATIO,
 	CSIS_CTRL_BUS_WIDTH,
 	CSIS_CTRL_DMA_ABORT_REQ,
-	CSIS_CTRL_ENABLE_LINE_IRQ,
 };
 
 /*
@@ -169,15 +163,9 @@ struct csis_irq_src {
 	u32			err_id[CSI_VIRTUAL_CH_MAX];
 };
 
-enum vci_dma_mode {
-	VCI_DMA_NORMAL,
-	VCI_DMA_INTERNAL,
-};
-
 struct fimc_is_vci_config {
 	u32			map;
 	u32			hwformat;
-	u32			dma_mode;
 };
 
 struct fimc_is_vci {
@@ -231,8 +219,6 @@ enum flite_hw_control_id {
 void csi_hw_phy_otp_config(u32 __iomem *base_reg, u32 instance);
 int csi_hw_reset(u32 __iomem *base_reg);
 int csi_hw_s_settle(u32 __iomem *base_reg, u32 settle);
-int csi_hw_s_phy_sctrl_n(u32 __iomem *base_reg, u32 ctrl, u32 n);
-int csi_hw_s_phy_bctrl_n(u32 __iomem *base_reg, u32 ctrl, u32 n);
 int csi_hw_s_lane(u32 __iomem *base_reg, struct fimc_is_image *img, u32 lanes, u32 mipi_speed);
 int csi_hw_s_control(u32 __iomem *base_reg, u32 id, u32 value);
 int csi_hw_s_config(u32 __iomem *base_reg, u32 channel, struct fimc_is_vci_config *config, u32 width, u32 height);
@@ -242,23 +228,11 @@ int csi_hw_enable(u32 __iomem *base_reg);
 int csi_hw_disable(u32 __iomem *base_reg);
 int csi_hw_dump(u32 __iomem *base_reg);
 #if defined(CONFIG_USE_CSI_DMAOUT_FEATURE)
-void csi_hw_s_frameptr(u32 __iomem *base_reg, u32 vc, u32 number, bool clear);
-u32 csi_hw_g_frameptr(u32 __iomem *base_reg, u32 vc);
 void csi_hw_s_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr);
-void csi_hw_s_multibuf_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr);
 void csi_hw_s_output_dma(u32 __iomem *base_reg, u32 vc, bool enable);
 bool csi_hw_g_output_dma_enable(u32 __iomem *base_reg, u32 vc);
 bool csi_hw_g_output_cur_dma_enable(u32 __iomem *base_reg, u32 vc);
-#ifdef CONFIG_USE_SENSOR_GROUP
-int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_frame_cfg *cfg, u32 hwformat);
-#else
-int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image, u32 hwformat);
-#endif
-int csi_hw_dma_common_reset(void);
-int csi_hw_s_dma_common(u32 __iomem *base_reg);
-#endif
-#if defined(CONFIG_CSIS_V5_0)
-int csi_hw_s_phy_default_value(u32 __iomem *base_reg, u32 instance);
+int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image);
 #endif
 
 /*
@@ -266,50 +240,20 @@ int csi_hw_s_phy_default_value(u32 __iomem *base_reg, u32 instance);
  * ISCHAIN AND CAMIF CONFIGURE H/W APIS
  * ************************************
  */
-/*
- * It's for hw version
- */
-#define HW_SET_VERSION(first, second, third, fourth) \
-	(((first) << 24) | ((second) << 16) | ((third) << 8) | ((fourth) << 0))
-
-/*
- * This enum will be used in fimc_is_hw_s_ctrl api.
- */
-enum hw_s_ctrl_id {
-	HW_S_CTRL_FULL_BYPASS,
-	HW_S_CTRL_CHAIN_IRQ,
-	HW_S_CTRL_HWFC_IDX_RESET,
-};
-
-/*
- * This enum will be used in fimc_is_hw_g_ctrl api.
- */
-enum hw_g_ctrl_id {
-	HW_G_CTRL_FRM_DONE_WITH_DMA,
-	HW_G_CTRL_HAS_MCSC,
-	HW_G_CTRL_HAS_VRA_CH1_ONLY,
-};
-
-void fimc_is_enter_lib_isr(void);
-void fimc_is_exit_lib_isr(void);
 int fimc_is_hw_group_cfg(void *group_data);
 int fimc_is_hw_group_open(void *group_data);
 int fimc_is_hw_camif_cfg(void *sensor_data);
 int fimc_is_hw_camif_open(void *sensor_data);
-void fimc_is_hw_ischain_qe_cfg(void);
 int fimc_is_hw_ischain_cfg(void *ischain_data);
 int fimc_is_hw_get_address(void *itfc_data, void *pdev_data, int hw_id);
 int fimc_is_hw_get_irq(void *itfc_data, void *pdev_data, int hw_id);
 int fimc_is_hw_request_irq(void *itfc_data, int hw_id);
 int fimc_is_hw_slot_id(int hw_id);
 int fimc_is_get_hw_list(int group_id, int *hw_list);
-int fimc_is_hw_s_ctrl(void *itfc_data, int hw_id, enum hw_s_ctrl_id id, void *val);
-int fimc_is_hw_g_ctrl(void *itfc_data, int hw_id, enum hw_g_ctrl_id id, void *val);
-u32 fimc_is_hw_g_state(void __iomem *regs, u32 hw_id);
-int fimc_is_hw_query_cap(void *cap_data, int hw_id);
-int fimc_is_hw_shared_meta_update(struct fimc_is_device_ischain *device,
-		struct fimc_is_group *group, struct fimc_is_frame *frame, int shot_done_flag);
-void __iomem *fimc_is_hw_get_sysreg(ulong core_regs);
+int fimc_is_hw_set_fullbypass(void *itfc_data, int hw_id, bool bypass);
+int fimc_is_hw_set_chain_interrupt(void *itfc_data);
+bool fimc_is_hw_frame_done_with_dma(void);
+bool fimc_is_has_mcsc(void);
 /*
  * *****************
  * FIMC-BNS H/W APIS

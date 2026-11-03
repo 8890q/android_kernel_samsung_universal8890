@@ -27,8 +27,8 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
-
 #include <exynos-fimc-is-sensor.h>
+
 #include "fimc-is-hw.h"
 #include "fimc-is-core.h"
 #include "fimc-is-param.h"
@@ -304,13 +304,11 @@ int sensor_6b2_cis_init(struct v4l2_subdev *subdev)
 
 	BUG_ON(!cis->cis_data);
 	memset(cis->cis_data, 0, sizeof(cis_shared_data));
-	cis->rev_flag = false;
 
 	ret = sensor_cis_check_rev(cis);
 	if (ret < 0) {
-		warn("sensor_6b2_check_rev is fail when cis init");
-		cis->rev_flag = true;
-		ret = 0;
+		err("sensor_6b2_check_rev is fail");
+		goto p_err;
 	}
 
 	cis->cis_data->cur_width = SENSOR_6B2_MAX_WIDTH;
@@ -319,6 +317,12 @@ int sensor_6b2_cis_init(struct v4l2_subdev *subdev)
 	cis->need_mode_change = false;
 
 	sensor_6b2_cis_data_calculation(sensor_6b2_pllinfos[setfile_index], cis->cis_data);
+
+	ret = sensor_cis_set_registers(subdev, sensor_6b2_setfiles[setfile_index], sensor_6b2_setfile_sizes[setfile_index]);
+	if (ret < 0) {
+		err("sensor_6b2_set_registers fail!!");
+		goto p_err;
+	}
 
 	setinfo.return_value = 0;
 	CALL_CISOPS(cis, cis_get_min_exposure_time, subdev, &setinfo.return_value);
@@ -353,8 +357,8 @@ int sensor_6b2_cis_log_status(struct v4l2_subdev *subdev)
 	int ret = 0;
 	struct fimc_is_cis *cis;
 	struct i2c_client *client = NULL;
-	u8 data8 = 0;
-	u16 data16 = 0;
+	u8 data8;
+	u16 data16;
 
 	BUG_ON(!subdev);
 
@@ -472,16 +476,6 @@ int sensor_6b2_cis_mode_change(struct v4l2_subdev *subdev, u32 mode)
 		err("invalid mode(%d)!!", mode);
 		ret = -EINVAL;
 		goto p_err;
-	}
-
-	/* If check_rev fail when cis_init, one more check_rev in mode_change */
-	if (cis->rev_flag == true) {
-		cis->rev_flag = false;
-		ret = sensor_cis_check_rev(cis);
-		if (ret < 0) {
-			err("sensor_6b2_check_rev is fail");
-			goto p_err;
-		}
 	}
 
 	sensor_6b2_cis_data_calculation(sensor_6b2_pllinfos[mode], cis->cis_data);
@@ -718,7 +712,7 @@ int sensor_6b2_cis_stream_on(struct v4l2_subdev *subdev)
 	fimc_is_sensor_write8(client, 0x0100, 0x01);
 
 	/* WDR */
-	if (fimc_is_vender_wdr_mode_on(cis_data))
+	if (cis_data->companion_data.enable_wdr == true)
 		fimc_is_sensor_write8(client, 0x0216, 0x01);
 	else
 		fimc_is_sensor_write8(client, 0x0216, 0x00);
@@ -870,7 +864,7 @@ int sensor_6b2_cis_set_exposure_time(struct v4l2_subdev *subdev, struct ae_param
 		goto p_err;
 
 	/* Long exposure */
-	if (fimc_is_vender_wdr_mode_on(cis_data)) {
+	if (cis_data->companion_data.enable_wdr == true) {
 		ret = fimc_is_sensor_write16(client, 0x021E, long_coarse_int);
 		if (ret < 0)
 			goto p_err;
@@ -948,6 +942,7 @@ p_err:
 int sensor_6b2_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max_expo)
 {
 	int ret = 0;
+	int hold = 0;
 	struct fimc_is_cis *cis;
 	cis_shared_data *cis_data;
 	u32 max_integration_time = 0;
@@ -1004,6 +999,12 @@ int sensor_6b2_cis_get_max_exposure_time(struct v4l2_subdev *subdev, u32 *max_ex
 #endif
 
 p_err:
+	if (hold > 0) {
+		hold = sensor_6b2_cis_group_param_hold_func(subdev, 0x00);
+		if (hold < 0)
+			ret = hold;
+	}
+
 	return ret;
 }
 
@@ -1527,7 +1528,7 @@ int sensor_6b2_cis_set_digital_gain(struct v4l2_subdev *subdev, struct ae_param 
 		goto p_err;
 
 	/* Long digital gain */
-	if (fimc_is_vender_wdr_mode_on(cis_data)) {
+	if (cis_data->companion_data.enable_wdr == true) {
 		ret = fimc_is_sensor_write16(client, 0x305C, long_gain);
 		if (ret < 0)
 			goto p_err;
@@ -1730,7 +1731,6 @@ static struct fimc_is_cis_ops cis_ops = {
 	.cis_get_min_digital_gain = sensor_6b2_cis_get_min_digital_gain,
 	.cis_get_max_digital_gain = sensor_6b2_cis_get_max_digital_gain,
 	.cis_compensate_gain_for_extremely_br = sensor_cis_compensate_gain_for_extremely_br,
-	.cis_wait_streamoff = sensor_cis_wait_streamoff,
 };
 
 int cis_6b2_probe(struct i2c_client *client,
@@ -1752,7 +1752,7 @@ int cis_6b2_probe(struct i2c_client *client,
 
 	core = (struct fimc_is_core *)dev_get_drvdata(fimc_is_dev);
 	if (!core) {
-		probe_info("core device is not yet probed");
+		probe_err("core device is not yet probed");
 		return -EPROBE_DEFER;
 	}
 
@@ -1771,7 +1771,7 @@ int cis_6b2_probe(struct i2c_client *client,
 
 	sensor_peri = find_peri_by_cis_id(device, SENSOR_NAME_S5K6B2);
 	if (!sensor_peri) {
-		probe_info("sensor peri is net yet probed");
+		probe_err("sensor peri is net yet probed");
 		return -EPROBE_DEFER;
 	}
 
@@ -1806,18 +1806,7 @@ int cis_6b2_probe(struct i2c_client *client,
 
 	/* belows are depend on sensor cis. MUST check sensor spec */
 	cis->bayer_order = OTF_INPUT_ORDER_BAYER_GR_BG;
-
-	if (of_property_read_bool(dnode, "sensor_f_number")) {
-		ret = of_property_read_u32(dnode, "sensor_f_number", &cis->aperture_num);
-		if (ret) {
-			warn("f-number read is fail(%d)",ret);
-		}
-	} else {
-		cis->aperture_num = F2_2;
-	}
-
-	probe_info("%s f-number %d\n", __func__, cis->aperture_num);
-
+	cis->aperture_num = F2_2;
 	cis->use_dgain = true;
 	cis->hdr_ctrl_by_again = false;
 
@@ -1875,7 +1864,6 @@ MODULE_DEVICE_TABLE(of, exynos_fimc_is_cis_6b2_match);
 
 static const struct i2c_device_id cis_6b2_idt[] = {
 	{ SENSOR_NAME, 0 },
-	{},
 };
 
 static struct i2c_driver cis_6b2_driver = {

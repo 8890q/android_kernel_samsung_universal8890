@@ -45,13 +45,9 @@ static void fimc_is_ischain_dis_ctrl(struct fimc_is_device_ischain *device,
 		control->cmd = CONTROL_COMMAND_START;
 		control->bypass = CONTROL_BYPASS_DISABLE;
 #ifdef ENABLE_DNR
-		device->is_region->shared[350] = device->minfo->dvaddr_tpu;
+		device->is_region->shared[350] = device->imemory.dvaddr_3dnr;
 		control->buffer_number = SIZE_DNR_INTERNAL_BUF * NUM_DNR_INTERNAL_BUF;
-#ifdef ENABLE_IS_CORE
-		control->buffer_address = device->dvaddr_shared + 350 * 4;
-#else
-		control->buffer_address = device->minfo->dvaddr_tpu;
-#endif
+		control->buffer_address = device->imemory.dvaddr_shared + 350 * 4;
 #else
 		control->buffer_number = 0;
 		control->buffer_address = 0;

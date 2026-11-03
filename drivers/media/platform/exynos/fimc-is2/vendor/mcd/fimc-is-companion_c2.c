@@ -276,10 +276,10 @@ p_err:
 	return ret;
 }
 
-int fimc_is_comp_i2c_read(struct i2c_client *client, u16 addr, u16 *data)
+static int fimc_is_comp_i2c_read(struct i2c_client *client, u16 addr, u16 *data)
 {
 	int err;
-	u8 rxbuf[2], txbuf[2] = {0, 0};
+	u8 rxbuf[2], txbuf[2];
 	struct i2c_msg msg[2];
 
 	rxbuf[0] = (addr & 0xff00) >> 8;
@@ -305,7 +305,7 @@ int fimc_is_comp_i2c_read(struct i2c_client *client, u16 addr, u16 *data)
 	return 0;
 }
 
-int fimc_is_comp_i2c_write(struct i2c_client *client ,u16 addr, u16 data)
+static int fimc_is_comp_i2c_write(struct i2c_client *client ,u16 addr, u16 data)
 {
         int retries = I2C_RETRY_COUNT;
         int ret = 0, err = 0;
@@ -2062,7 +2062,6 @@ p_err:
 
 void fimc_is_s_int_comb_isp(void *core_data, bool on, u32 ch)
 {
-#ifdef ENABLE_IS_CORE
 	struct fimc_is_core *core = core_data;
 	u32 cfg = ~0x0;
 
@@ -2073,7 +2072,6 @@ void fimc_is_s_int_comb_isp(void *core_data, bool on, u32 ch)
 		cfg = 0xFFFFFFFF;
 		writel(cfg, core->regs + INTMR2);
 	}
-#endif
 }
 
 #ifndef CONFIG_COMPANION_DCDC_USE

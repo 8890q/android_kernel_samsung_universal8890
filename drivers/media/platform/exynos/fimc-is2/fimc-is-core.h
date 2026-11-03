@@ -38,7 +38,6 @@
 #include "fimc-is-interface.h"
 #include "fimc-is-framemgr.h"
 #include "fimc-is-resourcemgr.h"
-#include "fimc-is-devicemgr.h"
 #include "fimc-is-device-sensor.h"
 #include "fimc-is-device-ischain.h"
 #ifndef ENABLE_IS_CORE
@@ -50,10 +49,9 @@
 #include "fimc-is-video.h"
 #include "fimc-is-mem.h"
 #include "fimc-is-vender.h"
-#include "exynos-fimc-is-module.h"
 
 #define FIMC_IS_DRV_NAME			"exynos-fimc-is"
-#define FIMC_IS_COMMAND_TIMEOUT			(30*HZ)
+#define FIMC_IS_COMMAND_TIMEOUT			(3*HZ)
 #define FIMC_IS_STARTUP_TIMEOUT			(3*HZ)
 #define FIMC_IS_SHUTDOWN_TIMEOUT		(10*HZ)
 #define FIMC_IS_FLITE_STOP_TIMEOUT		(3*HZ)
@@ -87,8 +85,8 @@
 #define SIZE_DIS_INTERNAL_BUF \
 	(MAX_DIS_INTERNAL_BUF_WIDTH * MAX_DIS_INTERNAL_BUF_HEIGHT * 2)
 
-#define MAX_3DNR_INTERNAL_BUF_WIDTH	(4032)
-#define MAX_3DNR_INTERNAL_BUF_HEIGHT	(2268)
+#define MAX_3DNR_INTERNAL_BUF_WIDTH	(3840)
+#define MAX_3DNR_INTERNAL_BUF_HEIGHT	(2160)
 #ifdef TPU_COMPRESSOR
 #define SIZE_DNR_INTERNAL_BUF \
 	ALIGN((MAX_3DNR_INTERNAL_BUF_WIDTH * MAX_3DNR_INTERNAL_BUF_HEIGHT * 22 / 2 / 8), 16)
@@ -120,7 +118,7 @@
 #define MAX_LHFD_SHOT_BUF		(2)
 
 #define NUM_VRA_INTERNAL_BUF		(1)
-#define SIZE_VRA_INTERNEL_BUF		(0x00650000)
+#define SIZE_VRA_INTERNEL_BUF		(0x00400000)
 
 #define NUM_ODC_INTERNAL_BUF		(2)
 #define NUM_DIS_INTERNAL_BUF		(1)
@@ -195,32 +193,10 @@ enum fimc_is_clck_gate_mode {
 	CLOCK_GATE_MODE_FW,
 };
 
-#if defined(CONFIG_SECURE_CAMERA_USE)
-enum fimc_is_secure_state {
-	FIMC_IS_STATE_UNSECURE,
-	FIMC_IS_STATE_SECURING,
-	FIMC_IS_STATE_SECURED,
-};
-#endif
-
-enum fimc_is_dual_mode {
-	FIMC_IS_DUAL_MODE_NOTHING,
-	FIMC_IS_DUAL_MODE_BYPASS,
-	FIMC_IS_DUAL_MODE_SYNC,
-	FIMC_IS_DUAL_MODE_SWITCH,
-};
-
-enum fimc_is_hal_debug_mode {
-	FIMC_IS_HAL_DEBUG_SUDDEN_DEAD_DETECT,
-	FIMC_IS_HAL_DEBUG_PILE_REQ_BUF,
-};
-
 struct fimc_is_sysfs_debug {
 	unsigned int en_dvfs;
 	unsigned int en_clk_gate;
 	unsigned int clk_gate_mode;
-	unsigned long hal_debug_mode;
-	unsigned int hal_debug_delay;
 };
 
 #ifndef ENABLE_IS_CORE
@@ -228,27 +204,6 @@ struct fimc_is_sysfs_actuator {
 	unsigned int init_step;
 	int init_positions[INIT_MAX_SETTING];
 	int init_delays[INIT_MAX_SETTING];
-};
-#endif
-
-struct fimc_is_dual_info {
-	int pre_mode;
-	int mode;
-	int max_fps_master;
-	int max_fps_slave;
-	int tick_count;
-};
-
-#ifdef FIXED_SENSOR_DEBUG
-struct fimc_is_sysfs_sensor {
-	bool		is_en;
-	unsigned int	frame_duration;
-	unsigned int	long_exposure_time;
-	unsigned int	short_exposure_time;
-	unsigned int	long_analog_gain;
-	unsigned int	short_analog_gain;
-	unsigned int	long_digital_gain;
-	unsigned int	short_digital_gain;
 };
 #endif
 
@@ -260,24 +215,16 @@ struct fimc_is_core {
 	u32					current_position;
 	atomic_t				rsccount;
 	unsigned long				state;
-	bool					shutdown;
-	bool					reboot;
-	struct fimc_is_sysfs_debug sysfs_debug;
 
 	/* depended on isp */
 	struct exynos_platform_fimc_is		*pdata;
 
 	struct fimc_is_resourcemgr		resourcemgr;
 	struct fimc_is_groupmgr			groupmgr;
-	struct fimc_is_devicemgr		devicemgr;
 	struct fimc_is_interface		interface;
 
 	struct fimc_is_device_preproc		preproc;
 	struct fimc_is_device_sensor		sensor[FIMC_IS_SENSOR_COUNT];
-#if defined(CONFIG_EXYNOS_DEVICE_MIPI_CSIS_VER3)
-	struct fimc_is_device_csi_dma		csi_dma;
-#endif
-	u32					chain_config;
 	struct fimc_is_device_ischain		ischain[FIMC_IS_STREAM_COUNT];
 #ifndef ENABLE_IS_CORE
 	struct fimc_is_hardware			hardware;
@@ -299,10 +246,8 @@ struct fimc_is_core {
 	struct fimc_is_video			video_i1p;
 	struct fimc_is_video			video_scc;
 	struct fimc_is_video			video_scp;
-	struct fimc_is_video			video_d0s;
-	struct fimc_is_video			video_d0c;
-	struct fimc_is_video			video_d1s;
-	struct fimc_is_video			video_d1c;
+	struct fimc_is_video			video_vdc;
+	struct fimc_is_video			video_vdo;
 	struct fimc_is_video			video_m0s;
 	struct fimc_is_video			video_m1s;
 	struct fimc_is_video			video_m0p;
@@ -316,25 +261,11 @@ struct fimc_is_core {
 	struct fimc_is_spi			spi0;
 	struct fimc_is_spi			spi1;
 
-	struct i2c_client			*client0; /* companion */
-	struct i2c_client			*client1; /* wide & tele ois */
-	struct i2c_client			*client2; /* wide af (ak7371) */
-	struct i2c_client			*client3; /* front af (ak7372) */
-	struct i2c_client			*client4; /* tele af (ak7371) */
-
-	struct mutex				i2c_lock[SENSOR_CONTROL_I2C_MAX];
-
-	spinlock_t				shared_rsc_slock[MAX_SENSOR_SHARED_RSC];
-	atomic_t				shared_rsc_count[MAX_SENSOR_SHARED_RSC];
+	struct i2c_client			*client0;
+	struct i2c_client			*client1;
+	struct i2c_client			*client2;
 
 	struct fimc_is_vender			vender;
-#if defined(CONFIG_SECURE_CAMERA_USE)
-	struct mutex				secure_state_lock;
-	unsigned long				secure_state;
-#endif
-
-	unsigned long				sensor_map;
-	struct fimc_is_dual_info        	dual_info;
 };
 
 #if defined(CONFIG_VIDEOBUF2_CMA_PHYS)
@@ -351,7 +282,6 @@ int fimc_is_init_set(struct fimc_is_core *dev , u32 val);
 int fimc_is_load_fw(struct fimc_is_core *dev);
 int fimc_is_load_setfile(struct fimc_is_core *dev);
 int fimc_is_otf_close(struct fimc_is_device_ischain *ischain);
-void fimc_is_cleanup(struct fimc_is_core *core);
 
 #define CALL_POPS(s, op, args...) (((s) && (s)->pdata && (s)->pdata->op) ? ((s)->pdata->op(&(s)->pdev->dev)) : -EPERM)
 

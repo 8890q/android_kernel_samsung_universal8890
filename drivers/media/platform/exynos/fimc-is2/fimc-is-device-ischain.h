@@ -69,6 +69,55 @@ enum fimc_is_camera_device {
 	CAMERA_SINGLE_FRONT,
 };
 
+struct fimc_is_ishcain_mem {
+	/* buffer base */
+	dma_addr_t		base;
+	/* total length */
+	size_t			size;
+	/* buffer base */
+	dma_addr_t		vaddr_base;
+	/* current addr */
+	dma_addr_t		vaddr_curr;
+	void			*fw_cookie;
+
+	/* fw memory base */
+	u32			dvaddr;
+	ulong			kvaddr;
+	/* debug part of fw memory */
+	u32			dvaddr_debug;
+	ulong			kvaddr_debug;
+	/* is region part of fw memory */
+	u32			offset_region;
+	u32			dvaddr_region;
+	ulong			kvaddr_region;
+	/* shared part of is region */
+	u32			offset_shared;
+	u32			dvaddr_shared;
+	ulong			kvaddr_shared;
+	/* internal memory for ODC */
+	u32			dvaddr_odc;
+	ulong			kvaddr_odc;
+	/* internal memory for DIS */
+	u32			dvaddr_dis;
+	u32			kvaddr_dis;
+	/* internal memory for 3DNR */
+	u32			dvaddr_3dnr;
+	ulong			kvaddr_3dnr;
+#ifdef ENABLE_FD_SW
+	/* f/w shared part */
+	u32			dvaddr_fshared;	/* FD ymap using */
+	ulong			kvaddr_fshared;	/* 1.5KB: 0 ~ 0x600 */
+	/* internal memory for FD */
+	u32			*dvaddr_fd;
+	ulong			*kvaddr_fd;
+#endif
+	/* internal memory for VRA */
+	u32			dvaddr_vra;
+	ulong			kvaddr_vra;
+
+	struct is_region	*is_region;
+};
+
 struct fast_control_mgr {
 	u32 fast_capture_count;
 };
@@ -79,7 +128,6 @@ struct fimc_is_device_ischain {
 
 	struct fimc_is_resourcemgr		*resourcemgr;
 	struct fimc_is_groupmgr			*groupmgr;
-	struct fimc_is_devicemgr		*devicemgr;
 	struct fimc_is_interface		*interface;
 #ifndef ENABLE_IS_CORE
 	struct fimc_is_hardware			*hardware;
@@ -89,12 +137,10 @@ struct fimc_is_device_ischain {
 	u32					instance;
 	u32					instance_sensor;
 	u32					module;
-	struct fimc_is_minfo			*minfo;
+	struct fimc_is_ishcain_mem		imemory;
 	struct fimc_is_path_info		path;
 
 	struct is_region			*is_region;
-	ulong					kvaddr_shared;
-	dma_addr_t				dvaddr_shared;
 
 	unsigned long				state;
 	atomic_t				group_open_cnt;
@@ -127,7 +173,6 @@ struct fimc_is_device_ischain {
 	struct fimc_is_subdev			scc;
 
 	struct fimc_is_group			group_dis;
-	struct fimc_is_subdev			dxc;		/* for capture video node of TPU */
 	struct fimc_is_subdev			odc;
 	struct fimc_is_subdev			dnr;
 	struct fimc_is_subdev			scp;
@@ -141,7 +186,6 @@ struct fimc_is_device_ischain {
 
 	struct fimc_is_group			group_vra;
 
-	u32					vid_to_vra;
 #ifdef ENABLE_FD_SW
 	struct fimc_is_lib			*fd_lib;
 #endif
@@ -158,7 +202,6 @@ int fimc_is_ischain_probe(struct fimc_is_device_ischain *device,
 	struct fimc_is_interface *interface,
 	struct fimc_is_resourcemgr *resourcemgr,
 	struct fimc_is_groupmgr *groupmgr,
-	struct fimc_is_devicemgr *devicemgr,
 	struct fimc_is_mem *mem,
 	struct platform_device *pdev,
 	u32 instance);
@@ -168,14 +211,8 @@ void fimc_is_ischain_meta_invalid(struct fimc_is_frame *frame);
 
 int fimc_is_ischain_open_wrap(struct fimc_is_device_ischain *device, bool EOS);
 int fimc_is_ischain_close_wrap(struct fimc_is_device_ischain *device);
-int fimc_is_ischain_start_wrap(struct fimc_is_device_ischain *device,
-	struct fimc_is_group *group);
-int fimc_is_ischain_stop_wrap(struct fimc_is_device_ischain *device,
-	struct fimc_is_group *group);
 
 void fimc_is_ischain_version(enum fimc_is_bin_type type, const char *load_bin, u32 size);
-char* fimc_is_ischain_get_version(enum fimc_is_bin_type type);
-
 /* 3AA subdev */
 int fimc_is_ischain_3aa_open(struct fimc_is_device_ischain *device,
 	struct fimc_is_video_ctx *vctx);

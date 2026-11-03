@@ -134,7 +134,7 @@ static int fimc_is_ischain_scp_cfg(struct fimc_is_subdev *subdev,
 	return ret;
 }
 
-static int fimc_is_ischain_scp_update(struct fimc_is_device_ischain *device,
+static int fimc_is_ischain_scp_start(struct fimc_is_device_ischain *device,
 	struct fimc_is_subdev *subdev,
 	struct fimc_is_frame *frame,
 	struct fimc_is_queue *queue,
@@ -143,8 +143,7 @@ static int fimc_is_ischain_scp_update(struct fimc_is_device_ischain *device,
 	struct fimc_is_crop *otcrop,
 	u32 *lindex,
 	u32 *hindex,
-	u32 *indexes,
-	bool start)
+	u32 *indexes)
 {
 	int ret = 0;
 	struct param_dma_output *dma_output;
@@ -166,10 +165,10 @@ static int fimc_is_ischain_scp_update(struct fimc_is_device_ischain *device,
 
 	if (queue->framecfg.colorspace == V4L2_COLORSPACE_JPEG) {
 		crange = SCALER_OUTPUT_YUV_RANGE_FULL;
-		mdbg_pframe("CRange:W(%d)\n", device, subdev, frame, start);
+		mdbg_pframe("CRange:W\n", device, subdev, frame);
 	} else {
 		crange = SCALER_OUTPUT_YUV_RANGE_NARROW;
-		mdbg_pframe("CRange:N(%d)\n", device, subdev, frame, start);
+		mdbg_pframe("CRange:N\n", device, subdev, frame);
 	}
 
 	input_crop = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_INPUT_CROP);
@@ -210,6 +209,23 @@ static int fimc_is_ischain_scp_update(struct fimc_is_device_ischain *device,
 	*hindex |= HIGHBIT_OF(PARAM_SCALERP_OUTPUT_CROP);
 	(*indexes)++;
 
+	dma_output = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_DMA_OUTPUT);
+	dma_output->cmd = DMA_OUTPUT_COMMAND_ENABLE;
+	dma_output->format = queue->framecfg.format->hw_format;
+	dma_output->plane = queue->framecfg.format->hw_plane;
+	dma_output->order = queue->framecfg.format->hw_order;
+	dma_output->width = otcrop->w;
+	dma_output->height = otcrop->h;
+	*lindex |= LOWBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
+	*hindex |= HIGHBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
+	(*indexes)++;
+
+	imageeffect = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_IMAGE_EFFECT);
+	imageeffect->yuv_range = crange;
+	*lindex |= LOWBIT_OF(PARAM_SCALERP_IMAGE_EFFECT);
+	*hindex |= HIGHBIT_OF(PARAM_SCALERP_IMAGE_EFFECT);
+	(*indexes)++;
+
 	leader = subdev->leader;
 	group = container_of(leader, struct fimc_is_group, leader);
 	otf_output = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_OTF_OUTPUT);
@@ -233,33 +249,32 @@ static int fimc_is_ischain_scp_update(struct fimc_is_device_ischain *device,
 		(*indexes)++;
 	}
 #endif
-	dma_output = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_DMA_OUTPUT);
-	if (start) {
-		dma_output->cmd = DMA_OUTPUT_COMMAND_ENABLE;
-		dma_output->format = queue->framecfg.format->hw_format;
-		dma_output->plane = queue->framecfg.format->hw_plane;
-		dma_output->order = queue->framecfg.format->hw_order;
-		dma_output->width = otcrop->w;
-		dma_output->height = otcrop->h;
-		*lindex |= LOWBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
-		*hindex |= HIGHBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
-		(*indexes)++;
 
-		imageeffect = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_IMAGE_EFFECT);
-		imageeffect->yuv_range = crange;
-		*lindex |= LOWBIT_OF(PARAM_SCALERP_IMAGE_EFFECT);
-		*hindex |= HIGHBIT_OF(PARAM_SCALERP_IMAGE_EFFECT);
-		(*indexes)++;
+	set_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
 
-		set_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
-	} else {
-		dma_output->cmd = DMA_OUTPUT_COMMAND_DISABLE;
-		*lindex |= LOWBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
-		*hindex |= HIGHBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
-		(*indexes)++;
+	return ret;
+}
 
-		clear_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
-	}
+static int fimc_is_ischain_scp_stop(struct fimc_is_device_ischain *device,
+	struct fimc_is_subdev *subdev,
+	struct fimc_is_frame *frame,
+	struct scp_param *scp_param,
+	u32 *lindex,
+	u32 *hindex,
+	u32 *indexes)
+{
+	int ret = 0;
+	struct param_dma_output *scp_dma_output;
+
+	mdbgd_ischain("%s\n", device, __func__);
+
+	scp_dma_output = fimc_is_itf_g_param(device, frame, PARAM_SCALERP_DMA_OUTPUT);
+	scp_dma_output->cmd = DMA_OUTPUT_COMMAND_DISABLE;
+	*lindex |= LOWBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
+	*hindex |= HIGHBIT_OF(PARAM_SCALERP_DMA_OUTPUT);
+	(*indexes)++;
+
+	clear_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
 
 	return ret;
 }
@@ -310,31 +325,31 @@ static int fimc_is_ischain_scp_tag(struct fimc_is_subdev *subdev,
 
 	pixelformat = queue->framecfg.format->pixelformat;
 
-	incrop = (struct fimc_is_crop *)node->input.cropRegion;
-	otcrop = (struct fimc_is_crop *)node->output.cropRegion;
-
-	inparm.x = scp_param->input_crop.pos_x;
-	inparm.y = scp_param->input_crop.pos_y;
-	inparm.w = scp_param->input_crop.crop_width;
-	inparm.h = scp_param->input_crop.crop_height;
-
-	otparm.x = scp_param->output_crop.pos_x;
-	otparm.y = scp_param->output_crop.pos_y;
-	otparm.w = scp_param->output_crop.crop_width;
-	otparm.h = scp_param->output_crop.crop_height;
-
-	if (IS_NULL_CROP(incrop))
-		*incrop = inparm;
-
-	if (IS_NULL_CROP(otcrop))
-		*otcrop = otparm;
-
 	if (node->request) {
+		incrop = (struct fimc_is_crop *)node->input.cropRegion;
+		otcrop = (struct fimc_is_crop *)node->output.cropRegion;
+
+		inparm.x = scp_param->input_crop.pos_x;
+		inparm.y = scp_param->input_crop.pos_y;
+		inparm.w = scp_param->input_crop.crop_width;
+		inparm.h = scp_param->input_crop.crop_height;
+
+		otparm.x = scp_param->output_crop.pos_x;
+		otparm.y = scp_param->output_crop.pos_y;
+		otparm.w = scp_param->output_crop.crop_width;
+		otparm.h = scp_param->output_crop.crop_height;
+
+		if (IS_NULL_CROP(incrop))
+			*incrop = inparm;
+
+		if (IS_NULL_CROP(otcrop))
+			*otcrop = otparm;
+
 		if (!COMPARE_CROP(incrop, &inparm) ||
 			!COMPARE_CROP(otcrop, &otparm) ||
 			!test_bit(FIMC_IS_SUBDEV_RUN, &subdev->state) ||
 			test_bit(FIMC_IS_SUBDEV_FORCE_SET, &leader->state)) {
-			ret = fimc_is_ischain_scp_update(device,
+			ret = fimc_is_ischain_scp_start(device,
 				subdev,
 				ldr_frame,
 				queue,
@@ -343,10 +358,9 @@ static int fimc_is_ischain_scp_tag(struct fimc_is_subdev *subdev,
 				otcrop,
 				&lindex,
 				&hindex,
-				&indexes,
-				true);
+				&indexes);
 			if (ret) {
-				merr("fimc_is_ischain_scp_update is fail(%d)", device, ret);
+				merr("fimc_is_ischain_scp_start is fail(%d)", device, ret);
 				goto p_err;
 			}
 
@@ -369,26 +383,19 @@ static int fimc_is_ischain_scp_tag(struct fimc_is_subdev *subdev,
 		}
 	} else {
 		if (test_bit(FIMC_IS_SUBDEV_RUN, &subdev->state)) {
-			ret = fimc_is_ischain_scp_update(device,
+			ret = fimc_is_ischain_scp_stop(device,
 				subdev,
 				ldr_frame,
-				queue,
 				scp_param,
-				incrop,
-				otcrop,
 				&lindex,
 				&hindex,
-				&indexes,
-				false);
+				&indexes);
 			if (ret) {
-				merr("fimc_is_ischain_scp_update is fail(%d)", device, ret);
+				merr("fimc_is_ischain_scp_stop is fail(%d)", device, ret);
 				goto p_err;
 			}
 
-			mdbg_pframe("in_crop[%d, %d, %d, %d]\n", device, subdev, ldr_frame,
-				incrop->x, incrop->y, incrop->w, incrop->h);
-			mdbg_pframe("ot_crop[%d, %d, %d, %d] off\n", device, subdev, ldr_frame,
-				otcrop->x, otcrop->y, otcrop->w, otcrop->h);
+			msrinfo(" off\n", device, subdev, ldr_frame);
 		}
 
 		scalerUd->scpTargetAddress[0] = 0;

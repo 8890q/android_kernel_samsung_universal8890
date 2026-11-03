@@ -37,6 +37,12 @@
 #include "fimc-is-vender-specific.h"
 
 #define FIMC_IS_AF_DEV_NAME "exynos-fimc-is-af"
+static int af_noise_count;
+
+static struct remove_af_noise af_sensor_interface = {
+	.af_pdata = NULL,
+	.af_func = NULL,
+};
 
 static void fimc_is_af_i2c_config(struct i2c_client *client, bool onoff)
 {
@@ -54,7 +60,7 @@ static void fimc_is_af_i2c_config(struct i2c_client *client, bool onoff)
 		}
 	} else {
 		/* OFF */
-		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "off_i2c");
+		pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "default");
 		if (IS_ERR_OR_NULL(pinctrl_i2c)) {
 			printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
 		} else {
@@ -208,13 +214,14 @@ int fimc_is_af_power(struct fimc_is_device_af *af_device, bool onoff)
 		err("failed to power control OIS_VM_2.8V, onoff = %d", onoff);
 		return -EINVAL;
 	}
-
+#ifdef CAMERA_USE_OIS_VDD_1_8V
 	/* OIS_VDD_1.8V */
 	ret = fimc_is_af_ldo_enable("OIS_VDD_1.8V", onoff);
 	if (ret) {
 		err("failed to power control OIS_VDD_1.8V, onoff = %d", onoff);
 		return -EINVAL;
 	}
+#endif /* CAMERA_USE_OIS_VDD_1_8V */
 #endif
 
 	/*VDDIO_1.8V_CAM*/
@@ -297,8 +304,8 @@ int16_t fimc_is_af_enable(void *device, bool onoff)
 				err("i2c write fail\n");
 				goto power_off;
 			}
-			af_device->af_noise_count++;
-			pr_info("af_noise : count = %d\n", af_device->af_noise_count);
+			af_noise_count++;
+			pr_info("af_noise : count = %d\n", af_noise_count);
 		} else {
 			/* Check the Power Pins */
 			af_regulator = fimc_is_check_regulator_status("VDDAF_2.8V_CAM");
@@ -374,41 +381,105 @@ int16_t fimc_is_af_move_lens(struct fimc_is_core *core)
 	return ret;
 }
 
-#ifdef CAMERA_REAR2_AF
-int16_t fimc_is_af_move_lens_rear2(struct fimc_is_core *core)
+int fimc_is_af_parse_dt(struct i2c_client *client)
 {
 	int ret = 0;
-	struct i2c_client *client = core->client4;
-	struct fimc_is_vender_specific *specific = core->vender.private_data;
-
-	pr_info("fimc_is_af_move_lens : running_rear2_camera = %d\n", specific->running_rear_second_camera);
-	if (!specific->running_rear_second_camera) {
-		if (specific->use_ois_hsi2c) {
-			fimc_is_af_i2c_config(client, true);
-		}
-		ret = fimc_is_af_i2c_write(client, 0x00, 0x80);
-		if (ret) {
-			err("i2c write fail\n");
-		}
-
-		ret = fimc_is_af_i2c_write(client, 0x01, 0x00);
-		if (ret) {
-			err("i2c write fail\n");
-		}
-
-		ret = fimc_is_af_i2c_write(client, 0x02, 0x00);
-		if (ret) {
-			err("i2c write fail\n");
-		}
-
-		if (specific->use_ois_hsi2c) {
-			fimc_is_af_i2c_config(client, false);
-		}
-	}
 
 	return ret;
 }
+
+#ifdef CONFIG_SENSORS_SSP_BBD
+extern int remove_af_noise_register(struct remove_af_noise *af_cam);
+extern void remove_af_noise_unregister(struct remove_af_noise *af_cam);
 #endif
+static int fimc_is_af_probe(struct i2c_client *client,
+				  const struct i2c_device_id *id)
+{
+	struct fimc_is_device_af *device;
+	struct fimc_is_core *core;
+	int ret;
+
+	if (fimc_is_dev == NULL) {
+		warn("fimc_is_dev is not yet probed");
+		client->dev.init_name = FIMC_IS_AF_DEV_NAME;
+		return -EPROBE_DEFER;
+	}
+
+	core = (struct fimc_is_core *)dev_get_drvdata(fimc_is_dev);
+	if (!core)
+		return -EINVAL;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		err("No I2C functionality found\n");
+		return -ENODEV;
+	}
+
+	device = kzalloc(sizeof(struct fimc_is_device_af), GFP_KERNEL);
+	if (!device) {
+		err("fimc_is_device_companion is NULL");
+		return -ENOMEM;
+	}
+
+	core->client2 = client;
+	device->client = client;
+	device->core = core;
+	af_noise_count = 0;
+
+	af_sensor_interface.af_pdata = device;
+	af_sensor_interface.af_func = &fimc_is_af_enable;
+#ifdef CONFIG_SENSORS_SSP_BBD
+	ret = remove_af_noise_register(&af_sensor_interface);
+	if (ret)
+		err("reduce_af_noise_register failed: %d\n", ret);
+#endif
+	i2c_set_clientdata(client, device);
+
+	if (client->dev.of_node) {
+		ret = fimc_is_af_parse_dt(client);
+		if (ret) {
+			err("parsing device tree is fail(%d)", ret);
+			return -ENODEV;
+		}
+	}
+
+	return 0;
+}
+
+static int fimc_is_af_remove(struct i2c_client *client)
+{
+#ifdef CONFIG_SENSORS_SSP_BBD
+	remove_af_noise_unregister(&af_sensor_interface);
+#endif
+	return 0;
+}
+
+static const struct i2c_device_id af_id[] = {
+	{FIMC_IS_AF_DEV_NAME, 0},
+	{}
+};
+MODULE_DEVICE_TABLE(i2c, af_id);
+
+#ifdef CONFIG_OF
+static struct of_device_id af_dt_ids[] = {
+	{ .compatible = "samsung,af",},
+	{},
+};
+#endif
+
+static struct i2c_driver af_i2c_driver = {
+	.driver = {
+		   .name = FIMC_IS_AF_DEV_NAME,
+		   .owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		   .of_match_table = af_dt_ids,
+#endif
+	},
+	.probe = fimc_is_af_probe,
+	.remove = fimc_is_af_remove,
+	.id_table = af_id,
+};
+
+module_i2c_driver(af_i2c_driver);
 
 MODULE_DESCRIPTION("AF driver for remove noise");
 MODULE_AUTHOR("kyoungho yun <kyoungho.yun@samsung.com>");

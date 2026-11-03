@@ -213,28 +213,13 @@ static int fimc_is_pipe_callback(struct fimc_is_device_ischain *device,
 	 */
 	junction_vctx = pipe->vctx[PIPE_SLOT_JUNCTION];
 	junction_framemgr = GET_FRAMEMGR(junction_vctx);
-	if (!junction_framemgr) {
-		merr("junction_framemgr is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 	junction = (struct fimc_is_subdev *)junction_vctx->subdev;
 
 	src_vctx = pipe->vctx[PIPE_SLOT_SRC];
 	src_framemgr = GET_FRAMEMGR(src_vctx);
-	if (!src_framemgr) {
-		merr("src_framemgr is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 
 	dst_vctx = pipe->vctx[PIPE_SLOT_DST];
 	dst_framemgr = GET_FRAMEMGR(dst_vctx);
-	if (!dst_framemgr) {
-		merr("dst_framemgr is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 
 	for (capture_id = 0; capture_id < CAPTURE_NODE_MAX; ++capture_id) {
 		node = &frame->shot_ext->node_group.capture[capture_id];

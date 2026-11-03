@@ -296,7 +296,7 @@ static struct fimc_is_dvfs_scenario external_scenarios[] = {
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_DUAL_CAMCORDING)
 {
 	if (((device->setfile & FIMC_IS_SETFILE_MASK) == ISS_SUB_SCENARIO_DUAL_VIDEO) &&
-		stream_cnt > 1)
+		stream_cnt)
 		return 1;
 	else
 		return 0;
@@ -316,7 +316,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_DUAL_CAMCORDING_CAPTURE)
 /* dual preview */
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_DUAL_PREVIEW)
 {
-	if (stream_cnt > 1)
+	if (stream_cnt)
 		return 1;
 	else
 		return 0;

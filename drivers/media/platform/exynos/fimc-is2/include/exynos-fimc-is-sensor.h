@@ -33,23 +33,19 @@ enum exynos_flite_id {
 	FLITE_ID_C = 2,
 	FLITE_ID_D = 3,
 	FLITE_ID_END,
+	FLITE_ID_NOTHING = 100,
 };
 
 enum exynos_sensor_channel {
 	SENSOR_CONTROL_I2C0	 = 0,
 	SENSOR_CONTROL_I2C1	 = 1,
-	SENSOR_CONTROL_I2C2	 = 2,
-	SENSOR_CONTROL_I2C3	 = 3,
-	SENSOR_CONTROL_I2C4	 = 4,
-	SENSOR_CONTROL_I2C_MAX
+	SENSOR_CONTROL_I2C2	 = 2
 };
 
 enum exynos_sensor_position {
 	SENSOR_POSITION_REAR = 0,
 	SENSOR_POSITION_FRONT = 1,
-	SENSOR_POSITION_REAR2 = 2,
-	SENSOR_POSITION_SECURE = 3,
-	SENSOR_POSITION_END
+	SENSOR_POSITION_SECURE = 2,
 };
 
 enum exynos_sensor_id {
@@ -80,10 +76,7 @@ enum exynos_sensor_id {
 	SENSOR_NAME_S5K4H5YC		 = 24,
 	SENSOR_NAME_S5K2X8		 = 28,
 	SENSOR_NAME_S5K2L1		 = 29,
-	SENSOR_NAME_S5K2L7		 = 30,
-	SENSOR_NAME_S5K3H1		 = 31,
-	SENSOR_NAME_S5K2L2		 = 32,
-	SENSOR_NAME_S5K3M3		 = 33,
+	SENSOR_NAME_S5K4H5YC_FF          = 34,
 	SENSOR_NAME_S5K4EC		 = 57,
 
 	SENSOR_NAME_IMX135		 = 101, /* 101 ~ 200 Sony sensors */
@@ -95,23 +88,17 @@ enum exynos_sensor_id {
 	SENSOR_NAME_IMX219		 = 107,
 	SENSOR_NAME_IMX230		 = 108,
 	SENSOR_NAME_IMX260		 = 109,
-	SENSOR_NAME_IMX258		 = 110,
-	SENSOR_NAME_IMX320		 = 111,
-	SENSOR_NAME_IMX333		 = 112,
 
 	SENSOR_NAME_SR261		 = 201, /* 201 ~ 300 Other vendor sensors */
 	SENSOR_NAME_OV5693		 = 202,
 	SENSOR_NAME_SR544		 = 203,
 	SENSOR_NAME_OV5670		 = 204,
-	SENSOR_NAME_DSIM		 = 205,
-	SENSOR_NAME_VIRTUAL		 = 206,
-
-	SENSOR_NAME_S5K5E6		 = 254, // IRIS Camera Sensor
 
 	SENSOR_NAME_CUSTOM		 = 301,
 	SENSOR_NAME_SR200		 = 302, // SoC Module
 	SENSOR_NAME_SR352		 = 303,
 	SENSOR_NAME_SR130PC20	 = 304,
+	SENSOR_NAME_S5K5E6		 = 305,
 	SENSOR_NAME_VIRTUAL_ZEBU = 901,
 	SENSOR_NAME_END,
 };
@@ -132,8 +119,6 @@ enum actuator_name {
 	ACTUATOR_NAME_DW9807	= 13,
 	ACTUATOR_NAME_ZC533	= 14,
 	ACTUATOR_NAME_BU63165	= 15,
-	ACTUATOR_NAME_AK7372 = 16,
-	ACTUATOR_NAME_AK7371_DUAL = 17,
 	ACTUATOR_NAME_END,
 	ACTUATOR_NAME_NOTHING	= 100,
 };
@@ -151,7 +136,6 @@ enum flash_drv_name {
 	FLADRV_NAME_LM3646	= 10,
 	FLADRV_NAME_DRV_FLASH_GPIO = 11, /* Common Gpio type(Flash mode, Movie/torch mode) */
 	FLADRV_NAME_LM3644	= 12,
-	FLADRV_NAME_DRV_FLASH_I2C = 13, /* Common I2C type */
 	FLADRV_NAME_END,
 	FLADRV_NAME_NOTHING	= 100,
 };
@@ -172,8 +156,7 @@ enum preprocessor_name {
 };
 
 enum ois_name {
-	OIS_NAME_RUMBA_S4	= 1,
-	OIS_NAME_RUMBA_S6	= 2,
+	OIS_NAME_IDG2030	= 1,
 	OIS_NAME_END,
 	OIS_NAME_NOTHING	= 100,
 };
@@ -285,7 +268,6 @@ struct exynos_platform_fimc_is_sensor {
 	u32 csi_ch;
 	u32 flite_ch;
 	u32 is_bns;
-	unsigned long internal_state;
 };
 
 int exynos_fimc_is_sensor_iclk_cfg(struct device *dev,

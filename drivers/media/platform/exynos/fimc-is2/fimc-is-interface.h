@@ -33,8 +33,6 @@
 #define TRACE_WORK_ID_I0P	0x00100
 #define TRACE_WORK_ID_I1C	0x00200
 #define TRACE_WORK_ID_I1P	0x00400
-#define TRACE_WORK_ID_D0C	0x00800
-#define TRACE_WORK_ID_D1C	0x01000
 #define TRACE_WORK_ID_SCC	0x00800
 #define TRACE_WORK_ID_SCP	0x01000
 #define TRACE_WORK_ID_M0P	0x02000
@@ -62,7 +60,6 @@ enum fimc_is_interface_state {
 	IS_IF_STATE_LOGGING
 };
 
-#if defined(ENABLE_IS_CORE)
 enum interrupt_map {
 	INTR_GENERAL,
 	INTR_SHOT_DONE,
@@ -77,7 +74,6 @@ enum interrupt_map {
 	INTR_M1X_FDONE,
 	INTR_MAX_MAP
 };
-#endif
 
 enum work_map {
 	WORK_GENERAL,
@@ -90,8 +86,6 @@ enum work_map {
 	WORK_I0P_FDONE,
 	WORK_I1C_FDONE,
 	WORK_I1P_FDONE,
-	WORK_D0C_FDONE,	/* TPU0 */
-	WORK_D1C_FDONE,	/* TPU1 */
 	WORK_SCC_FDONE,
 	WORK_SCP_FDONE,
 	WORK_M0P_FDONE,
@@ -99,8 +93,6 @@ enum work_map {
 	WORK_M2P_FDONE,
 	WORK_M3P_FDONE,
 	WORK_M4P_FDONE,
-	WORK_DCP_FDONE,
-	WORK_SRDZ_FDONE,
 	WORK_MAX_MAP
 };
 

@@ -29,17 +29,11 @@
 #endif
 
 /*
- * sensor scenario (26 ~ 31 bit)
- */
-#define SENSOR_SCN_MASK			0xFC000000
-#define SENSOR_SCN_SHIFT			26
-
-/*
  * stream type
  * [0] : No reprocessing type
  * [1] : reprocessing type
  */
-#define INPUT_STREAM_MASK			0x03000000
+#define INPUT_STREAM_MASK			0xFF000000
 #define INPUT_STREAM_SHIFT			24
 
 /*
@@ -58,8 +52,8 @@
 
 /*
  * input type
- * [0] : memory input
- * [1] : on the fly input
+ * [0] : on the fly input
+ * [1] : memory input
  * [2] : pipe input
  */
 #define INPUT_INTYPE_MASK			0x000000F0
@@ -85,8 +79,7 @@
 #define VIDEO_IXP_READY_BUFFERS			0
 #define VIDEO_SCC_READY_BUFFERS			0
 #define VIDEO_SCP_READY_BUFFERS			0
-#define VIDEO_DXS_READY_BUFFERS			0
-#define VIDEO_DXC_READY_BUFFERS			0
+#define VIDEO_DIS_READY_BUFFERS			0
 #define VIDEO_MXS_READY_BUFFERS			0
 #define VIDEO_MXP_READY_BUFFERS			0
 #define VIDEO_VRA_READY_BUFFERS			0
@@ -104,8 +97,7 @@
 #define FIMC_IS_VIDEO_IXS_NAME(id)		FIMC_IS_VIDEO_NAME("i"#id"s")
 #define FIMC_IS_VIDEO_IXC_NAME(id)		FIMC_IS_VIDEO_NAME("i"#id"c")
 #define FIMC_IS_VIDEO_IXP_NAME(id)		FIMC_IS_VIDEO_NAME("i"#id"p")
-#define FIMC_IS_VIDEO_DXS_NAME(id)		FIMC_IS_VIDEO_NAME("d"#id"s")
-#define FIMC_IS_VIDEO_DXC_NAME(id)		FIMC_IS_VIDEO_NAME("d"#id"c")
+#define FIMC_IS_VIDEO_DIS_NAME			FIMC_IS_VIDEO_NAME("dis")
 #define FIMC_IS_VIDEO_SCC_NAME			FIMC_IS_VIDEO_NAME("scc")
 #define FIMC_IS_VIDEO_SCP_NAME			FIMC_IS_VIDEO_NAME("scp")
 #define FIMC_IS_VIDEO_MXS_NAME(id)		FIMC_IS_VIDEO_NAME("m"#id"s")
@@ -122,9 +114,6 @@ struct fimc_is_queue;
 struct fimc_is_video_ctx;
 struct fimc_is_resourcemgr;
 
-/* sysfs variable for debug */
-extern struct fimc_is_sysfs_debug sysfs_debug;
-
 enum fimc_is_video_dev_num {
 	FIMC_IS_VIDEO_SS0_NUM = 1,
 	FIMC_IS_VIDEO_SS1_NUM,
@@ -132,7 +121,6 @@ enum fimc_is_video_dev_num {
 	FIMC_IS_VIDEO_SS3_NUM,
 	FIMC_IS_VIDEO_SS4_NUM,
 	FIMC_IS_VIDEO_SS5_NUM,
-	FIMC_IS_VIDEO_BNS_NUM,
 	FIMC_IS_VIDEO_PRE_NUM = 9,
 	FIMC_IS_VIDEO_30S_NUM = 10,
 	FIMC_IS_VIDEO_30C_NUM,
@@ -157,10 +145,6 @@ enum fimc_is_video_dev_num {
 	FIMC_IS_VIDEO_M3P_NUM,
 	FIMC_IS_VIDEO_M4P_NUM,
 	FIMC_IS_VIDEO_VRA_NUM = 80,
-	FIMC_IS_VIDEO_D0S_NUM = 90,
-	FIMC_IS_VIDEO_D0C_NUM,
-	FIMC_IS_VIDEO_D1S_NUM,
-	FIMC_IS_VIDEO_D1C_NUM,
 	/* 100~109 : this section was reserved by jpeg etc. */
 	FIMC_IS_VIDEO_SS0VC0_NUM = 110,
 	FIMC_IS_VIDEO_SS0VC1_NUM,
@@ -218,7 +202,6 @@ struct fimc_is_frame_cfg {
 	u32				height;
 	u32				size[FIMC_IS_MAX_PLANES];
 	u32				bytesperline[FIMC_IS_MAX_PLANES];
-	u32				num_buffers; /* total number of buffers per frame */
 };
 
 struct fimc_is_queue_ops {
@@ -275,13 +258,11 @@ struct fimc_is_video_ctx {
 	unsigned long			state;
 
 	void				*device;
-	void				*next_device;
 	void				*subdev;
 	struct fimc_is_video		*video;
 
 	const struct vb2_ops		*vb2_ops;
-	const struct vb2_mem_ops	*vb2_mem_ops;
-	const struct fimc_is_vb2_buf_ops *fimc_is_vb2_buf_ops;
+	const struct vb2_mem_ops	*mem_ops;
 	struct fimc_is_video_ops	vops;
 };
 
@@ -294,8 +275,7 @@ struct fimc_is_video {
 	struct video_device		vd;
 	struct media_pad		pads;
 	struct fimc_is_resourcemgr	*resourcemgr;
-	const struct vb2_mem_ops	*vb2_mem_ops;
-	const struct fimc_is_vb2_buf_ops *fimc_is_vb2_buf_ops;
+	const struct fimc_is_vb2	*vb2;
 	void				*alloc_ctx;
 
 	struct semaphore		smp_multi_input;
@@ -320,7 +300,6 @@ int fimc_is_queue_setup(struct fimc_is_queue *queue,
 	void *allocators[]);
 int fimc_is_queue_buffer_queue(struct fimc_is_queue *queue,
 	struct vb2_buffer *vb);
-int fimc_is_buffer_init(struct vb2_buffer *vb);
 int fimc_is_queue_prepare(struct vb2_buffer *vb);
 void fimc_is_queue_wait_prepare(struct vb2_queue *vbq);
 void fimc_is_queue_wait_finish(struct vb2_queue *vbq);
@@ -396,10 +375,7 @@ extern int fimc_is_i0p_video_probe(void *data);
 extern int fimc_is_i1s_video_probe(void *data);
 extern int fimc_is_i1c_video_probe(void *data);
 extern int fimc_is_i1p_video_probe(void *data);
-extern int fimc_is_d0s_video_probe(void *data);
-extern int fimc_is_d0c_video_probe(void *data);
-extern int fimc_is_d1s_video_probe(void *data);
-extern int fimc_is_d1c_video_probe(void *data);
+extern int fimc_is_dis_video_probe(void *data);
 extern int fimc_is_scc_video_probe(void *data);
 extern int fimc_is_scp_video_probe(void *data);
 extern int fimc_is_m0s_video_probe(void *data);
@@ -415,16 +391,11 @@ extern int fimc_is_ssxvc1_video_probe(void *data);
 extern int fimc_is_ssxvc2_video_probe(void *data);
 extern int fimc_is_ssxvc3_video_probe(void *data);
 
-#define GET_VIDEO(vctx) 		(vctx ? (vctx)->video : NULL)
-#define GET_QUEUE(vctx) 		(vctx ? &(vctx)->queue : NULL)
+#define GET_VIDEO(vctx)			(vctx ? (vctx)->video : NULL)
+#define GET_QUEUE(vctx)			(vctx ? &(vctx)->queue : NULL)
 #define GET_FRAMEMGR(vctx)		(vctx ? &(vctx)->queue.framemgr : NULL)
 #define GET_DEVICE(vctx)		(vctx ? (vctx)->device : NULL)
-#ifdef CONFIG_USE_SENSOR_GROUP
-#define GET_DEVICE_ISCHAIN(vctx)	(vctx ? (((vctx)->next_device) ? (vctx)->next_device : (vctx)->device) : NULL)
-#else
-#define GET_DEVICE_ISCHAIN(vctx)	GET_DEVICE(vctx)
-#endif
 #define CALL_QOPS(q, op, args...)	(((q)->qops->op) ? ((q)->qops->op(args)) : 0)
-#define CALL_VOPS(v, op, args...)	((v) && ((v)->vops.op) ? ((v)->vops.op(v, args)) : 0)
+#define CALL_VOPS(v, op, args...)	(((v)->vops.op) ? ((v)->vops.op(v, args)) : 0)
 
 #endif

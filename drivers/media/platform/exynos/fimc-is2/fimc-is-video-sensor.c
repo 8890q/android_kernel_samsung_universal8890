@@ -29,14 +29,12 @@
 #include <linux/v4l2-mediabus.h>
 #include <linux/bug.h>
 
-#include "fimc-is-core.h"
 #include "fimc-is-device-sensor.h"
 #include "fimc-is-cmd.h"
 #include "fimc-is-regs.h"
 #include "fimc-is-err.h"
 #include "fimc-is-video.h"
 #include "fimc-is-resourcemgr.h"
-#include "fimc-is-vender.h"
 
 #ifdef CONFIG_LEDS_IRIS_IRLED_SUPPORT
 extern int s2mpb02_ir_led_current(uint32_t current_value);
@@ -48,9 +46,6 @@ extern int s2mpb02_ir_led_max_time(uint32_t max_time);
 const struct v4l2_file_operations fimc_is_ssx_video_fops;
 const struct v4l2_ioctl_ops fimc_is_ssx_video_ioctl_ops;
 const struct vb2_ops fimc_is_ssx_qops;
-
-#define SYSREG_ISP_MIPIPHY_CON	0x144F1040
-#define PMU_MIPI_PHY_M0S2_CONTROL	0x10480734
 
 int fimc_is_ssx_video_probe(void *data)
 {
@@ -77,11 +72,7 @@ int fimc_is_ssx_video_probe(void *data)
 	ret = fimc_is_video_probe(video,
 		name,
 		FIMC_IS_VIDEO_SS0_NUM + instance,
-#ifdef CONFIG_USE_SENSOR_GROUP
-		VFL_DIR_M2M,
-#else
 		VFL_DIR_RX,
-#endif
 		&device->mem,
 		&device->v4l2_dev,
 		&fimc_is_ssx_video_fops,
@@ -106,7 +97,6 @@ static int fimc_is_ssx_video_open(struct file *file)
 	struct fimc_is_video_ctx *vctx;
 	struct fimc_is_device_sensor *device;
 	struct fimc_is_resourcemgr *resourcemgr;
-	struct fimc_is_core *core;
 
 	vctx = NULL;
 	video = video_drvdata(file);
@@ -118,21 +108,13 @@ static int fimc_is_ssx_video_open(struct file *file)
 		goto p_err;
 	}
 
-	core = (struct fimc_is_core *)device->private_data;
-	if (core && core->reboot) {
-		mwarn("[SS%d:V]%s: fail to open ssx_video_open() - reboot(%d)\n",
-			device, GET_SSX_ID(video), __func__, core->reboot);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
 	ret = fimc_is_resource_open(resourcemgr, video->id - FIMC_IS_VIDEO_SS0_NUM, NULL);
 	if (ret) {
 		err("fimc_is_resource_open is fail(%d)", ret);
 		goto p_err;
 	}
 
-	minfo("[SS%d:V] %s\n", device, GET_SSX_ID(video), __func__);
+	minfo("[SS%d:V] %s\n", device, video->id, __func__);
 
 	ret = open_vctx(file, video, &vctx, device->instance, FRAMEMGR_ID_SSX);
 	if (ret) {
@@ -336,7 +318,7 @@ static int fimc_is_ssx_video_qbuf(struct file *file, void *priv,
 	struct fimc_is_video_ctx *vctx = file->private_data;
 
 #ifdef DBG_STREAMING
-	mdbgv_sensor("%s\n", vctx, __func__);
+	/*dbg_sensor("%s\n", __func__);*/
 #endif
 
 	ret = CALL_VOPS(vctx, qbuf, buf);
@@ -365,35 +347,6 @@ static int fimc_is_ssx_video_dqbuf(struct file *file, void *priv,
 
 	return ret;
 }
-
-static int fimc_is_ssx_video_prepare(struct file *file, void *prev,
-	struct v4l2_buffer *buf)
-{
-	int ret = 0;
-	struct fimc_is_video_ctx *vctx = file->private_data;
-	struct fimc_is_device_sensor *device;
-
-	BUG_ON(!buf);
-	BUG_ON(!vctx);
-	BUG_ON(!GET_DEVICE(vctx));
-
-#ifdef DBG_STREAMING
-	mdbgv_sensor("%s\n", vctx, __func__);
-#endif
-
-	device = GET_DEVICE(vctx);
-
-	ret = fimc_is_video_prepare(file, vctx, buf);
-	if (ret) {
-		merr("fimc_is_video_prepare is fail(%d)", vctx, ret);
-		goto p_err;
-	}
-
-p_err:
-	minfo("[S%dS:V] %s(%d):%d\n", device, GET_SSX_ID(GET_VIDEO(vctx)), __func__, buf->index, ret);
-	return ret;
-}
-
 
 static int fimc_is_ssx_video_streamon(struct file *file, void *priv,
 	enum v4l2_buf_type type)
@@ -440,43 +393,6 @@ static int fimc_is_ssx_video_g_input(struct file *file, void *priv,
 	return 0;
 }
 
-#ifdef CONFIG_USE_SENSOR_GROUP
-static int fimc_is_ssx_video_s_input(struct file *file, void *priv,
-	unsigned int input)
-{
-	int ret = 0;
-	u32 scenario, stream, module, vindex, intype, leader;
-	struct fimc_is_video_ctx *vctx = file->private_data;
-	struct fimc_is_device_sensor *device;
-	struct fimc_is_framemgr *framemgr;
-
-	BUG_ON(!vctx);
-
-	device = GET_DEVICE(vctx);
-	framemgr = GET_FRAMEMGR(vctx);
-	scenario = (input & SENSOR_SCN_MASK) >> SENSOR_SCN_SHIFT;
-	stream = (input & INPUT_STREAM_MASK) >> INPUT_STREAM_SHIFT;
-	module = (input & INPUT_MODULE_MASK) >> INPUT_MODULE_SHIFT;
-	vindex = (input & INPUT_VINDEX_MASK) >> INPUT_VINDEX_SHIFT;
-	intype = (input & INPUT_INTYPE_MASK) >> INPUT_INTYPE_SHIFT;
-	leader = (input & INPUT_LEADER_MASK) >> INPUT_LEADER_SHIFT;
-
-	ret = fimc_is_video_s_input(file, vctx);
-	if (ret) {
-		merr("fimc_is_video_s_input is fail(%d)", vctx, ret);
-		goto p_err;
-	}
-
-	ret = fimc_is_sensor_s_input(device, module, scenario, vindex);
-	if (ret) {
-		merr("fimc_is_sensor_s_input is fail(%d)", device, ret);
-		goto p_err;
-	}
-
-p_err:
-	return ret;
-}
-#else /* CONFIG_USE_SENSOR_GROUP */
 static int fimc_is_ssx_video_s_input(struct file *file, void *priv,
 	unsigned int input)
 {
@@ -510,7 +426,6 @@ static int fimc_is_ssx_video_s_input(struct file *file, void *priv,
 p_err:
 	return ret;
 }
-#endif
 
 static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 	struct v4l2_control *ctrl)
@@ -537,31 +452,18 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 		goto p_err;
 	}
 
-	ret = fimc_is_vender_ssx_video_s_ctrl(ctrl, device);
-	if (ret) {
-		merr("fimc_is_vender_ssx_video_s_ctrl is fail(%d)", device, ret);
-		goto p_err;
-	}
-
 	switch (ctrl->id) {
 	case V4L2_CID_IS_S_STREAM:
 		{
-			u32 sstream, instant, noblock, standby;
+			u32 sstream, instant, noblock;
 
 			sstream = (ctrl->value & SENSOR_SSTREAM_MASK) >> SENSOR_SSTREAM_SHIFT;
-			standby = (ctrl->value & SENSOR_USE_STANDBY_MASK) >> SENSOR_USE_STANDBY_SHIFT;
 			instant = (ctrl->value & SENSOR_INSTANT_MASK) >> SENSOR_INSTANT_SHIFT;
 			noblock = (ctrl->value & SENSOR_NOBLOCK_MASK) >> SENSOR_NOBLOCK_SHIFT;
 			/*
 			 * nonblock(0) : blocking command
 			 * nonblock(1) : non-blocking command
 			 */
-
-			minfo(" Sensor Stream %s : (cnt:%d, noblk:%d, standby:%d)\n", device,
-				sstream ? "On" : "Off", instant, noblock, standby);
-
-			device->use_standby = standby;
-			device->sstream = sstream;
 
 			if (sstream == IS_ENABLE_STREAM) {
 				ret = fimc_is_sensor_front_start(device, instant, noblock);
@@ -600,14 +502,22 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 	 * gain boost: min_target_fps,  max_target_fps, scene_mode
 	 */
 	case V4L2_CID_IS_MIN_TARGET_FPS:
-		minfo("%s: set min_target_fps(%d), state(0x%lx)\n", device, __func__, ctrl->value, device->state);
-
-		device->min_target_fps = ctrl->value;
+		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
+			err("failed to set min_target_fps: %d - sensor stream on already\n",
+					ctrl->value);
+			ret = -EINVAL;
+		} else {
+			device->min_target_fps = ctrl->value;
+		}
 		break;
 	case V4L2_CID_IS_MAX_TARGET_FPS:
-		minfo("%s: set max_target_fps(%d), state(0x%lx)\n", device, __func__, ctrl->value, device->state);
-
-		device->max_target_fps = ctrl->value;
+		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
+			err("failed to set max_target_fps: %d - sensor stream on already\n",
+					ctrl->value);
+			ret = -EINVAL;
+		} else {
+			device->max_target_fps = ctrl->value;
+		}
 		break;
 	case V4L2_CID_SCENEMODE:
 		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
@@ -630,35 +540,6 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 			err("failed to set exposure time : %d\n - %d",
 					ctrl->value, ret);
 			ret = -EINVAL;
-		}
-		break;
-	case VENDER_S_CTRL:
-		/* This s_ctrl is needed to skip, when the s_ctrl id was found. */
-		break;
-	case V4L2_CID_IS_S_SENSOR_SIZE:
-		device->sensor_width = (ctrl->value & SENSOR_SIZE_WIDTH_MASK) >> SENSOR_SIZE_WIDTH_SHIFT;
-		device->sensor_height = (ctrl->value & SENSOR_SIZE_HEIGHT_MASK) >> SENSOR_SIZE_HEIGHT_SHIFT;
-		minfo("sensor size : %d x %d (0x%08X)", device,
-				device->sensor_width, device->sensor_height, ctrl->value);
-		break;
-	case V4L2_CID_IS_FORCE_DONE:
-		set_bit(FIMC_IS_GROUP_REQUEST_FSTOP, &device->group_sensor.state);
-		break;
-	case V4L2_CID_IS_END_OF_STREAM:
-	case V4L2_CID_IS_CAMERA_TYPE:
-	case V4L2_CID_IS_SET_SETFILE:
-	case V4L2_CID_IS_HAL_VERSION:
-	case V4L2_CID_IS_DEBUG_DUMP:
-	case V4L2_CID_IS_DVFS_CLUSTER0:
-	case V4L2_CID_IS_DVFS_CLUSTER1:
-	case V4L2_CID_IS_DEBUG_SYNC_LOG:
-	case V4L2_CID_HFLIP:
-	case V4L2_CID_VFLIP:
-	case V4L2_CID_IS_INTENT:
-		ret = fimc_is_video_s_ctrl(file, vctx, ctrl);
-		if (ret) {
-			merr("fimc_is_video_s_ctrl is fail(%d)", device, ret);
-			goto p_err;
 		}
 		break;
 	case V4L2_CID_SENSOR_SET_GAIN:
@@ -706,7 +587,6 @@ static int fimc_is_ssx_video_s_ctrl(struct file *file, void *priv,
 		break;
 #endif
 	default:
-
 		ret = fimc_is_sensor_s_ctrl(device, ctrl);
 		if (ret) {
 			err("invalid ioctl(0x%08X) is requested", ctrl->id);
@@ -737,12 +617,6 @@ static int fimc_is_ssx_video_g_ctrl(struct file *file, void *priv,
 		goto p_err;
 	}
 
-	ret = fimc_is_vender_ssx_video_g_ctrl(ctrl, device);
-	if (ret) {
-		merr("fimc_is_vender_ssx_video_g_ctrl is fail(%d)", device, ret);
-		goto p_err;
-	}
-
 	switch (ctrl->id) {
 	case V4L2_CID_IS_G_STREAM:
 		if (device->instant_ret)
@@ -767,13 +641,6 @@ static int fimc_is_ssx_video_g_ctrl(struct file *file, void *priv,
 		else
 			ctrl->value = 0;
 		break;
-	case V4L2_CID_IS_G_MIPI_ERR:
-		ctrl->value = fimc_is_sensor_g_csis_error(device);
-		break;
-	case VENDER_G_CTRL:
-		/* This s_ctrl is needed to skip, when the s_ctrl id was found. */
-		break;
-
 	default:
 		ret = fimc_is_sensor_g_ctrl(device, ctrl);
 		if (ret) {
@@ -786,63 +653,6 @@ static int fimc_is_ssx_video_g_ctrl(struct file *file, void *priv,
 
 p_err:
 	return ret;
-}
-
-static int fimc_is_ssx_video_s_ext_ctrl(struct file *file, void *priv,
-	struct v4l2_ext_controls *ctrls)
-{
-	int ret = 0;
-	int i;
-	struct fimc_is_video_ctx *vctx = file->private_data;
-	struct fimc_is_device_sensor *device;
-	struct v4l2_ext_control *ext_ctrl;
-	struct v4l2_control ctrl;
-
-	BUG_ON(!ctrls);
-	BUG_ON(!vctx);
-
-	device = vctx->device;
-	if (!device) {
-		err("device is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	ret = fimc_is_vender_ssx_video_s_ext_ctrl(ctrls, device);
-	if (ret) {
-		merr("fimc_is_vender_ssx_video_s_ctrl is fail(%d)", device, ret);
-		goto p_err;
-	}
-
-	for (i = 0; i < ctrls->count; i++) {
-		ext_ctrl = (ctrls->controls + i);
-		switch (ext_ctrl->id) {
-			case VENDER_S_CTRL:
-				/* This s_ctrl is needed to skip, when the s_ctrl id was found. */
-				break;
-			default:
-				ctrl.id = ext_ctrl->id;
-				ctrl.value = ext_ctrl->value;
-
-				ret = fimc_is_ssx_video_s_ctrl(file, vctx, &ctrl);
-				if (ret) {
-					merr("fimc_is_video_s_ctrl is fail(%d)", device, ret);
-					goto p_err;
-				}
-				break;
-		}
-	}
-
-p_err:
-	return ret;
-
-}
-
-static int fimc_is_ssx_video_g_ext_ctrl(struct file *file, void *priv,
-	struct v4l2_ext_controls *ctrls)
-{
-	/* Todo: add to get extra control code */
-	return 0;
 }
 
 static int fimc_is_ssx_video_g_parm(struct file *file, void *priv,
@@ -894,11 +704,8 @@ p_err:
 
 const struct v4l2_ioctl_ops fimc_is_ssx_video_ioctl_ops = {
 	.vidioc_querycap		= fimc_is_ssx_video_querycap,
-	.vidioc_enum_fmt_vid_out_mplane	= fimc_is_ssx_video_enum_fmt_mplane,
 	.vidioc_enum_fmt_vid_cap_mplane	= fimc_is_ssx_video_enum_fmt_mplane,
-	.vidioc_g_fmt_vid_out_mplane	= fimc_is_ssx_video_get_format_mplane,
 	.vidioc_g_fmt_vid_cap_mplane	= fimc_is_ssx_video_get_format_mplane,
-	.vidioc_s_fmt_vid_out_mplane	= fimc_is_ssx_video_set_format_mplane,
 	.vidioc_s_fmt_vid_cap_mplane	= fimc_is_ssx_video_set_format_mplane,
 	.vidioc_cropcap			= fimc_is_ssx_video_cropcap,
 	.vidioc_g_crop			= fimc_is_ssx_video_get_crop,
@@ -907,7 +714,6 @@ const struct v4l2_ioctl_ops fimc_is_ssx_video_ioctl_ops = {
 	.vidioc_querybuf		= fimc_is_ssx_video_querybuf,
 	.vidioc_qbuf			= fimc_is_ssx_video_qbuf,
 	.vidioc_dqbuf			= fimc_is_ssx_video_dqbuf,
-	.vidioc_prepare_buf		= fimc_is_ssx_video_prepare,
 	.vidioc_streamon		= fimc_is_ssx_video_streamon,
 	.vidioc_streamoff		= fimc_is_ssx_video_streamoff,
 	.vidioc_enum_input		= fimc_is_ssx_video_enum_input,
@@ -915,8 +721,6 @@ const struct v4l2_ioctl_ops fimc_is_ssx_video_ioctl_ops = {
 	.vidioc_s_input			= fimc_is_ssx_video_s_input,
 	.vidioc_s_ctrl			= fimc_is_ssx_video_s_ctrl,
 	.vidioc_g_ctrl			= fimc_is_ssx_video_g_ctrl,
-	.vidioc_s_ext_ctrls		= fimc_is_ssx_video_s_ext_ctrl,
-	.vidioc_g_ext_ctrls		= fimc_is_ssx_video_g_ext_ctrl,
 	.vidioc_g_parm			= fimc_is_ssx_video_g_parm,
 	.vidioc_s_parm			= fimc_is_ssx_video_s_parm,
 };
@@ -1038,7 +842,7 @@ static void fimc_is_ssx_buffer_queue(struct vb2_buffer *vb)
 		return;
 	}
 
-	ret = fimc_is_sensor_buffer_queue(device, queue, vb->index);
+	ret = fimc_is_sensor_buffer_queue(device, vb->index);
 	if (ret) {
 		merr("fimc_is_sensor_buffer_queue is fail(%d)", device, ret);
 		return;
@@ -1069,7 +873,6 @@ static void fimc_is_ssx_buffer_finish(struct vb2_buffer *vb)
 
 const struct vb2_ops fimc_is_ssx_qops = {
 	.queue_setup		= fimc_is_ssx_queue_setup,
-	.buf_init		= fimc_is_buffer_init,
 	.buf_prepare		= fimc_is_ssx_buffer_prepare,
 	.buf_queue		= fimc_is_ssx_buffer_queue,
 	.buf_finish		= fimc_is_ssx_buffer_finish,

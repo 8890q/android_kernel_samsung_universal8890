@@ -60,7 +60,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -79,7 +78,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = &device->ixp;
 		group->subdev[ENTRY_DRC] = &device->drc;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -95,7 +93,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = &device->odc;
 		group->subdev[ENTRY_DNR] = &device->dnr;
 		group->subdev[ENTRY_SCC] = &device->scc;
@@ -111,7 +108,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -132,7 +128,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -379,7 +374,7 @@ inline int fimc_is_hw_slot_id(int hw_id)
 	case DEV_HW_ISP1:
 		slot_id = 3;
 		break;
-	case DEV_HW_TPU0:
+	case DEV_HW_TPU:
 		slot_id = 4;
 		break;
 	case DEV_HW_SCP:
@@ -418,7 +413,7 @@ int fimc_is_get_hw_list(int group_id, int *hw_list)
 		hw_list[hw_index] = DEV_HW_ISP1; hw_index++;
 		break;
 	case GROUP_ID_DIS0:
-		hw_list[hw_index] = DEV_HW_TPU0; hw_index++;
+		hw_list[hw_index] = DEV_HW_TPU; hw_index++;
 		hw_list[hw_index] = DEV_HW_SCP; hw_index++;
 		hw_list[hw_index] = DEV_HW_VRA; hw_index++;
 		break;
@@ -504,7 +499,7 @@ int fimc_is_hw_get_address(void *itfc_data, void *pdev_data, int hw_id)
 
 		info_itfc("[ID:%2d] ISP1 VA(0x%p)\n", hw_id, itf_hwip->hw_ip->regs);
 		break;
-	case DEV_HW_TPU0:
+	case DEV_HW_TPU:
 		mem_res = platform_get_resource(pdev, IORESOURCE_MEM, IORESOURCE_TPU);
 		if (!mem_res) {
 			dev_err(&pdev->dev, "Failed to get io memory region\n");
@@ -532,6 +527,7 @@ int fimc_is_hw_get_address(void *itfc_data, void *pdev_data, int hw_id)
 			return -EINVAL;
 		}
 
+		info_itfc("[ID:%2d] (0x%p)\n", hw_id, itf_hwip->hw_ip);
 		info_itfc("[ID:%2d] SCP VA(0x%p)\n", hw_id, itf_hwip->hw_ip->regs);
 		break;
 	case DEV_HW_VRA:
@@ -636,7 +632,7 @@ int fimc_is_hw_get_irq(void *itfc_data, void *pdev_data, int hw_id)
 			return -EINVAL;
 		}
 		break;
-	case DEV_HW_TPU0:
+	case DEV_HW_TPU:
 		itf_hwip->irq[INTR_HWIP1] = platform_get_irq(pdev, 10);
 		if (itf_hwip->irq[INTR_HWIP1] < 0) {
 			err("Failed to get irq tpu-1\n");
@@ -785,7 +781,7 @@ int fimc_is_hw_request_irq(void *itfc_data, int hw_id)
 			return -EINVAL;
 		}
 		break;
-	case DEV_HW_TPU0:
+	case DEV_HW_TPU:
 		name_len = sizeof(itf_hwip->irq_name[INTR_HWIP1]);
 		snprintf(itf_hwip->irq_name[INTR_HWIP1], name_len, "fimctpu-1");
 		ret = request_irq(itf_hwip->irq[INTR_HWIP1], interface_tpu_isr1,
@@ -811,8 +807,7 @@ int fimc_is_hw_request_irq(void *itfc_data, int hw_id)
 		itf_hwip->handler[INTR_HWIP2].valid = true;
 		break;
 	case DEV_HW_SCP:
-		name_len = sizeof(itf_hwip->irq_name[INTR_HWIP1]);
-		snprintf(itf_hwip->irq_name[INTR_HWIP1], name_len, "fimcscp");
+		snprintf(itf_hwip->irq_name[INTR_HWIP1], sizeof(itf_hwip->irq_name[INTR_HWIP1]), "fimcscp");
 		ret = request_irq(itf_hwip->irq[INTR_HWIP1], interface_scaler_isr,
 			FIMC_IS_HW_IRQ_FLAG,
 			itf_hwip->irq_name[INTR_HWIP1],
@@ -861,82 +856,52 @@ int fimc_is_hw_request_irq(void *itfc_data, int hw_id)
 	return ret;
 }
 
-int fimc_is_hw_s_ctrl(void *itfc_data, int hw_id, enum hw_s_ctrl_id id, void *val)
+int fimc_is_hw_set_fullbypass(void *itfc_data, int hw_id, bool bypass)
 {
-	int ret = 0;
+	struct fimc_is_interface_ischain *itfc = NULL;
+	u32 values = 0;
 
-	switch (id) {
-	case HW_S_CTRL_FULL_BYPASS:
-		{
-			struct fimc_is_interface_ischain *itfc = NULL;
-			unsigned long bypass = (unsigned long)val;
-			u32 values = 0;
+	BUG_ON(!itfc_data);
 
-			BUG_ON(!itfc_data);
-
-			itfc = (struct fimc_is_interface_ischain *)itfc_data;
-			switch (hw_id) {
-			case DEV_HW_TPU0:
-				values = readl(itfc->regs_mcuctl + MCUCTLR);
-				if (bypass)
-					values |= MCUCTLR_TPU_HW_BYPASS(1);
-				else
-					values &= ~MCUCTLR_TPU_HW_BYPASS(1);
-				writel(values, itfc->regs_mcuctl + MCUCTLR);
-				info_itfc("[ID:%d] Full bypass set (%lu)", hw_id, bypass);
-				break;
-			default:
-				err_itfc("[ID:%d] request_irq [2] fail", hw_id);
-				ret = -EINVAL;
-			}
-		}
-		break;
-	case HW_S_CTRL_CHAIN_IRQ:
-		{
-			struct fimc_is_interface *itf = NULL;
-
-			BUG_ON(!itfc_data);
-
-			itf = (struct fimc_is_interface *)itfc_data;
-
-			writel(0x7fff, itf->regs + INTMR2);
-		}
+	itfc = (struct fimc_is_interface_ischain *)itfc_data;
+	switch (hw_id) {
+	case DEV_HW_TPU:
+		values = readl(itfc->regs_mcuctl + MCUCTLR);
+		if (bypass)
+			values |= MCUCTLR_TPU_HW_BYPASS(1);
+		else
+			values &= ~MCUCTLR_TPU_HW_BYPASS(1);
+		writel(values, itfc->regs_mcuctl + MCUCTLR);
+		info_itfc("[ID:%d] Full bypass set (%d)", hw_id, (int)bypass);
 		break;
 	default:
-		break;
+		err_itfc("[ID:%d] request_irq [2] fail", hw_id);
+		return -EINVAL;
 	}
 
-	return ret;
+	return 0;
 }
 
-int fimc_is_hw_g_ctrl(void *itfc_data, int hw_id, enum hw_g_ctrl_id id, void *val)
+int fimc_is_hw_set_chain_interrupt(void *itfc_data)
 {
-	int ret = 0;
+	struct fimc_is_interface *itf = NULL;
 
-	switch (id) {
-	case HW_G_CTRL_FRM_DONE_WITH_DMA:
-		*(bool *)val = true;
-		break;
-	case HW_G_CTRL_HAS_MCSC:
-		*(bool *)val = false;
-		break;
-	case HW_G_CTRL_HAS_VRA_CH1_ONLY:
-		*(bool *)val = false;
-		break;
-	}
+	BUG_ON(!itfc_data);
 
-	return ret;
+	itf = (struct fimc_is_interface *)itfc_data;
+
+	writel(0x7fff, itf->regs + INTMR2);
+
+	return 0;
 }
 
-void __iomem *fimc_is_hw_get_sysreg(ulong core_regs)
+bool fimc_is_has_mcsc(void)
 {
-	void *sysregs;
+	return false;
+}
 
-	if (core_reg)
-		sysregs = (void *)core_regs;
-	else
-		sysregs = NULL;
-
-	return sysregs;
+bool fimc_is_hw_frame_done_with_dma(void)
+{
+	return true; /* true after FIMC-IS V4.x */
 }
 #endif

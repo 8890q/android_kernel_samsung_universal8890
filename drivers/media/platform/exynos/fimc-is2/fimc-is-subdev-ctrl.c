@@ -24,12 +24,10 @@ struct fimc_is_subdev * video2subdev(enum fimc_is_subdev_device_type device_type
 	struct fimc_is_device_sensor *sensor = NULL;
 	struct fimc_is_device_ischain *ischain = NULL;
 
-	if (device_type == FIMC_IS_SENSOR_SUBDEV) {
+	if (device_type == FIMC_IS_SENSOR_SUBDEV)
 		sensor = (struct fimc_is_device_sensor *)device;
-	} else {
+	else
 		ischain = (struct fimc_is_device_ischain *)device;
-		sensor = ischain->sensor;
-	}
 
 	switch (vid) {
 	case FIMC_IS_VIDEO_SS0VC0_NUM:
@@ -89,13 +87,7 @@ struct fimc_is_subdev * video2subdev(enum fimc_is_subdev_device_type device_type
 		subdev = &ischain->ixp;
 		break;
 	case FIMC_IS_VIDEO_DIS_NUM:
-	case FIMC_IS_VIDEO_D0S_NUM:
-	case FIMC_IS_VIDEO_D1S_NUM:
 		subdev = &ischain->group_dis.leader;
-		break;
-	case FIMC_IS_VIDEO_D0C_NUM:
-	case FIMC_IS_VIDEO_D1C_NUM:
-		subdev = &ischain->dxc;
 		break;
 	case FIMC_IS_VIDEO_SCC_NUM:
 		subdev = &ischain->scc;
@@ -126,8 +118,7 @@ struct fimc_is_subdev * video2subdev(enum fimc_is_subdev_device_type device_type
 		subdev = &ischain->group_vra.leader;
 		break;
 	default:
-		err("[%d] vid %d is NOT found", ((device_type == FIMC_IS_SENSOR_SUBDEV) ?
-				 (ischain ? ischain->instance : 0) : (sensor ? sensor->instance : 0)), vid);
+		err("[%d] vid %d is NOT found", (ischain ? ischain->instance : sensor->instance), vid);
 		break;
 	}
 
@@ -152,9 +143,6 @@ int fimc_is_subdev_probe(struct fimc_is_subdev *subdev,
 	clear_bit(FIMC_IS_SUBDEV_RUN, &subdev->state);
 	clear_bit(FIMC_IS_SUBDEV_START, &subdev->state);
 
-	/* for internal use */
-	clear_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &subdev->state);
-
 	return 0;
 }
 
@@ -163,7 +151,6 @@ int fimc_is_subdev_open(struct fimc_is_subdev *subdev,
 	void *ctl_data)
 {
 	int ret = 0;
-	struct fimc_is_video *video = GET_VIDEO(vctx);
 	const struct param_control *init_ctl = (const struct param_control *)ctl_data;
 
 	BUG_ON(!subdev);
@@ -175,7 +162,7 @@ int fimc_is_subdev_open(struct fimc_is_subdev *subdev,
 	}
 
 	subdev->vctx = vctx;
-	subdev->vid = (video) ? video->id : 0;
+	subdev->vid = (GET_VIDEO(vctx)) ? GET_VIDEO(vctx)->id : 0;
 	subdev->cid = CAPTURE_NODE_MAX;
 	subdev->input.width = 0;
 	subdev->input.height = 0;
@@ -299,9 +286,6 @@ int fimc_is_subdev_close(struct fimc_is_subdev *subdev)
 	clear_bit(FIMC_IS_SUBDEV_START, &subdev->state);
 	clear_bit(FIMC_IS_SUBDEV_FORCE_SET, &subdev->state);
 
-	/* for internal use */
-	clear_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &subdev->state);
-
 p_err:
 	return 0;
 }
@@ -323,16 +307,6 @@ int fimc_is_sensor_subdev_close(struct fimc_is_device_sensor *device,
 	}
 
 	vctx->subdev = NULL;
-
-	if (test_bit(FIMC_IS_SENSOR_DRIVING, &device->state)) {
-		if (test_bit(FIMC_IS_SENSOR_FRONT_START, &device->state)) {
-			merr("sudden close, call sensor_front_stop()\n", device);
-
-			ret = fimc_is_sensor_front_stop(device);
-			if (ret)
-				merr("fimc_is_sensor_front_stop is fail(%d)", device, ret);
-		}
-	}
 
 	ret = fimc_is_subdev_close(subdev);
 	if (ret) {
@@ -416,6 +390,12 @@ static int fimc_is_sensor_subdev_start(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -452,6 +432,12 @@ static int fimc_is_ischain_subdev_start(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -485,10 +471,10 @@ static int fimc_is_subdev_stop(struct fimc_is_subdev *subdev)
 
 	BUG_ON(!subdev);
 	BUG_ON(!subdev->leader);
+	BUG_ON(!GET_SUBDEV_FRAMEMGR(subdev));
 
 	leader = subdev->leader;
 	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
-	BUG_ON(!framemgr);
 
 	if (!test_bit(FIMC_IS_SUBDEV_START, &subdev->state)) {
 		merr("already stop", subdev);
@@ -540,6 +526,12 @@ static int fimc_is_sensor_subdev_stop(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -553,11 +545,6 @@ static int fimc_is_sensor_subdev_stop(void *qdevice,
 	}
 
 	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
-	if (!framemgr) {
-		merr("framemgr is NULL", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
 	framemgr_e_barrier_irqs(framemgr, FMGR_IDX_16, flags);
 
 	frame = peek_frame(framemgr, FS_PROCESS);
@@ -595,6 +582,12 @@ static int fimc_is_ischain_subdev_stop(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -665,9 +658,6 @@ static int fimc_is_subdev_s_format(struct fimc_is_subdev *subdev,
 				goto p_err;
 			}
 			break;
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_NV21:
-			break;
 		default:
 			merr("format(%d) is not supported", subdev, pixelformat);
 			ret = -EINVAL;
@@ -703,6 +693,12 @@ static int fimc_is_sensor_subdev_s_format(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -732,6 +728,12 @@ static int fimc_is_ischain_subdev_s_format(void *qdevice,
 	BUG_ON(!queue);
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -767,6 +769,12 @@ int fimc_is_sensor_subdev_reqbuf(void *qdevice,
 		goto p_err;
 
 	vctx = container_of(queue, struct fimc_is_video_ctx, queue);
+	if (!vctx) {
+		merr("vctx is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	subdev = vctx->subdev;
 	if (!subdev) {
 		merr("subdev is NULL", device);
@@ -791,23 +799,31 @@ p_err:
 }
 
 int fimc_is_subdev_buffer_queue(struct fimc_is_subdev *subdev,
-	struct vb2_buffer *vb)
+	u32 index)
 {
 	int ret = 0;
 	unsigned long flags;
 	struct fimc_is_framemgr *framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 	struct fimc_is_frame *frame;
-	unsigned int index = vb->index;
-	struct vb2_v4l2_buffer *v4l2_buf = to_vb2_v4l2_buffer(vb);
-	struct fimc_is_vb2_buf *vbuf = vb_to_fimc_is_vb2_buf(v4l2_buf);
 
 	BUG_ON(!subdev);
-	BUG_ON(!framemgr);
+	BUG_ON(!GET_SUBDEV_FRAMEMGR(subdev));
 	BUG_ON(index >= framemgr->num_frames);
 
-	frame = &framemgr->frames[index];
-
 	/* 1. check frame validation */
+	frame = &framemgr->frames[index];
+	if (!frame) {
+		mserr("frame is null\n", subdev, subdev);
+		ret = EINVAL;
+		goto p_err;
+	}
+
+	if (index >= framemgr->num_frames) {
+		mserr("index(%d) is invalid", subdev, subdev, index);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
 	if (unlikely(!test_bit(FRAME_MEM_INIT, &frame->mem_state))) {
 		mserr("frame %d is NOT init", subdev, subdev, index);
 		ret = EINVAL;
@@ -827,22 +843,16 @@ int fimc_is_subdev_buffer_queue(struct fimc_is_subdev *subdev,
 
 	framemgr_x_barrier_irqr(framemgr, FMGR_IDX_17, flags);
 
-	if (!(v4l2_buf->flags & V4L2_BUF_FLAG_NO_CACHE_CLEAN))
-		CALL_VOID_BUFOP(vbuf, buf_prepare, vbuf, false);
-
 p_err:
 	return ret;
 }
 
 int fimc_is_subdev_buffer_finish(struct fimc_is_subdev *subdev,
-	struct vb2_buffer *vb)
+	u32 index)
 {
 	int ret = 0;
 	struct fimc_is_framemgr *framemgr;
 	struct fimc_is_frame *frame;
-	unsigned int index = vb->index;
-	struct vb2_v4l2_buffer *v4l2_buf = to_vb2_v4l2_buffer(vb);
-	struct fimc_is_vb2_buf *vbuf = vb_to_fimc_is_vb2_buf(v4l2_buf);
 
 	if (!subdev) {
 		warn("subdev is NULL(%d)", index);
@@ -856,13 +866,13 @@ int fimc_is_subdev_buffer_finish(struct fimc_is_subdev *subdev,
 		return ret;
 	}
 
-	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
-	if (unlikely(!framemgr)) {
+	if (unlikely(!GET_SUBDEV_FRAMEMGR(subdev))) {
 		warn("subdev's framemgr is null..(%d)", index);
 		ret = -EINVAL;
 		return ret;
 	}
 
+	framemgr = GET_SUBDEV_FRAMEMGR(subdev);
 	BUG_ON(index >= framemgr->num_frames);
 
 	frame = &framemgr->frames[index];
@@ -878,9 +888,6 @@ int fimc_is_subdev_buffer_finish(struct fimc_is_subdev *subdev,
 	}
 
 	framemgr_x_barrier_irq(framemgr, FMGR_IDX_18);
-
-	if (!(v4l2_buf->flags & V4L2_BUF_FLAG_NO_CACHE_INVALIDATE))
-		CALL_VOID_BUFOP(vbuf, buf_finish, vbuf, false);
 
 	return ret;
 }
@@ -1148,643 +1155,3 @@ vra_pass:
 	return ret;
 }
 #endif
-
-static int fimc_is_subdev_internal_alloc_buffer(struct fimc_is_subdev *subdev,
-	struct fimc_is_mem *mem)
-{
-	int ret = 0;
-	int i;
-	int buffer_size = 0;
-	struct fimc_is_frame *frame;
-
-	BUG_ON(!subdev);
-
-	if (subdev->buffer_num > SUBDEV_INTERNAL_BUF_MAX) {
-		err("invalid internal buffer num size(%d)", subdev->buffer_num);
-		return -EINVAL;
-	}
-
-	for (i = 0; i < subdev->buffer_num; i++) {
-		/* TODO : buffer alloc format change */
-		buffer_size = subdev->output.width * subdev->output.height * 2;
-
-		if (buffer_size <= 0) {
-			err("wrong internal subdev buffer size(%d)", buffer_size);
-			return -EINVAL;
-		}
-
-		subdev->pb_subdev[i] = CALL_PTR_MEMOP(mem, alloc, mem->default_ctx, buffer_size, 16);
-		if (IS_ERR_OR_NULL(subdev->pb_subdev[i])) {
-			err("failed to allocate buffer for internal subdev");
-			return -ENOMEM;
-		}
-
-		subdev->dvaddr_subdev[i] = CALL_BUFOP(subdev->pb_subdev[i], dvaddr, subdev->pb_subdev[i]);
-		subdev->kvaddr_subdev[i] = CALL_BUFOP(subdev->pb_subdev[i], kvaddr, subdev->pb_subdev[i]);
-	}
-
-	ret = frame_manager_open(&subdev->internal_framemgr, subdev->buffer_num);
-	if (ret) {
-		err("fimc_is_frame_open is fail(%d)", ret);
-		goto p_err;
-	}
-
-	for (i = 0; i < subdev->buffer_num; i++) {
-		frame = &subdev->internal_framemgr.frames[i];
-		frame->subdev = subdev;
-
-		/* TODO : support multi-plane */
-		frame->planes = 1;
-		frame->dvaddr_buffer[0] = subdev->dvaddr_subdev[i];
-		frame->kvaddr_buffer[0] = subdev->kvaddr_subdev[i];
-
-		set_bit(FRAME_MEM_INIT, &frame->mem_state);
-	}
-
-	info("[%d] %s (subdev_id: %d, size: %d, buffernum: %d)",
-		subdev->instance, __func__, subdev->id, buffer_size, subdev->buffer_num);
-
-p_err:
-	return ret;
-};
-
-static int fimc_is_subdev_internal_free_buffer(struct fimc_is_subdev *subdev)
-{
-	int ret = 0;
-	int i;
-
-	BUG_ON(!subdev);
-
-	frame_manager_close(&subdev->internal_framemgr);
-
-	for (i = 0; i < subdev->buffer_num; i++)
-		CALL_VOID_BUFOP(subdev->pb_subdev[i], free, subdev->pb_subdev[i]);
-
-	info("[%d]%s(id: %d)", subdev->instance, __func__, subdev->id);
-
-	return ret;
-};
-
-static int fimc_is_sensor_subdev_internal_alloc_buffer(struct fimc_is_device_sensor *device)
-{
-	int ret = 0;
-	int i;
-	struct fimc_is_device_csi *csi;
-	struct fimc_is_subdev *dma_subdev;
-	struct fimc_is_mem *mem = &device->resourcemgr->mem;
-
-	csi = (struct fimc_is_device_csi *)v4l2_get_subdevdata(device->subdev_csi);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	for (i = CSI_VIRTUAL_CH_1; i < CSI_VIRTUAL_CH_MAX; i++) {
-		dma_subdev = csi->dma_subdev[i];
-
-		if (!dma_subdev)
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_OPEN, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &dma_subdev->state))
-			continue;
-
-		ret = fimc_is_subdev_internal_alloc_buffer(dma_subdev, mem);
-		if (ret) {
-			merr("subdev internal alloc buffer is fail", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-	}
-
-p_err:
-	return ret;
-};
-
-static int fimc_is_sensor_subdev_internal_free_buffer(struct fimc_is_device_sensor *device)
-{
-	int ret = 0;
-	int i;
-	struct fimc_is_device_csi *csi;
-	struct fimc_is_subdev *dma_subdev;
-
-	csi = (struct fimc_is_device_csi *)v4l2_get_subdevdata(device->subdev_csi);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	for (i = CSI_VIRTUAL_CH_1; i < CSI_VIRTUAL_CH_MAX; i++) {
-		dma_subdev = csi->dma_subdev[i];
-
-		if (!dma_subdev)
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_OPEN, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &dma_subdev->state))
-			continue;
-
-		ret = fimc_is_subdev_internal_free_buffer(dma_subdev);
-		if (ret) {
-			merr("subdev internal free buffer is fail", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		csi->dma_subdev[i] = NULL;
-	}
-
-p_err:
-	return ret;
-};
-
-static int fimc_is_sensor_subdev_internal_start(struct fimc_is_device_sensor *device)
-{
-	int ret = 0;
-	int i, j;
-	struct fimc_is_device_csi *csi;
-	struct fimc_is_subdev *dma_subdev;
-	struct fimc_is_framemgr *framemgr;
-	struct fimc_is_frame *frame;
-	unsigned long flags;
-
-	csi = (struct fimc_is_device_csi *)v4l2_get_subdevdata(device->subdev_csi);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	if (!test_bit(FIMC_IS_SENSOR_S_INPUT, &device->state)) {
-		merr("device is not yet init", device);
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	for (i = CSI_VIRTUAL_CH_1; i < CSI_VIRTUAL_CH_MAX; i++) {
-		dma_subdev = csi->dma_subdev[i];
-
-		if (!dma_subdev)
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_OPEN, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &dma_subdev->state))
-			continue;
-
-		if (test_bit(FIMC_IS_SUBDEV_START, &dma_subdev->state)) {
-			mwarn("[VC%d] subdev already start", device, i);
-			continue;
-		}
-
-		/* qbuf a setting num of buffers before stream on */
-		framemgr = GET_SUBDEV_FRAMEMGR(dma_subdev);
-		if (unlikely(!framemgr)) {
-			warn("VC%d subdev's framemgr is null", i);
-			continue;
-		}
-
-		for (j = 0; j < framemgr->num_frames; j++) {
-			frame = &framemgr->frames[j];
-
-			/* 1. check frame validation */
-			if (unlikely(!test_bit(FRAME_MEM_INIT, &frame->mem_state))) {
-				mserr("frame %d is NOT init", dma_subdev, dma_subdev, j);
-				ret = EINVAL;
-				goto p_err;
-			}
-
-			/* 2. update frame manager */
-			framemgr_e_barrier_irqs(framemgr, FMGR_IDX_17, flags);
-
-			if (frame->state != FS_FREE) {
-				mserr("frame %d is invalid state(%d)\n",
-					dma_subdev, dma_subdev, j, frame->state);
-				frame_manager_print_queues(framemgr);
-				ret = -EINVAL;
-			}
-
-			framemgr_x_barrier_irqr(framemgr, FMGR_IDX_17, flags);
-		}
-
-		set_bit(FIMC_IS_SUBDEV_START, &dma_subdev->state);
-
-		minfo("[VC%d] %s(%s)\n", device, i, __func__, dma_subdev->data_type);
-	}
-
-p_err:
-
-	return ret;
-};
-
-static int fimc_is_sensor_subdev_internal_stop(struct fimc_is_device_sensor *device)
-{
-	int ret = 0;
-	int i;
-	struct fimc_is_device_csi *csi;
-	struct fimc_is_subdev *dma_subdev;
-	struct fimc_is_framemgr *framemgr;
-	struct fimc_is_frame *frame;
-	unsigned long flags;
-
-	csi = (struct fimc_is_device_csi *)v4l2_get_subdevdata(device->subdev_csi);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	for (i = CSI_VIRTUAL_CH_1; i < CSI_VIRTUAL_CH_MAX; i++) {
-		dma_subdev = csi->dma_subdev[i];
-
-		if (!dma_subdev)
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_OPEN, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &dma_subdev->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SUBDEV_START, &dma_subdev->state)) {
-			mserr("already stopped", dma_subdev, dma_subdev);
-			continue;
-		}
-
-		framemgr = GET_SUBDEV_FRAMEMGR(dma_subdev);
-		if (unlikely(!framemgr)) {
-			warn("VC%d subdev's framemgr is null", i);
-			continue;
-		}
-
-		framemgr_e_barrier_irqs(framemgr, FMGR_IDX_16, flags);
-
-		frame = peek_frame(framemgr, FS_PROCESS);
-		while (frame) {
-			trans_frame(framemgr, frame, FS_COMPLETE);
-			frame = peek_frame(framemgr, FS_PROCESS);
-		}
-
-		frame = peek_frame(framemgr, FS_REQUEST);
-		while (frame) {
-			trans_frame(framemgr, frame, FS_COMPLETE);
-			frame = peek_frame(framemgr, FS_REQUEST);
-		}
-
-		frame = peek_frame(framemgr, FS_COMPLETE);
-		while (frame) {
-			trans_frame(framemgr, frame, FS_FREE);
-			frame = peek_frame(framemgr, FS_COMPLETE);
-		}
-
-		framemgr_x_barrier_irqr(framemgr, FMGR_IDX_16, flags);
-
-		clear_bit(FIMC_IS_SUBDEV_START, &dma_subdev->state);
-
-		minfo("[VC%d] %s(%s)\n", device, i, __func__, dma_subdev->data_type);
-	}
-
-	return ret;
-};
-
-int fimc_is_subdev_internal_start(void *device, enum fimc_is_device_type type)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor *sensor;
-	struct fimc_is_device_ischain *ischain;
-
-	BUG_ON(!device);
-
-	switch (type) {
-	case FIMC_IS_DEVICE_SENSOR:
-		sensor = (struct fimc_is_device_sensor *)device;
-
-		ret = fimc_is_sensor_subdev_internal_alloc_buffer(sensor);
-		if (ret) {
-			err("sensor internal alloc buffer fail(%d)", ret);
-			break;
-		}
-
-		ret = fimc_is_sensor_subdev_internal_start(sensor);
-		if (ret)
-			err("sensor internal start fail(%d)", ret);
-
-		break;
-	case FIMC_IS_DEVICE_ISCHAIN:
-		ischain = (struct fimc_is_device_ischain *)device;
-		/* TODO */
-		break;
-	default:
-		err("invalid device_type(%d)", type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-};
-
-int fimc_is_subdev_internal_stop(void *device, enum fimc_is_device_type type)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor *sensor;
-	struct fimc_is_device_ischain *ischain;
-
-	BUG_ON(!device);
-
-	switch (type) {
-	case FIMC_IS_DEVICE_SENSOR:
-		sensor = (struct fimc_is_device_sensor *)device;
-
-		ret = fimc_is_sensor_subdev_internal_stop(sensor);
-		if (ret) {
-			err("sensor internal stop fail(%d)", ret);
-			break;
-		}
-
-		ret = fimc_is_sensor_subdev_internal_free_buffer(sensor);
-		if (ret)
-			err("sensor internal buffer free fail(%d)", ret);
-
-		break;
-	case FIMC_IS_DEVICE_ISCHAIN:
-		ischain = (struct fimc_is_device_ischain *)device;
-		/* TODO */
-		break;
-	default:
-		err("invalid device_type(%d)", type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-};
-
-
-static int fimc_is_sensor_subdev_internal_s_format(struct fimc_is_device_sensor *sensor)
-{
-	int ret = 0;
-	int ch;
-	struct fimc_is_device_csi *csi;
-	struct fimc_is_module_enum *module = NULL;
-	struct fimc_is_subdev *subdev = NULL;
-	u32 vc_cfg = 0;
-
-	BUG_ON(!sensor);
-
-	module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(sensor->subdev_module);
-	if (!module) {
-		err("module is NULL");
-		return -EINVAL;
-	}
-
-	csi = (struct fimc_is_device_csi *)v4l2_get_subdevdata(sensor->subdev_csi);
-	if (!csi) {
-		err("csi is NULL");
-		return -EINVAL;
-	}
-
-	for (ch = CSI_VIRTUAL_CH_1; ch < CSI_VIRTUAL_CH_MAX; ch++) {
-		subdev = NULL;
-		switch (ch) {
-		case CSI_VIRTUAL_CH_1:
-			if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &sensor->ssvc1.state))
-				subdev = &sensor->ssvc1;
-			break;
-		case CSI_VIRTUAL_CH_2:
-			if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &sensor->ssvc2.state))
-				subdev = &sensor->ssvc2;
-			break;
-		case CSI_VIRTUAL_CH_3:
-			if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &sensor->ssvc3.state))
-				subdev = &sensor->ssvc3;
-			break;
-		}
-
-		if (!subdev)
-			continue;
-
-		if (!subdev)
-			continue;
-
-		clear_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &subdev->state);
-
-		if (!test_bit(FIMC_IS_SUBDEV_OPEN, &subdev->state))
-			continue;
-
-		if (csi->internal_vc[ch] == VC_NOTHING)
-			continue;
-
-		vc_cfg = sensor->cfg->internal_vc[ch];
-		if (!vc_cfg)
-			continue;
-
-		if (csi->internal_vc[ch] != GET_VC_TYPE(vc_cfg))
-			continue;
-
-		/* VC type dependent value setting */
-		switch (csi->internal_vc[ch]) {
-		case VC_TAIL_MODE_PDAF:
-			subdev->pixelformat = V4L2_PIX_FMT_SBGGR16;
-			subdev->buffer_num = 8;
-			subdev->vc_buffer_offset = module->vc_buffer_offset[ch];
-			snprintf(subdev->data_type, sizeof(subdev->data_type), "TAIL_MODE_PDAF");
-			break;
-		case VC_MIPI_STAT:
-			subdev->pixelformat = V4L2_PIX_FMT_SBGGR16;
-			subdev->buffer_num = 8;
-			subdev->vc_buffer_offset = module->vc_buffer_offset[ch];
-			snprintf(subdev->data_type, sizeof(subdev->data_type), "VC_MIPI_STAT");
-			break;
-		default:
-			err("wrong internal vc type(%d)", csi->internal_vc[ch]);
-			return -EINVAL;
-		}
-
-		subdev->output.width = GET_VC_WIDTH(vc_cfg);
-		subdev->output.height = GET_VC_HEIGHT(vc_cfg);
-
-		if (subdev->output.width == 0 || subdev->output.height == 0) {
-			err("wrong internal vc size(%d x %d)",
-				subdev->output.width, subdev->output.height);
-			return -EINVAL;
-		}
-
-		subdev->output.crop.x = 0;
-		subdev->output.crop.y = 0;
-		subdev->output.crop.w = subdev->output.width;
-		subdev->output.crop.h = subdev->output.height;
-
-		csi->dma_subdev[ch] = subdev;
-
-		set_bit(FIMC_IS_SUBDEV_INTERNAL_S_FMT, &subdev->state);
-	}
-
-	return ret;
-}
-
-int fimc_is_subdev_internal_s_format(void *device, enum fimc_is_device_type type)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor *sensor;
-	struct fimc_is_device_ischain *ischain;
-
-	BUG_ON(!device);
-
-	switch (type) {
-	case FIMC_IS_DEVICE_SENSOR:
-		sensor = (struct fimc_is_device_sensor *)device;
-
-		ret = fimc_is_sensor_subdev_internal_s_format(sensor);
-		if (ret)
-			err("sensor internal s_format fail(%d)", ret);
-
-		break;
-	case FIMC_IS_DEVICE_ISCHAIN:
-		ischain = (struct fimc_is_device_ischain *)device;
-		/* TODO */
-		break;
-	default:
-		err("invalid device_type(%d)", type);
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-};
-
-int fimc_is_subdev_internal_open(void *device, enum fimc_is_device_type type)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor *sensor = NULL;
-	struct fimc_is_device_ischain *ischain = NULL;
-	struct fimc_is_subdev *subdev;
-
-	BUG_ON(!device);
-
-	switch (type) {
-	case FIMC_IS_DEVICE_SENSOR:
-		sensor = (struct fimc_is_device_sensor *)device;
-
-		/* SSVC1 */
-		subdev = &sensor->ssvc1;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			frame_manager_probe(&subdev->internal_framemgr, FRAMEMGR_ID_SSXVC1);
-
-			ret = fimc_is_subdev_open(subdev, NULL, NULL);
-			if (ret) {
-				err("fimc_is_subdev_open is fail(%d)", ret);
-				goto p_err;
-			}
-		}
-
-		/* SSVC2 */
-		subdev = &sensor->ssvc2;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			frame_manager_probe(&subdev->internal_framemgr, FRAMEMGR_ID_SSXVC2);
-
-			ret = fimc_is_subdev_open(subdev, NULL, NULL);
-			if (ret) {
-				err("fimc_is_subdev_open is fail(%d)", ret);
-				goto p_err;
-			}
-		}
-
-		/* SSVC3 */
-		subdev = &sensor->ssvc3;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			frame_manager_probe(&subdev->internal_framemgr, FRAMEMGR_ID_SSXVC3);
-
-			ret = fimc_is_subdev_open(subdev, NULL, NULL);
-			if (ret) {
-				err("fimc_is_subdev_open is fail(%d)", ret);
-				goto p_err;
-			}
-		}
-		break;
-	case FIMC_IS_DEVICE_ISCHAIN:
-		ischain = (struct fimc_is_device_ischain *)device;
-		/* TODO */
-		break;
-	default:
-		err("invalid device_type(%d)", type);
-		ret = -EINVAL;
-		break;
-	}
-
-p_err:
-
-	return ret;
-};
-
-int fimc_is_subdev_internal_close(void *device, enum fimc_is_device_type type)
-{
-	int ret = 0;
-	struct fimc_is_device_sensor *sensor = NULL;
-	struct fimc_is_device_ischain *ischain = NULL;
-	struct fimc_is_subdev *subdev;
-
-	BUG_ON(!device);
-
-	switch (type) {
-	case FIMC_IS_DEVICE_SENSOR:
-		sensor = (struct fimc_is_device_sensor *)device;
-
-		/* SSVC1 */
-		subdev = &sensor->ssvc1;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			ret = fimc_is_subdev_close(subdev);
-			if (ret) {
-				merr("fimc_is_subdev_close is fail(%d)", sensor, ret);
-				goto p_err;
-			}
-		}
-
-		/* SSVC2 */
-		subdev = &sensor->ssvc2;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			ret = fimc_is_subdev_close(subdev);
-			if (ret) {
-				merr("fimc_is_subdev_close is fail(%d)", sensor, ret);
-				goto p_err;
-			}
-		}
-
-		/* SSVC3 */
-		subdev = &sensor->ssvc3;
-		if (test_bit(FIMC_IS_SUBDEV_INTERNAL_USE, &subdev->state)) {
-			ret = fimc_is_subdev_close(subdev);
-			if (ret) {
-				merr("fimc_is_subdev_close is fail(%d)", sensor, ret);
-				goto p_err;
-			}
-		}
-		break;
-	case FIMC_IS_DEVICE_ISCHAIN:
-		ischain = (struct fimc_is_device_ischain *)device;
-		/* TODO */
-		break;
-	default:
-		err("invalid device_type(%d)", type);
-		ret = -EINVAL;
-		break;
-	}
-
-p_err:
-
-	return ret;
-};

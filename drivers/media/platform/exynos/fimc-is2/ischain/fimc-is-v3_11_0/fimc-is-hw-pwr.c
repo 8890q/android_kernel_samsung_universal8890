@@ -61,7 +61,7 @@ p_err:
 int fimc_is_ischain_runtime_suspend_post(struct device *dev)
 {
 	int ret = 0;
-#ifndef CONFIG_PM
+#ifndef CONFIG_PM_RUNTIME
 	{
 		struct platform_device *pdev = to_platform_device(dev);
 		struct fimc_is_device_ischain *device;
@@ -180,7 +180,7 @@ int fimc_is_ischain_runtime_resume_pre(struct device *dev)
 {
 	int ret = 0;
 
-#ifndef CONFIG_PM
+#ifndef CONFIG_PM_RUNTIME
 	{
 		u32 try_count;
 		unsigned int state;

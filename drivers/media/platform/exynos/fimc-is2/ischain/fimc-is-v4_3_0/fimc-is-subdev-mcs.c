@@ -34,6 +34,11 @@ static int fimc_is_ischain_mcs_bypass(struct fimc_is_subdev *leader,
 	BUG_ON(!leader);
 	BUG_ON(!device);
 
+	if (test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &device->state)) {
+		mswarn("reprocessing cannot connect to VRA\n", device, leader);
+		goto p_err;
+	}
+
 	group = &device->group_mcs;
 
 	switch (group->junction->vid) {
@@ -91,7 +96,6 @@ static int fimc_is_ischain_mcs_cfg(struct fimc_is_subdev *leader,
 	u32 *indexes)
 {
 	int ret = 0;
-	struct fimc_is_fmt *format;
 	struct fimc_is_group *group;
 	struct fimc_is_queue *queue;
 	struct param_mcs_input *input;
@@ -117,8 +121,6 @@ static int fimc_is_ischain_mcs_cfg(struct fimc_is_subdev *leader,
 		goto p_err;
 	}
 
-	format = queue->framecfg.format;
-
 	input = fimc_is_itf_g_param(device, frame, PARAM_MCS_INPUT);
 	if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state)) {
 		input->otf_cmd = OTF_INPUT_COMMAND_ENABLE;
@@ -143,18 +145,6 @@ static int fimc_is_ischain_mcs_cfg(struct fimc_is_subdev *leader,
 	input->dma_bitwidth = DMA_INPUT_BIT_WIDTH_8BIT;
 	input->dma_order = DMA_INPUT_ORDER_YCbYCr;
 	input->plane = DMA_INPUT_PLANE_1;
-
-#if !defined(ENABLE_IS_CORE)
-	/*
-	 * HW spec: DMA stride should be aligned by 16 byte.
-	 */
-	if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state)) {
-		input->dma_stride_y = ALIGN(max(input->dma_crop_width * format->bitsperpixel[0] / BITS_PER_BYTE,
-					queue->framecfg.bytesperline[0]), 16);
-		input->dma_stride_c = ALIGN(max(input->dma_crop_width * format->bitsperpixel[1] / BITS_PER_BYTE,
-					queue->framecfg.bytesperline[1]), 16);
-	}
-#endif
 
 	*lindex |= LOWBIT_OF(PARAM_MCS_INPUT);
 	*hindex |= HIGHBIT_OF(PARAM_MCS_INPUT);

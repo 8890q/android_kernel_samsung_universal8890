@@ -27,8 +27,8 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
-
 #include <exynos-fimc-is-sensor.h>
+
 #include "fimc-is-hw.h"
 #include "fimc-is-core.h"
 #include "fimc-is-param.h"
@@ -61,9 +61,6 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 	int i = 0;
 	struct fimc_is_cis *cis;
 	struct i2c_client *client;
-	int index_str = 0, index_next = 0;
-	int burst_num = 1;
-	u16 *addr_str = NULL;
 
 	BUG_ON(!subdev);
 	BUG_ON(!regs);
@@ -84,42 +81,18 @@ int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const 
 
 	msleep(3);
 
-	for (i = 0; i < size; i += I2C_NEXT) {
-		switch (regs[i + I2C_ADDR]) {
-		case I2C_MODE_BURST_ADDR:
-			index_str = i;
-			break;
-		case I2C_MODE_BURST_DATA:
-			index_next = i + I2C_NEXT;
-			if ((index_next < size) && (I2C_MODE_BURST_DATA == regs[index_next + I2C_ADDR])) {
-				burst_num++;
-				break;
-			}
-
-			addr_str = (u16 *)&regs[index_str + I2C_NEXT + I2C_DATA];
-			ret = fimc_is_sensor_write16_burst(client, regs[index_str + I2C_DATA], addr_str, burst_num);
+	for (i = 0; i < size; i += I2C_WRITE) {
+		if (regs[i + I2C_BYTE] == 0x1) {
+			ret = fimc_is_sensor_write8(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
 			if (ret < 0) {
-				err("fimc_is_sensor_write16_burst fail, ret(%d), addr(%#x), data(%#x)",
+				err("fimc_is_sensor_write8 fail, ret(%d), addr(%#x), data(%#x)",
 						ret, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
 			}
-			burst_num = 1;
-			break;
-		case I2C_MODE_DELAY:
-			usleep_range(regs[i + I2C_DATA], regs[i + I2C_DATA]);
-			break;
-		default:
-			if (regs[i + I2C_BYTE] == 0x1) {
-				ret = fimc_is_sensor_write8(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
-				if (ret < 0) {
-					err("fimc_is_sensor_write8 fail, ret(%d), addr(%#x), data(%#x)",
-							ret, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
-				}
-			} else if (regs[i + I2C_BYTE] == 0x2) {
-				ret = fimc_is_sensor_write16(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
-				if (ret < 0) {
-					err("fimc_is_sensor_write16 fail, ret(%d), addr(%#x), data(%#x)",
+		} else if (regs[i + I2C_BYTE] == 0x2) {
+			ret = fimc_is_sensor_write16(client, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
+			if (ret < 0) {
+				err("fimc_is_sensor_write8 fail, ret(%d), addr(%#x), data(%#x)",
 						ret, regs[i + I2C_ADDR], regs[i + I2C_DATA]);
-				}
 			}
 		}
 	}
@@ -150,11 +123,7 @@ int sensor_cis_check_rev(struct fimc_is_cis *cis)
 		goto p_err;
 	}
 
-	ret = fimc_is_sensor_read8(client, 0x0002, &rev);
-	if (ret < 0) {
-		err("fimc_is_sensor_read8 fail, (ret %d)", ret);
-		goto p_err;
-	}
+	fimc_is_sensor_read8(client, 0x0002, &rev);
 
 	cis->cis_data->cis_rev = rev;
 
@@ -239,8 +208,7 @@ int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 
 			*again = compensated_again;
 		}
 
-		dbg_sensor("[%s] exp(%d), again(%d), dgain(%d), coarse_int(%d), compensated_again(%d)\n",
-			__func__, expo, *again, *dgain, coarse_int, compensated_again);
+		dbg_sensor("[%s] exp(%d), again(%d), dgain(%d), coarse_int(%d), compensated_again(%d)\n", __func__, expo, *again, *dgain, coarse_int, compensated_again);
 	}
 
 p_err:
@@ -272,7 +240,7 @@ int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const
 		goto p_err;
 	}
 
-	for (i = 0; i < size; i += I2C_NEXT) {
+	for (i = 0; i < size; i += I2C_WRITE) {
 		ret = fimc_is_sensor_read8(client, regs[i + I2C_ADDR], &data8);
 		if (ret < 0) {
 			err("fimc_is_sensor_write8 fail, ret(%d), addr(%#x)",
@@ -284,99 +252,3 @@ int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const
 p_err:
 	return ret;
 }
-
-int sensor_cis_wait_streamoff(struct v4l2_subdev *subdev)
-{
-	int ret = 0;
-	struct fimc_is_cis *cis;
-	struct i2c_client *client;
-	cis_shared_data *cis_data;
-	u32 wait_cnt = 0, time_out_cnt = 250;
-	u8 sensor_fcount = 0;
-
-	BUG_ON(!subdev);
-
-	cis = (struct fimc_is_cis *)v4l2_get_subdevdata(subdev);
-	if (unlikely(!cis)) {
-		err("cis is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	cis_data = cis->cis_data;
-	if (unlikely(!cis_data)) {
-		err("cis_data is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	client = cis->client;
-	if (unlikely(!client)) {
-		err("client is NULL");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	I2C_MUTEX_LOCK(cis->i2c_lock);
-	ret = fimc_is_sensor_read8(client, 0x0005, &sensor_fcount);
-	I2C_MUTEX_UNLOCK(cis->i2c_lock);
-
-	if (ret < 0)
-		err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x0005, sensor_fcount, ret);
-
-	/*
-	 * Read sensor frame counter (sensor_fcount address = 0x0005)
-	 * stream on (0x00 ~ 0xFE), stream off (0xFF)
-	 */
-	while (sensor_fcount != 0xFF) {
-		I2C_MUTEX_LOCK(cis->i2c_lock);
-		ret = fimc_is_sensor_read8(client, 0x0005, &sensor_fcount);
-		I2C_MUTEX_UNLOCK(cis->i2c_lock);
-		if (ret < 0)
-			err("i2c transfer fail addr(%x), val(%x), ret = %d\n", 0x0005, sensor_fcount, ret);
-
-		msleep(CIS_STREAM_OFF_WAIT_TIME);
-		wait_cnt++;
-
-		if (wait_cnt >= time_out_cnt) {
-			err("[MOD:D:%d] %s, time out, wait_limit(%d) > time_out(%d), sensor_fcount(%d)",
-					cis->id, __func__, wait_cnt, time_out_cnt, sensor_fcount);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		dbg_sensor("[MOD:D:%d] %s, sensor_fcount(%d), (wait_limit(%d) < time_out(%d))\n",
-				cis->id, __func__, sensor_fcount, wait_cnt, time_out_cnt);
-	}
-
-#ifdef CONFIG_SENSOR_RETENTION_USE
-	/* retention mode CRC wait calculation */
-	usleep_range(2000, 2000);
-#endif
-p_err:
-	return ret;
-}
-
-#ifdef USE_FACE_UNLOCK_AE_AWB_INIT
-int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev)
-{
-	struct fimc_is_cis *cis;
-
-	cis = (struct fimc_is_cis *)v4l2_get_subdevdata(subdev);
-	if (unlikely(!cis)) {
-		err("cis is NULL");
-		return -EINVAL;
-	}
-
-	if (cis->use_initial_ae) {
-		cis->init_ae_setting = cis->last_ae_setting;
-
-		dbg_sensor(1, "[MOD:D:%d] %s short(exp:%d/again:%d/dgain:%d), long(exp:%d/again:%d/dgain:%d)\n",
-				cis->id, __func__, cis->init_ae_setting.exposure, cis->init_ae_setting.analog_gain,
-				cis->init_ae_setting.digital_gain, cis->init_ae_setting.long_exposure,
-				cis->init_ae_setting.long_analog_gain, cis->init_ae_setting.long_digital_gain);
-	}
-
-	return 0;
-}
-#endif

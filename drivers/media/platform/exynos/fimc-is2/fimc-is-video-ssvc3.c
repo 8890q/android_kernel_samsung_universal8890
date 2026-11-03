@@ -59,14 +59,15 @@ int fimc_is_ssxvc3_video_probe(void *data)
 	}
 
 	instance = device->instance;
-	video = &device->video_ssxvc3;
-	video->resourcemgr = device->resourcemgr;
 
 	if (instance >= FIMC_IS_SENSOR_COUNT) {
 		err("instance %d was invalid", instance);
 		ret = -EINVAL;
 		goto p_err;
 	}
+
+	video = &device->video_ssxvc3;
+	video->resourcemgr = device->resourcemgr;
 
 	video_name = FIMC_IS_VIDEO_SSXVC3_NAME(instance);
 	video_id = FIMC_IS_VIDEO_SS0VC3_NUM + (instance * 4);
@@ -704,19 +705,17 @@ static void fimc_is_ssxvc3_buffer_queue(struct vb2_buffer *vb)
 		return;
 	}
 
-	ret = fimc_is_subdev_buffer_queue(subdev, vb);
+	ret = fimc_is_subdev_buffer_queue(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
 	}
 
-#if !defined(CONFIG_USE_SENSOR_GROUP)
 	ret = fimc_is_sensor_subdev_buffer_queue(device, ENTRY_SSVC3, vb->index);
 	if (ret) {
 		merr("fimc_is_sensor_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
 	}
-#endif
 }
 
 static void fimc_is_ssxvc3_buffer_finish(struct vb2_buffer *vb)
@@ -736,7 +735,7 @@ static void fimc_is_ssxvc3_buffer_finish(struct vb2_buffer *vb)
 	device = GET_DEVICE(vctx);
 	subdev = &device->ssvc3;
 
-	ret = fimc_is_subdev_buffer_finish(subdev, vb);
+	ret = fimc_is_subdev_buffer_finish(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_finish is fail(%d)", device, ret);
 		return;
@@ -745,7 +744,6 @@ static void fimc_is_ssxvc3_buffer_finish(struct vb2_buffer *vb)
 
 const struct vb2_ops fimc_is_ssxvc3_qops = {
 	.queue_setup		= fimc_is_ssxvc3_queue_setup,
-	.buf_init		= fimc_is_buffer_init,
 	.buf_prepare		= fimc_is_ssxvc3_buffer_prepare,
 	.buf_queue		= fimc_is_ssxvc3_buffer_queue,
 	.buf_finish		= fimc_is_ssxvc3_buffer_finish,

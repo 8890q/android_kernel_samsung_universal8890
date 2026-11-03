@@ -34,14 +34,14 @@ void TIME_STR(unsigned int index)
 
 void TIME_END(unsigned int index, const char *name)
 {
-	long time;
+	u32 time;
 	struct timeval temp;
 
 	do_gettimeofday(&temp);
 	time = (temp.tv_sec - itime[index].tv_sec)*1000000 +
 		(temp.tv_usec - itime[index].tv_usec);
 
-	info("TIME_MEASURE(%s) : %ld us\n", name, time);
+	info("TIME_MEASURE(%s) : %dus\n", name, time);
 }
 
 void fimc_is_jitter(u64 timestamp)

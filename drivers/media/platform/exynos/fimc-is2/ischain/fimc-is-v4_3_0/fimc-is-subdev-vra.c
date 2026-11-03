@@ -186,8 +186,8 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_subdev *subdev,
 		return ret;
 
 	ret = fimc_is_lib_fd_map_init(device->fd_lib,
-		device->minfo->kvaddr_fd, device->minfo->dvaddr_lhfd,
-		device->minfo->kvaddr_fshared, vra_param);
+		device->imemory.kvaddr_fd, device->imemory.dvaddr_fd,
+		device->imemory.kvaddr_fshared, vra_param);
 	if (ret) {
 		merr("[FD] fimc_is_lib_fd_map_init fail\n", device);
 		return ret;
@@ -207,7 +207,7 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_subdev *subdev,
 	}
 
 	ret = fimc_is_lib_fd_select_buf(lib_data, &uctl->fdUd,
-		device->minfo->kvaddr_fshared, device->minfo->dvaddr_fshared);
+		device->imemory.kvaddr_fshared, device->imemory.dvaddr_fshared);
 #endif
 
 p_err:

@@ -380,17 +380,24 @@ static int sensor_6d1_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_fram
 
 static const struct v4l2_subdev_video_ops video_ops = {
 	.s_stream = sensor_6d1_s_stream,
-	.s_parm = sensor_6d1_s_param
+	.s_parm = sensor_6d1_s_param,
+
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return sensor_6d1_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = sensor_6d1_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 int sensor_6d1_stream_on(struct v4l2_subdev *subdev)

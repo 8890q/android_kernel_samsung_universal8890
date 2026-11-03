@@ -11,7 +11,6 @@
 #include "fimc-is-hw-scp.h"
 #include "api/fimc-is-hw-api-scp.h"
 #include "../interface/fimc-is-interface-ischain.h"
-#include "fimc-is-err.h"
 
 static int fimc_is_hw_scp_handle_interrupt(u32 id, void *context)
 {
@@ -38,40 +37,40 @@ static int fimc_is_hw_scp_handle_interrupt(u32 id, void *context)
 	}
 
 	if (status & (1 << INTR_SCALER_CORE_START)) {
-		hw_ip->fs_time = lock_clock();
+		hw_ip->fs_time = cpu_clock(raw_smp_processor_id());
 		if (!atomic_read(&hw_ip->hardware->stream_on))
 			info_hw("[ID:%d][F:%d]F.S\n", hw_ip->id, hw_ip->fcount);
 
-		atomic_set(&hw_ip->status.Vvalid, V_VALID);
+		atomic_set(&hw_ip->Vvalid, V_VALID);
 		clear_bit(HW_CONFIG, &hw_ip->state);
-		atomic_inc(&hw_ip->count.fs);
+		atomic_inc(&hw_ip->fs_count);
 	}
 
 	if (status & (1 << INTR_SCALER_CORE_END)) {
-		hw_ip->fe_time = local_clock();
+		hw_ip->fe_time = cpu_clock(raw_smp_processor_id());
 		if (!atomic_read(&hw_ip->hardware->stream_on))
 			info_hw("[ID:%d][F:%d]F.E\n", hw_ip->id, hw_ip->fcount);
 
-		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
-		if (atomic_read(&hw_ip->count.fs) == atomic_read(&hw_ip->count.fe)) {
-			err_hw("[MCSC] fs(%d), fe(%d), dma(%d)\n",
-				atomic_read(&hw_ip->count.fs),
-				atomic_read(&hw_ip->count.fe),
-				atomic_read(&hw_ip->count.dma));
+		atomic_set(&hw_ip->Vvalid, V_BLANK);
+		if (atomic_read(&hw_ip->fs_count) == atomic_read(&hw_ip->fe_count)) {
+			err_hw("[MCSC] fs(%d), fe(%d), cl(%d)\n",
+				atomic_read(&hw_ip->fs_count),
+				atomic_read(&hw_ip->fe_count),
+				atomic_read(&hw_ip->cl_count));
 		}
-		atomic_inc(&hw_ip->count.fe);
+		atomic_inc(&hw_ip->fe_count);
 		fimc_is_hardware_frame_done(hw_ip, NULL, -1, FIMC_IS_HW_CORE_END,
-			FRAME_DONE_NORMAL);
+			0, FRAME_DONE_NORMAL);
 	}
 
 	if (status & (1 << INTR_SCALER_FRAME_END)) {
-		hw_ip->dma_time = local_clock();
+		hw_ip->dma_time = cpu_clock(raw_smp_processor_id());
 		if (!atomic_read(&hw_ip->hardware->stream_on))
 			info_hw("[ID:%d][F:%d]F.E DMA\n", hw_ip->id, hw_ip->fcount);
 
-		atomic_inc(&hw_ip->count.dma);
+		atomic_inc(&hw_ip->cl_count);
 		fimc_is_hardware_frame_done(hw_ip, NULL, WORK_SCP_FDONE, ENTRY_SCP,
-			FRAME_DONE_NORMAL);
+			0, FRAME_DONE_NORMAL);
 	}
 
 	fimc_is_scp_clear_intr_src(hw_ip->regs, status);
@@ -91,8 +90,7 @@ const struct fimc_is_hw_ip_ops fimc_is_hw_scp_ops = {
 	.load_setfile		= fimc_is_hw_scp_load_setfile,
 	.apply_setfile		= fimc_is_hw_scp_apply_setfile,
 	.delete_setfile		= fimc_is_hw_scp_delete_setfile,
-	.size_dump		= fimc_is_hw_scp_size_dump,
-	.clk_gate		= fimc_is_hardware_clk_gate
+	.size_dump		= fimc_is_hw_scp_size_dump
 };
 
 int fimc_is_hw_scp_probe(struct fimc_is_hw_ip *hw_ip, struct fimc_is_interface *itf,
@@ -110,12 +108,12 @@ int fimc_is_hw_scp_probe(struct fimc_is_hw_ip *hw_ip, struct fimc_is_interface *
 	hw_ip->ops  = &fimc_is_hw_scp_ops;
 	hw_ip->itf  = itf;
 	hw_ip->itfc = itfc;
-	atomic_set(&hw_ip->fcount, 0);
+	hw_ip->fcount = 0;
 	hw_ip->internal_fcount = 0;
 	hw_ip->is_leader = false;
-	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
-	atomic_set(&hw_ip->rsccount, 0);
-	init_waitqueue_head(&hw_ip->status.wait_queue);
+	atomic_set(&hw_ip->Vvalid, 0);
+	atomic_set(&hw_ip->ref_count, 0);
+	init_waitqueue_head(&hw_ip->wait_queue);
 
 	/* set scp sfr base address */
 	hw_slot = fimc_is_hw_slot_id(id);
@@ -155,7 +153,7 @@ int fimc_is_hw_scp_open(struct fimc_is_hw_ip *hw_ip, u32 instance, u32 *size)
 		return -ENODEV;
 	}
 
-	atomic_set(&hw_ip->status.Vvalid, V_BLANK);
+	atomic_set(&hw_ip->Vvalid, V_BLANK);
 
 	return ret;
 }
@@ -164,8 +162,12 @@ int fimc_is_hw_scp_init(struct fimc_is_hw_ip *hw_ip, struct fimc_is_group *group
 	bool flag, u32 module_id)
 {
 	int ret = 0;
+	u32 instance = 0;
 
 	BUG_ON(!hw_ip);
+
+	instance = group->instance;
+	hw_ip->group[instance] = group;
 
 	return ret;
 }
@@ -179,7 +181,7 @@ int fimc_is_hw_scp_close(struct fimc_is_hw_ip *hw_ip, u32 instance)
 	if (!test_bit(HW_OPEN, &hw_ip->state))
 		return 0;
 
-	info_hw("[%d]close (%d)(%d)\n", instance, hw_ip->id, atomic_read(&hw_ip->rsccount));
+	info_hw("[%d]close (%d)(%d)\n", instance, hw_ip->id, atomic_read(&hw_ip->ref_count));
 
 	return ret;
 }
@@ -212,8 +214,7 @@ int fimc_is_hw_scp_disable(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_m
 	if (!test_bit(hw_ip->id, &hw_map))
 		return 0;
 
-	info_hw("[%d][ID:%d]scp_disable: Vvalid(%d)\n", instance, hw_ip->id,
-		atomic_read(&hw_ip->status.Vvalid));
+	info_hw("[%d][ID:%d]stream_off \n", instance, hw_ip->id);
 
 	if (test_bit(HW_RUN, &hw_ip->state)) {
 		/* disable SCP */
@@ -226,7 +227,7 @@ int fimc_is_hw_scp_disable(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_m
 			return -ENODEV;
 		}
 
-		atomic_set(&hw_ip->status.Vvalid, V_BLANK);
+		atomic_set(&hw_ip->Vvalid, V_BLANK);
 		clear_bit(HW_RUN, &hw_ip->state);
 		clear_bit(HW_CONFIG, &hw_ip->state);
 	} else {
@@ -391,13 +392,13 @@ int fimc_is_hw_scp_reset(struct fimc_is_hw_ip *hw_ip)
 	return ret;
 }
 
-int fimc_is_hw_scp_load_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong hw_map)
+int fimc_is_hw_scp_load_setfile(struct fimc_is_hw_ip *hw_ip, int index,
+	u32 instance, ulong hw_map)
 {
 	int ret = 0;
 	struct fimc_is_hw_scp *hw_scp = NULL;
-	struct fimc_is_hw_ip_setfile *setfile;
-	enum exynos_sensor_position sensor_position;
-	u32 index;
+	struct fimc_is_setfile_info *info;
+	u32 setfile_index = 0;
 
 	BUG_ON(!hw_ip);
 
@@ -414,8 +415,7 @@ int fimc_is_hw_scp_load_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong
 		return -EINVAL;
 	}
 	hw_scp = (struct fimc_is_hw_scp *)hw_ip->priv_info;
-	sensor_position = hw_ip->hardware->sensor_position[instance];
-	setfile = &hw_ip->setfile[sensor_position];
+	info = &hw_ip->setfile_info;
 
 	switch (info->version) {
 	case SETFILE_V2:
@@ -428,13 +428,12 @@ int fimc_is_hw_scp_load_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong
 		return -EINVAL;
 	}
 
-	for (index = 0; index < setfile->using_count; index++) {
-		hw_scp->setfile = (struct hw_api_scaler_setfile *)setfile->table[index].addr;
-		if (hw_scp->setfile->setfile_version != SCP_SETFILE_VERSION) {
-			err_hw("[%d][ID:%d] setfile version(0x%x) is incorrect\n",
-				instance, hw_ip->id, hw_scp->setfile->setfile_version);
-			return -EINVAL;
-		}
+	setfile_index = info->index[index];
+	hw_scp->setfile = (struct hw_api_scaler_setfile *)info->table[setfile_index].addr;
+	if (hw_scp->setfile->setfile_version != SCP_SETFILE_VERSION) {
+		err_hw("[%d][ID:%d] setfile version(0x%x) is incorrect\n",
+			instance, hw_ip->id, hw_scp->setfile->setfile_version);
+		return -EINVAL;
 	}
 
 	set_bit(HW_TUNESET, &hw_ip->state);
@@ -442,13 +441,12 @@ int fimc_is_hw_scp_load_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance, ulong
 	return ret;
 }
 
-int fimc_is_hw_scp_apply_setfile(struct fimc_is_hw_ip *hw_ip, u32 scenario,
+int fimc_is_hw_scp_apply_setfile(struct fimc_is_hw_ip *hw_ip, int index,
 	u32 instance, ulong hw_map)
 {
 	int ret = 0;
 	struct fimc_is_hw_scp *hw_scp = NULL;
-	struct fimc_is_hw_ip_setfile *setfile;
-	enum exynos_sensor_position sensor_position;
+	struct fimc_is_setfile_info *info;
 	u32 setfile_index = 0;
 
 	if (!test_bit(hw_ip->id, &hw_map))
@@ -465,21 +463,14 @@ int fimc_is_hw_scp_apply_setfile(struct fimc_is_hw_ip *hw_ip, u32 scenario,
 	}
 
 	hw_scp = (struct fimc_is_hw_scp *)hw_ip->priv_info;
-	sensor_position = hw_ip->hardware->sensor_position[instance];
-	setfile = &hw_ip->setfile[sensor_position];
+	info = &hw_ip->setfile_info;
 
 	if (!hw_scp->setfile)
 		return 0;
 
-	setfile_index = setfile->index[scenario];
-	if (setfile_index >= setfile->using_count) {
-		err_hw("[%d][ID:%d] setfile index is out-of-range, [%d:%d]",
-				instance, hw_ip->id, scenario, setfile_index);
-		return -EINVAL;
-	}
-
+	setfile_index = info->index[index];
 	info_hw("[%d][ID:%d] setfile (%d) scenario (%d)\n", instance, hw_ip->id,
-		setfile_index, scenario);
+		setfile_index, index);
 
 	return ret;
 }
@@ -507,22 +498,28 @@ int fimc_is_hw_scp_delete_setfile(struct fimc_is_hw_ip *hw_ip, u32 instance,
 }
 
 int fimc_is_hw_scp_frame_ndone(struct fimc_is_hw_ip *hw_ip, struct fimc_is_frame *frame,
-	u32 instance, enum ShotErrorType done_type)
+	u32 instance, bool late_flag)
 {
 	int ret = 0;
 	int wq_id, output_id;
+	enum fimc_is_frame_done_type done_type;
+
+	if (late_flag == true)
+		done_type = FRAME_DONE_LATE_SHOT;
+	else
+		done_type = FRAME_DONE_FORCE;
 
 	wq_id     = WORK_SCP_FDONE;
 	output_id = ENTRY_SCP;
 	if (test_bit(output_id, &frame->out_flag))
 		ret = fimc_is_hardware_frame_done(hw_ip, frame, wq_id, output_id,
-				done_type);
+				1, done_type);
 
 	wq_id     = -1;
 	output_id = FIMC_IS_HW_CORE_END;
 	if (test_bit(hw_ip->id, &frame->core_flag))
 		ret = fimc_is_hardware_frame_done(hw_ip, frame, wq_id, output_id,
-				done_type);
+				1, done_type);
 
 	return ret;
 }

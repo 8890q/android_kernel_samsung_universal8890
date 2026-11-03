@@ -12,7 +12,6 @@
 #ifndef FIMC_IS_REGS_H
 #define FIMC_IS_REGS_H
 
-#if defined(ENABLE_IS_CORE)
 /* MCUCTL register */
 #define MCUCTL				0x0
 /* MCU Controller Register */
@@ -338,7 +337,6 @@
 #define ISSR61			(MCUCTL+0x174)
 #define ISSR62			(MCUCTL+0x178)
 #define ISSR63			(MCUCTL+0x17c)
-#endif
 
 /* Sequence Macro */
 #define setbits(uAddr, uBaseBit, uMaskValue, uSetValue) \
@@ -347,43 +345,11 @@
 	((__raw_readl(uAddr)>>(uBaseBit))&(uMaskValue))
 
 /* PMU for FIMC-IS*/
-#if defined(CONFIG_SOC_EXYNOS8895)
-
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 #define PA_FIMC_IS_GIC_C			(0x143D2000)
 #define PA_FIMC_IS_GIC_D			(0x143D1000)
 
-#elif defined(CONFIG_SOC_EXYNOS7570)
-/* FLED of PMIC */
-#define REG_FLED_CTRL0				(0x03)
-#define REG_FLED_CTRL1				(0x04)
-#define REG_FLED_CTRL2				(0x05)
-#define REG_FLED_CTRL3				(0x06)
-#define REG_FLED_CTRL4				(0x07)
-
-#define TIMEOUT_MASK				(0xF)
-#define TIMEOUT_MAX				(0xF)
-
-#define CURRENT_MASK				(0xFF)
-
-#define AUTO_BST_EN_MASK			(0x02)
-#define AUTO_BST_EN_ON				(0x02)
-#define AUTO_BST_EN_OFF				(0x00)
-
-#define CHGVIN_EN_MASK				(0x04)
-#define CHGVIN_EN_ON				(0x04)
-#define CHGVIN_EN_OFF				(0x00)
-
-#define TORCH_TMR_MODE_MASK			(0x80)
-#define TORCH_TMR_MODE_ON			(0x80)
-#define TORCH_TMR_MODE_OFF			(0x80)
-
-#define TORCH_ENABLE_MASK			(0x20)
-#define TORCH_ENABLE_ON				(0x20)
-#define TORCH_ENABLE_OFF			(0x00)
 #elif defined(CONFIG_SOC_EXYNOS7870)
-
-#elif defined(CONFIG_SOC_EXYNOS7880)
 
 #else
 #error fimc-is driver can NOT support this platform

@@ -11,6 +11,7 @@
  */
 
 #include <exynos-fimc-is-module.h>
+#include "fimc-is-binary.h"
 #include "fimc-is-vender.h"
 #include "fimc-is-vender-specific.h"
 #include "fimc-is-core.h"
@@ -18,22 +19,11 @@
 #include "fimc-is-dt.h"
 #include "fimc-is-sysfs.h"
 
-#include <linux/device.h>
-#include <linux/vmalloc.h>
-#include <linux/fs.h>
-#include <linux/file.h>
-#include <linux/slab.h>
-#include <linux/firmware.h>
-#include "fimc-is-binary.h"
-
-#if defined (CONFIG_OIS_USE)
+#if defined(CONFIG_OIS_USE)
 #include "fimc-is-device-ois.h"
 #endif
 #include "fimc-is-device-preprocessor.h"
-#include "fimc-is-interface-sensor.h"
 #include "fimc-is-i2c.h"
-#include "fimc-is-device-sensor-peri.h"
-#include "fimc-is-interface-library.h"
 
 extern int fimc_is_create_sysfs(struct fimc_is_core *core);
 extern bool crc32_check;
@@ -44,7 +34,6 @@ extern bool is_dumped_fw_loading_needed;
 extern bool force_caldata_dump;
 
 static u32  rear_sensor_id;
-static u32  rear_second_sensor_id;
 static u32  front_sensor_id;
 static bool check_sensor_vendor;
 static bool skip_cal_loading;
@@ -52,7 +41,6 @@ static bool use_ois_hsi2c;
 static bool use_ois;
 static bool use_module_check;
 static bool is_hw_init_running = false;
-static FRomPowersource f_rom_power;
 #ifdef CONFIG_SECURE_CAMERA_USE
 static u32  secure_sensor_id;
 #endif
@@ -64,266 +52,53 @@ struct workqueue_struct *sensor_pwr_ctrl_wq = 0;
 
 #ifdef USE_CAMERA_HW_BIG_DATA
 static struct cam_hw_param_collector cam_hwparam_collector;
-static bool mipi_err_check;
-static bool need_update_to_file;
 
-void fimc_is_sec_init_err_cnt(struct cam_hw_param *hw_param)
+void fimc_is_sec_init_err_cnt_file(struct cam_hw_param *hw_param)
 {
-	info("%s\n", __func__);
-
 	if (hw_param) {
 		memset(hw_param, 0, sizeof(struct cam_hw_param));
-#ifdef CAMERA_HW_BIG_DATA_FILE_IO
-		fimc_is_sec_copy_err_cnt_to_file();
-#endif
 	}
 }
 
-void fimc_is_sec_get_hw_param(struct cam_hw_param **hw_param, u32 position)
+int fimc_is_sec_get_rear_hw_param(struct cam_hw_param **hw_param)
 {
-	switch (position) {
-	case SENSOR_POSITION_REAR:
-		*hw_param = &cam_hwparam_collector.rear_hwparam;
-		break;
-	case SENSOR_POSITION_REAR2:
-		*hw_param = &cam_hwparam_collector.rear2_hwparam;
-		break;
-	case SENSOR_POSITION_FRONT:
-		*hw_param = &cam_hwparam_collector.front_hwparam;
-		break;
-	case SENSOR_POSITION_SECURE:
-		*hw_param = &cam_hwparam_collector.iris_hwparam;
-		break;
-	default:
-		need_update_to_file = false;
-		return;
-	}
-	need_update_to_file = true;
+	*hw_param = &cam_hwparam_collector.rear_hwparam;
+	return 0;
+}
+
+int fimc_is_sec_get_front_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.front_hwparam;
+	return 0;
+}
+
+int fimc_is_sec_get_iris_hw_param(struct cam_hw_param **hw_param)
+{
+	*hw_param = &cam_hwparam_collector.iris_hwparam;
+	return 0;
 }
 
 bool fimc_is_sec_is_valid_moduleid(char *moduleid)
 {
 	int i = 0;
-
-	if (moduleid == NULL || strlen(moduleid) < 5)
+	
+	if (moduleid == NULL || strlen(moduleid) < 5) {
 		goto err;
-
-	for (i = 0; i < 5; i++) {
+	}
+	
+	for (i = 0; i < 5; i++)
+	{
 		if (!((moduleid[i] > 47 && moduleid[i] < 58) || // 0 to 9
 			(moduleid[i] > 64 && moduleid[i] < 91))) {  // A to Z
 			goto err;
 		}
 	}
-
+	
 	return true;
-
+	
 err:
 	warn("invalid moduleid\n");
 	return false;
-}
-
-#ifdef CAMERA_HW_BIG_DATA_FILE_IO
-bool fimc_is_sec_need_update_to_file(void)
-{
-	return need_update_to_file;
-}
-
-void fimc_is_sec_copy_err_cnt_to_file(void)
-{
-	struct file *fp = NULL;
-	mm_segment_t old_fs;
-	long nwrite = 0;
-	bool ret = false;
-	int old_mask = 0;
-
-	info("%s\n", __func__);
-
-	if (current && current->fs) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		ret = sys_access(CAM_HW_ERR_CNT_FILE_PATH, 0);
-
-		if (ret != 0) {
-			old_mask = sys_umask(7);
-			fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_WRONLY | O_CREAT | O_TRUNC | O_SYNC, 0660);
-			if (IS_ERR_OR_NULL(fp)) {
-				warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
-				sys_umask(old_mask);
-				set_fs(old_fs);
-				return;
-			}
-
-			filp_close(fp, current->files);
-			sys_umask(old_mask);
-		}
-
-		fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_WRONLY | O_TRUNC | O_SYNC, 0660);
-		if (IS_ERR_OR_NULL(fp)) {
-			warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
-			set_fs(old_fs);
-			return;
-		}
-
-		nwrite = vfs_write(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
-
-		filp_close(fp, current->files);
-		set_fs(old_fs);
-		need_update_to_file = false;
-	}
-}
-
-void fimc_is_sec_copy_err_cnt_from_file(void)
-{
-	struct file *fp = NULL;
-	mm_segment_t old_fs;
-	long nread = 0;
-	bool ret = false;
-
-	info("%s\n", __func__);
-
-	ret = fimc_is_sec_file_exist(CAM_HW_ERR_CNT_FILE_PATH);
-
-	if (ret) {
-		old_fs = get_fs();
-		set_fs(KERNEL_DS);
-
-		fp = filp_open(CAM_HW_ERR_CNT_FILE_PATH, O_RDONLY, 0660);
-		if (IS_ERR_OR_NULL(fp)) {
-			warn("%s open failed", CAM_HW_ERR_CNT_FILE_PATH);
-			set_fs(old_fs);
-			return;
-		}
-
-		nread = vfs_read(fp, (char *)&cam_hwparam_collector, sizeof(struct cam_hw_param_collector), &fp->f_pos);
-
-		filp_close(fp, current->files);
-		set_fs(old_fs);
-	}
-}
-#endif
-
-#endif /* USE_CAMERA_HW_BIG_DATA */
-
-void fimc_is_vendor_csi_stream_on(struct fimc_is_device_csi *csi)
-{
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-	struct fimc_is_device_sensor *device = NULL;
-	struct fimc_is_module_enum *module = NULL;
-	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
-	struct fimc_is_cis *cis = NULL;
-	int ret;
-
-	device = container_of(csi->subdev, struct fimc_is_device_sensor, subdev_csi);
-	if (device == NULL) {
-		warn("device is null");
-		return;
-	};
-
-	ret = fimc_is_sensor_g_module(device, &module);
-	if (ret) {
-		warn("%s sensor_g_module failed(%d)", __func__, ret);
-		return;
-	}
-
-	sensor_peri = (struct fimc_is_device_sensor_peri *)module->private_data;
-	if (sensor_peri == NULL) {
-		warn("sensor_peri is null");
-		return;
-	};
-
-	if (sensor_peri->subdev_cis) {
-		cis = (struct fimc_is_cis *)v4l2_get_subdevdata(sensor_peri->subdev_cis);
-		CALL_CISOPS(cis, cis_update_settle_info, sensor_peri->subdev_cis);
-	}
-#endif
-
-#ifdef USE_CAMERA_HW_BIG_DATA
-	mipi_err_check = false;
-#endif
-}
-
-void fimc_is_vender_csi_err_handler(struct fimc_is_device_csi *csi)
-{
-#ifdef USE_CAMERA_HW_BIG_DATA
-	struct fimc_is_device_sensor *device = NULL;
-	struct cam_hw_param *hw_param = NULL;
-
-	device = container_of(csi->subdev, struct fimc_is_device_sensor, subdev_csi);
-
-	if (device && device->pdev && !mipi_err_check) {
-		fimc_is_sec_get_hw_param(&hw_param, device->position);
-		switch (device->pdev->id) {
-#ifdef CSI_SCENARIO_COMP
-			case CSI_SCENARIO_COMP:
-				if (hw_param)
-					hw_param->mipi_comp_err_cnt++;
-				break;
-#endif
-
-#ifdef CSI_SCENARIO_SEN_REAR
-			case CSI_SCENARIO_SEN_REAR:
-				if (hw_param)
-					hw_param->mipi_sensor_err_cnt++;
-				break;
-#endif
-
-#ifdef CSI_SCENARIO_SEN_FRONT
-			case CSI_SCENARIO_SEN_FRONT:
-				if (hw_param)
-					hw_param->mipi_sensor_err_cnt++;
-				break;
-#endif
-
-#ifdef CSI_SCENARIO_TELE
-			case CSI_SCENARIO_TELE:
-				if (hw_param)
-					hw_param->mipi_sensor_err_cnt++;
-				break;
-#endif
-
-#ifdef CSI_SCENARIO_SECURE
-			case CSI_SCENARIO_SECURE:
-				if (hw_param)
-					hw_param->mipi_sensor_err_cnt++;
-				break;
-#endif
-			default:
-				break;
-		}
-		mipi_err_check = true;
-	}
-#endif
-}
-
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-void fimc_is_vender_csi_err_print_debug_log(struct fimc_is_device_sensor *device)
-{
-	struct fimc_is_module_enum *module = NULL;
-	struct fimc_is_device_sensor_peri *sensor_peri = NULL;
-	struct fimc_is_preprocessor *preprocessor;
-	struct fimc_is_cis *cis = NULL;
-	int ret = 0;
-
-	if (device && device->pdev) {
-		ret = fimc_is_sensor_g_module(device, &module);
-		if (ret) {
-			warn("%s sensor_g_module failed(%d)", __func__, ret);
-			return;
-		}
-
-		sensor_peri = (struct fimc_is_device_sensor_peri *)module->private_data;
-
-		if (sensor_peri->subdev_preprocessor) { /* for preprocessor */
-			preprocessor = (struct fimc_is_preprocessor *)v4l2_get_subdevdata(sensor_peri->subdev_preprocessor);
-			CALL_PREPROPOPS(preprocessor, preprocessor_debug, sensor_peri->subdev_preprocessor);
-		}
-
-		if (sensor_peri->subdev_cis) {
-			cis = (struct fimc_is_cis *)v4l2_get_subdevdata(sensor_peri->subdev_cis);
-			CALL_CISOPS(cis, cis_log_status, sensor_peri->subdev_cis);
-		}
-	}
 }
 #endif
 
@@ -345,7 +120,6 @@ int fimc_is_vender_probe(struct fimc_is_vender *vender)
 	mutex_init(&specific->spi_lock);
 	specific->running_front_camera = false;
 	specific->running_rear_camera = false;
-	specific->running_rear_second_camera = false;
 
 	specific->retention_data.firmware_size = 0;
 	memset(&specific->retention_data.firmware_crc32, 0, FIMC_IS_COMPANION_CRC_SIZE);
@@ -368,14 +142,11 @@ int fimc_is_vender_probe(struct fimc_is_vender *vender)
 
 	specific->rear_sensor_id = rear_sensor_id;
 	specific->front_sensor_id = front_sensor_id;
-	specific->rear_second_sensor_id = rear_second_sensor_id;
 	specific->check_sensor_vendor = check_sensor_vendor;
 	specific->use_ois = use_ois;
 	specific->use_ois_hsi2c = use_ois_hsi2c;
-	specific->use_ois_online_cnt = 0;
 	specific->use_module_check = use_module_check;
 	specific->skip_cal_loading = skip_cal_loading;
-	specific->f_rom_power = f_rom_power;
 	specific->eeprom_client0 = NULL;
 	specific->eeprom_client1 = NULL;
 	specific->suspend_resume_disable = false;
@@ -386,10 +157,8 @@ int fimc_is_vender_probe(struct fimc_is_vender *vender)
 #ifdef CONFIG_SECURE_CAMERA_USE
 	specific->secure_sensor_id = secure_sensor_id;
 #endif
-	vender->companion_crc_error = COMPANION_CRC_ERROR_INIT_ON_BOOT;
 	vender->private_data = specific;
 
-	fimc_is_load_ctrl_init();
 #ifdef CAMERA_PARALLEL_RETENTION_SEQUENCE
 	if (!sensor_pwr_ctrl_wq) {
 		sensor_pwr_ctrl_wq = create_singlethread_workqueue("sensor_pwr_ctrl");
@@ -416,8 +185,6 @@ static int parse_sysfs_caminfo(struct device_node *np,
 	DT_READ_U32(np, "fw_dump", cam_infos[camera_num].fw_dump);
 	DT_READ_U32(np, "companion", cam_infos[camera_num].companion);
 	DT_READ_U32(np, "ois", cam_infos[camera_num].ois);
-	DT_READ_U32(np, "valid", cam_infos[camera_num].valid);
-	DT_READ_U32(np, "dual_open", cam_infos[camera_num].dual_open);
 
 	return 0;
 }
@@ -431,7 +198,7 @@ int fimc_is_vender_dt(struct device_node *np)
 	struct fimc_is_cam_info *camera_infos;
 	char camInfo_string[15];
 	int camera_num;
-	int max_camera_num;
+	int total_camera_num;
 #endif
 
 	ret = of_property_read_u32(np, "rear_sensor_id", &rear_sensor_id);
@@ -442,11 +209,6 @@ int fimc_is_vender_dt(struct device_node *np)
 	ret = of_property_read_u32(np, "front_sensor_id", &front_sensor_id);
 	if (ret) {
 		probe_err("front_sensor_id read is fail(%d)", ret);
-	}
-
-	ret = of_property_read_u32(np, "rear_second_sensor_id", &rear_second_sensor_id);
-	if (ret) {
-		probe_err("rear_second_sensor_id read is fail(%d)", ret);
 	}
 
 #ifdef CONFIG_SECURE_CAMERA_USE
@@ -461,7 +223,7 @@ int fimc_is_vender_dt(struct device_node *np)
 	if (!check_sensor_vendor) {
 		probe_info("check_sensor_vendor not use(%d)\n", check_sensor_vendor);
 	}
-#ifdef CONFIG_OIS_USE
+
 	use_ois = of_property_read_bool(np, "use_ois");
 	if (!use_ois) {
 		probe_err("use_ois not use(%d)", use_ois);
@@ -471,7 +233,6 @@ int fimc_is_vender_dt(struct device_node *np)
 	if (!use_ois_hsi2c) {
 		probe_err("use_ois_hsi2c not use(%d)", use_ois_hsi2c);
 	}
-#endif
 
 	use_module_check = of_property_read_bool(np, "use_module_check");
 	if (!use_module_check) {
@@ -483,30 +244,21 @@ int fimc_is_vender_dt(struct device_node *np)
 		probe_info("skip_cal_loading not use(%d)\n", skip_cal_loading);
 	}
 
-	ret = of_property_read_u32(np, "f_rom_power", &f_rom_power);
-	if (ret) {
-		err("f_rom_power read is fail(%d)", ret);
-		f_rom_power = 0;
-	}
-	if (!f_rom_power) {
-		probe_info("f_rom_power not use(%d)\n", f_rom_power);
-	}
-
 #ifdef CAMERA_SYSFS_V2
-	ret = of_property_read_u32(np, "max_camera_num", &max_camera_num);
+	ret = of_property_read_u32(np, "total_camera_num", &total_camera_num);
 	if (ret) {
-		err("max_camera_num read is fail(%d)", ret);
-		max_camera_num = 0;
+		err("total_camera_num read is fail(%d)", ret);
+		total_camera_num = 0;
 	}
 	fimc_is_get_cam_info(&camera_infos);
 
-	for (camera_num = 0; camera_num < max_camera_num; camera_num++) {
+	for (camera_num = 0; camera_num < total_camera_num; camera_num++) {
 		sprintf(camInfo_string, "%s%d", "camera_info", camera_num);
 
 		camInfo_np = of_find_node_by_name(np, camInfo_string);
 		if (!camInfo_np) {
-			info("%s: camera_num = %d can't find camInfo_string node\n", __func__, camera_num);
-			continue;
+			printk(KERN_ERR "%s: can't find camInfo_string node\n", __func__);
+			return -ENOENT;
 		}
 		parse_sysfs_caminfo(camInfo_np, camera_infos, camera_num);
 	}
@@ -575,20 +327,11 @@ int fimc_is_vender_hw_init(struct fimc_is_vender *vender)
 	core = container_of(vender, struct fimc_is_core, vender);
 	dev = &core->ischain[0].pdev->dev;
 
-	info("hw init start\n");
-
 	is_hw_init_running = true;
-#ifdef CAMERA_HW_BIG_DATA_FILE_IO
-	need_update_to_file = false;
-	fimc_is_sec_copy_err_cnt_from_file();
-#endif
-
-	fimc_is_load_ctrl_lock();
 	ret = fimc_is_vender_check_sensor(core);
 	if (ret) {
 		err("Do not init hw routine. Check sensor failed!\n");
 		is_hw_init_running = false;
-		fimc_is_load_ctrl_unlock();
 		return -EINVAL;
 	} else {
 		info("Start hw init. Check sensor success!\n");
@@ -611,23 +354,12 @@ int fimc_is_vender_hw_init(struct fimc_is_vender *vender)
 	}
 #endif
 
-	ret = fimc_is_sec_check_bin_files(core);
-	if (ret) {
-		err("fimc_is_sec_check_bin_files is fail(%d)", ret);
-	}
-
-#if defined (CONFIG_OIS_USE)
+#ifdef CONFIG_OIS_USE
 	fimc_is_ois_fw_update(core);
 #endif
 
-	ret = fimc_is_load_bin_on_boot();
-	if (ret) {
-		err("fimc_is_load_bin_on_boot is fail(%d)", ret);
-	}
-	fimc_is_load_ctrl_unlock();
 	is_hw_init_running = false;
 
-	info("hw init done\n");
 	return 0;
 }
 
@@ -636,11 +368,9 @@ int fimc_is_vender_fw_prepare(struct fimc_is_vender *vender)
 	int ret = 0;
 	struct fimc_is_core *core;
 	struct fimc_is_device_preproc *device;
-	struct fimc_is_vender_specific *specific;
 
 	BUG_ON(!vender);
 
-	specific = vender->private_data;
 	core = container_of(vender, struct fimc_is_core, vender);
 	device = &core->preproc;
 
@@ -666,101 +396,15 @@ int fimc_is_vender_fw_prepare(struct fimc_is_vender *vender)
 		err("fimc_is_sec_concord_fw_sel is fail(%d)", ret);
 		goto p_err;
 	}
-#if defined(ENABLE_IS_CORE)
+
 	/* TODO: loading firmware */
 	fimc_is_s_int_comb_isp(core, false, INTMR2_INTMCIS22);
 #endif
-#endif
 
-#ifndef CONFIG_USE_DIRECT_IS_CONTROL
 	/* Set SPI function */
 	fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_ISP_FW);
-#endif
 
 p_err:
-	return ret;
-}
-
-/**
-  * fimc_is_vender_request_binary: send loading request to the loader
-  * @bin: pointer to fimc_is_binary structure
-  * @path: path of binary file
-  * @name: name of binary file
-  * @device: device for which binary is being loaded
-  **/
-int fimc_is_vender_request_binary(struct fimc_is_binary *bin, const char *path1, const char *path2,
-				const char *name, struct device *device)
-{
-	char *filename;
-	unsigned int retry_cnt = 0;
-	int retry_err = 0;
-	int ret;
-
-	bin->data = NULL;
-	bin->size = 0;
-	bin->fw = NULL;
-
-	/* whether the loader is customized or not */
-	if (bin->customized != (unsigned long)bin) {
-		bin->alloc = &vmalloc;
-		bin->free =  &vfree;
-	} else {
-		retry_cnt = bin->retry_cnt;
-		retry_err = bin->retry_err;
-	}
-
-	/* read the requested binary from file system directly */
-	if (path1) {
-		filename = __getname();
-		if (unlikely(!filename))
-			return -ENOMEM;
-
-		snprintf(filename, PATH_MAX, "%s%s", path1, name);
-		ret = get_filesystem_binary(filename, bin);
-		__putname(filename);
-		/* read successfully or don't want to go further more */
-		if (!ret || !device) {
-			info("%s path1 load(%s) \n", __func__, name);
-			return ret;
-		}
-	}
-
-	/* read the requested binary from file system directly DUMP  */
-	if (path2 && is_dumped_fw_loading_needed) {
-		filename = __getname();
-		if (unlikely(!filename))
-			return -ENOMEM;
-
-		snprintf(filename, PATH_MAX, "%s%s", path2, name);
-		ret = get_filesystem_binary(filename, bin);
-		__putname(filename);
-		/* read successfully or don't want to go further more */
-		if (!ret || !device) {
-			info("%s path2 load(%s) \n", __func__, name);
-			return ret;
-		}
-	}
-
-	/* ask to 'request_firmware' */
-	do {
-		ret = request_firmware(&bin->fw, name, device);
-
-		if (!ret && bin->fw) {
-			bin->data = (void *)bin->fw->data;
-			bin->size = bin->fw->size;
-
-			info("%s path3 load(%s) \n", __func__, name);
-			break;
-		}
-
-		/*
-		 * if no specific error for retry is given;
-		 * whatever any error is occurred, we should retry
-		 */
-		if (!bin->retry_err)
-			retry_err = ret;
-	} while (retry_cnt-- && (retry_err == ret));
-
 	return ret;
 }
 
@@ -769,10 +413,12 @@ int fimc_is_vender_fw_filp_open(struct fimc_is_vender *vender, struct file **fp,
 	int ret = FW_SKIP;
 	struct fimc_is_from_info *sysfs_finfo;
 	char fw_path[FIMC_IS_PATH_LEN];
+#ifdef CAMERA_MODULE_FRONT_SETF_DUMP
 	struct fimc_is_core *core;
+	core = container_of(vender, struct fimc_is_core, vender);
+#endif
 
 	fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
-	core = container_of(vender, struct fimc_is_core, vender);
 	memset(fw_path, 0x00, sizeof(fw_path));
 
 	if (bin_type == FIMC_IS_BIN_FW) {
@@ -795,12 +441,6 @@ int fimc_is_vender_fw_filp_open(struct fimc_is_vender *vender, struct file **fp,
 			if (core->current_position == SENSOR_POSITION_FRONT) {
 				snprintf(fw_path, sizeof(fw_path),
 					"%s%s", FIMC_IS_FW_DUMP_PATH, sysfs_finfo->load_front_setfile_name);
-			} else
-#endif
-#ifdef CAMERA_MODULE_REAR2_SETF_DUMP
-			if (core->current_position == SENSOR_POSITION_REAR2) {
-				snprintf(fw_path, sizeof(fw_path),
-					"%s%s", FIMC_IS_FW_DUMP_PATH, sysfs_finfo->load_setfile2_name);
 			} else
 #endif
 			{
@@ -828,22 +468,21 @@ int fimc_is_vender_preproc_fw_load(struct fimc_is_vender *vender)
 	int ret = 0;
 	struct fimc_is_core *core;
 	struct fimc_is_device_preproc *device;
+#if defined(CONFIG_PREPROCESSOR_STANDBY_USE)
 	struct fimc_is_vender_specific *specific;
-
+#endif
 	BUG_ON(!vender);
 
+#if defined(CONFIG_PREPROCESSOR_STANDBY_USE)
 	specific = vender->private_data;
+#endif
 	core = container_of(vender, struct fimc_is_core, vender);
 	device = &core->preproc;
 
 	/* Set pin function to ISP I2C for Host to use I2C0 */
 	/* In case of S/W I2c, pin direction should be set input direction. */
 	/* if pin direction doesn't set input direction, cause timing issue on start condition.*/
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_ON);
-#else
 	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_HOST);
-#endif
 
 	/* Set SPI function */
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_HOST);
@@ -860,12 +499,9 @@ int fimc_is_vender_preproc_fw_load(struct fimc_is_vender *vender)
 					ret = fimc_is_comp_loadfirm(core);
 				}
 			}
-			if (core->vender.companion_crc_error != COMPANION_CRC_ERROR_OCCUR_ON_BOOT)
-				SET_SENSOR_STATE(specific->standby_state, SENSOR_STATE_COMPANION, SENSOR_STATE_ON);
-			else
-				err("%s: companion_crc_error occurred\n", __func__);
+			SET_SENSOR_STATE(specific->standby_state, SENSOR_STATE_COMPANION, SENSOR_STATE_ON);
 			info("%s: COMPANION STATE %u\n", __func__, GET_SENSOR_STATE(specific->standby_state, SENSOR_STATE_COMPANION));
-		} else {
+ 		} else {
 			ret = fimc_is_comp_loadfirm(core);
 		}
 #else
@@ -897,22 +533,12 @@ int fimc_is_vender_preproc_fw_load(struct fimc_is_vender *vender)
 		}
 	}
 
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_ON);
-#else
 	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_FW);
-#endif
 
 #if defined(CONFIG_OIS_USE)
-	if(specific->use_ois &&
-		(core->current_position == SENSOR_POSITION_REAR ||
-		core->current_position == SENSOR_POSITION_REAR2)) {
+	if(specific->use_ois && core->current_position == SENSOR_POSITION_REAR) {
 		if (!specific->use_ois_hsi2c) {
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-			fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_ON);
-#else
 			fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_HOST);
-#endif
 		}
 
 		if (!specific->ois_ver_read) {
@@ -921,27 +547,15 @@ int fimc_is_vender_preproc_fw_load(struct fimc_is_vender *vender)
 
 		fimc_is_ois_exif_data(core);
 
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-		mutex_lock(&core->i2c_lock[1]);
-		fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_ON);
-		mutex_unlock(&core->i2c_lock[1]);
-#else
 		if (!specific->use_ois_hsi2c) {
 			fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_FW);
 		}
-#endif
 	}
 #endif
 
-	return ret;
-
 p_err:
-#if defined(CONFIG_OIS_USE)
 	fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_OFF);
-#endif
-#ifdef ENABLE_IS_CORE
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_ISP_FW);
-#endif
 	return ret;
 }
 #endif
@@ -959,7 +573,7 @@ struct fimc_is_module_enum *active_sensor, int position)
 	struct fimc_is_from_info *pinfo;
 	char *loaded_fw_ver;
 
-	dbg_core("%s\n", __func__);
+	mdbgd_ischain("%s\n", device, __func__);
 
 	if (!fimc_is_sec_check_from_ver(core, position)) {
 		err("Camera : Did not load cal data.");
@@ -968,31 +582,23 @@ struct fimc_is_module_enum *active_sensor, int position)
 
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_FRONT)
 	if (position == SENSOR_POSITION_FRONT) {
-		start_addr = CAL_OFFSET1;
+		start_addr = FIMC_IS_CAL_OFFSET1;
 		cal_size = FIMC_IS_MAX_CAL_SIZE_FRONT;
 		fimc_is_sec_get_sysfs_finfo_front(&finfo);
 		fimc_is_sec_get_front_cal_buf(&cal_buf);
-#ifdef ENABLE_IS_CORE
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
-#else
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr_front_cal);
-#endif
 	} else
 #endif
 	{
-		start_addr = CAL_OFFSET0;
+		start_addr = FIMC_IS_CAL_OFFSET0;
 		cal_size = FIMC_IS_MAX_CAL_SIZE;
 		fimc_is_sec_get_sysfs_finfo(&finfo);
 		fimc_is_sec_get_cal_buf(&cal_buf);
-#ifdef ENABLE_IS_CORE
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
-#else
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr_rear_cal);
-#endif
 	}
 
 	fimc_is_sec_get_sysfs_pinfo(&pinfo);
 	fimc_is_sec_get_loaded_fw(&loaded_fw_ver);
+
+	cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
 
 	info("CAL DATA : MAP ver : %c%c%c%c\n", cal_buf[0x40], cal_buf[0x41],
 		cal_buf[0x42], cal_buf[0x43]);
@@ -1033,21 +639,8 @@ struct fimc_is_module_enum *active_sensor, int position)
 		}
 	}
 
-#ifdef ENABLE_IS_CORE
-	CALL_BUFOP(core->resourcemgr.minfo.pb_fw, sync_for_device,
-		core->resourcemgr.minfo.pb_fw,
+	vb2_ion_sync_for_device(core->resourcemgr.minfo.fw_cookie,
 		start_addr, cal_size, DMA_TO_DEVICE);
-#else
-	if (position == SENSOR_POSITION_FRONT) {
-		CALL_BUFOP(core->resourcemgr.minfo.pb_front_cal, sync_for_device,
-				core->resourcemgr.minfo.pb_front_cal,
-				0, cal_size, DMA_TO_DEVICE);
-	} else {
-		CALL_BUFOP(core->resourcemgr.minfo.pb_rear_cal, sync_for_device,
-				core->resourcemgr.minfo.pb_rear_cal,
-				0, cal_size, DMA_TO_DEVICE);
-	}
-#endif
 	if (ret)
 		warn("calibration loading is fail");
 	else
@@ -1076,29 +669,21 @@ static int fimc_is_ischain_loadcalb(struct fimc_is_core *core,
 	}
 
 	if (position == SENSOR_POSITION_FRONT) {
-		start_addr = CAL_OFFSET1;
+		start_addr = FIMC_IS_CAL_OFFSET1;
 		cal_size = FIMC_IS_MAX_CAL_SIZE_FRONT;
 		fimc_is_sec_get_sysfs_finfo_front(&sysfs_finfo);
 		fimc_is_sec_get_front_cal_buf(&cal_buf);
-#ifdef ENABLE_IS_CORE
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
-#else
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr_front_cal);
-#endif
 	} else {
-		start_addr = CAL_OFFSET0;
+		start_addr = FIMC_IS_CAL_OFFSET0;
 		cal_size = FIMC_IS_MAX_CAL_SIZE;
 		fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
 		fimc_is_sec_get_cal_buf(&cal_buf);
-#ifdef ENABLE_IS_CORE
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
-#else
-		cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr_rear_cal);
-#endif
 	}
 
 	fimc_is_sec_get_sysfs_pinfo(&sysfs_pinfo);
 	fimc_is_sec_get_loaded_fw(&loaded_fw_ver);
+
+	cal_ptr = (char *)(core->resourcemgr.minfo.kvaddr + start_addr);
 
 	info("CAL DATA : MAP ver : %c%c%c%c\n", cal_buf[0x60], cal_buf[0x61],
 		cal_buf[0x62], cal_buf[0x63]);
@@ -1165,21 +750,8 @@ static int fimc_is_ischain_loadcalb(struct fimc_is_core *core,
 		}
 	}
 
-#ifdef ENABLE_IS_CORE
-	CALL_BUFOP(core->resourcemgr.minfo.pb_fw, sync_for_device,
-		core->resourcemgr.minfo.pb_fw,
-		start_addr, cal_size, DMA_TO_DEVICE);
-#else
-	if (position == SENSOR_POSITION_FRONT) {
-		CALL_BUFOP(core->resourcemgr.minfo.pb_front_cal, sync_for_device,
-				core->resourcemgr.minfo.pb_front_cal,
-				0, cal_size, DMA_TO_DEVICE);
-	} else {
-		CALL_BUFOP(core->resourcemgr.minfo.pb_rear_cal, sync_for_device,
-				core->resourcemgr.minfo.pb_rear_cal,
-				0, cal_size, DMA_TO_DEVICE);
-	}
-#endif
+	vb2_ion_sync_for_device(core->resourcemgr.minfo.fw_cookie,
+		FIMC_IS_CAL_OFFSET0, FIMC_IS_MAX_CAL_SIZE, DMA_TO_DEVICE);
 	if (ret)
 		warn("calibration loading is fail");
 	else
@@ -1198,19 +770,9 @@ int fimc_is_vender_cal_load(struct fimc_is_vender *vender,
 
 	core = container_of(vender, struct fimc_is_core, vender);
 
-	if(module->position == SENSOR_POSITION_FRONT) {
-#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_FRONT)
-		module->ext.sensor_con.cal_address = CAL_OFFSET1;
-		ret = fimc_is_ischain_loadcalb_eeprom(core, NULL, SENSOR_POSITION_FRONT);
-		if (ret) {
-			err("loadcalb fail, load default caldata\n");
-		}
-#else
-		module->ext.sensor_con.cal_address = 0;
-#endif
-	} else {
+	if(module->position == SENSOR_POSITION_REAR) {
 		/* Load calibration data from sensor */
-		module->ext.sensor_con.cal_address = CAL_OFFSET0;
+		module->ext.sensor_con.cal_address = FIMC_IS_CAL_OFFSET0;
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_REAR)
 		ret = fimc_is_ischain_loadcalb_eeprom(core, NULL, SENSOR_POSITION_REAR);
 #else
@@ -1219,6 +781,16 @@ int fimc_is_vender_cal_load(struct fimc_is_vender *vender,
 		if (ret) {
 			err("loadcalb fail, load default caldata\n");
 		}
+	} else {
+#if defined(CONFIG_CAMERA_EEPROM_SUPPORT_FRONT)
+		module->ext.sensor_con.cal_address = FIMC_IS_CAL_OFFSET1;
+		ret = fimc_is_ischain_loadcalb_eeprom(core, NULL, SENSOR_POSITION_FRONT);
+		if (ret) {
+			err("loadcalb fail, load default caldata\n");
+		}
+#else
+		module->ext.sensor_con.cal_address = 0;
+#endif
 	}
 
 	return ret;
@@ -1236,8 +808,6 @@ int fimc_is_vender_module_sel(struct fimc_is_vender *vender, void *module_data)
 
 	if (module->position == SENSOR_POSITION_FRONT)
 		specific->running_front_camera = true;
-	else if (module->position == SENSOR_POSITION_REAR2)
-		specific->running_rear_second_camera = true;
 	else
 		specific->running_rear_camera = true;
 
@@ -1249,7 +819,6 @@ int fimc_is_vender_module_del(struct fimc_is_vender *vender, void *module_data)
 	int ret = 0;
 	struct fimc_is_module_enum *module = module_data;
 	struct fimc_is_vender_specific *specific;
-	struct fimc_is_device_sensor_peri *sensor_peri;
 
 	BUG_ON(!module);
 
@@ -1257,42 +826,8 @@ int fimc_is_vender_module_del(struct fimc_is_vender *vender, void *module_data)
 
 	if (module->position == SENSOR_POSITION_FRONT)
 		specific->running_front_camera = false;
-	else if (module->position == SENSOR_POSITION_REAR2)
-		specific->running_rear_second_camera = false;
 	else
 		specific->running_rear_camera = false;
-
-	sensor_peri = (struct fimc_is_device_sensor_peri *)module->private_data;
-	if (sensor_peri->actuator) {
-		info("%s[%d] disable actuator i2c client. position = %d\n",
-				__func__, __LINE__, module->position);
-		fimc_is_i2c_s_pin(sensor_peri->actuator->client, I2C_PIN_STATE_OFF);
-	}
-#ifdef CAMERA_REAR2_OIS
-	if (sensor_peri->ois && specific->running_rear_camera == false && specific->running_rear_second_camera == false) {
-#else
-	if (sensor_peri->ois) {
-#endif
-		info("%s[%d] disable ois i2c client. position = %d\n",
-				__func__, __LINE__, module->position);
-		mutex_lock(sensor_peri->ois->i2c_lock);
-		if (specific->use_ois_online_cnt > 0) {
-			specific->use_ois_online_cnt--;
-			if (specific->use_ois_online_cnt == 0)
-				fimc_is_i2c_s_pin(sensor_peri->ois->client, I2C_PIN_STATE_OFF);
-		}
-		mutex_unlock(sensor_peri->ois->i2c_lock);
-	}
-	if (sensor_peri->preprocessor) {
-		info("%s[%d] disable preprocessor i2c client. position = %d\n",
-				__func__, __LINE__, module->position);
-		fimc_is_i2c_s_pin(sensor_peri->preprocessor->client, I2C_PIN_STATE_OFF);
-	}
-	if (sensor_peri->cis.client) {
-		info("%s[%d] disable cis i2c client. position = %d\n",
-				__func__, __LINE__, module->position);
-		fimc_is_i2c_s_pin(sensor_peri->cis.client, I2C_PIN_STATE_OFF);
-	}
 
 	return ret;
 }
@@ -1325,27 +860,56 @@ p_err:
 	return ret;
 }
 
-int fimc_is_vender_setfile_sel(struct fimc_is_vender *vender,
-	char *setfile_name,
-	int position)
+int fimc_is_vender_setfile_sel(struct fimc_is_vender *vender, char *setfile_name)
 {
 	int ret = 0;
+#if defined(CONFIG_COMPANION_USE) || defined(SELECT_SETFILE_BY_FROM_VERSION)
 	struct fimc_is_core *core;
+#endif
+#ifdef SELECT_SETFILE_BY_FROM_VERSION
+	char dst_name[50];
+	struct fimc_is_from_info *sysfs_finfo;
+	fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
+#endif
 
 	BUG_ON(!vender);
 	BUG_ON(!setfile_name);
 
+#if defined(CONFIG_COMPANION_USE) || defined(SELECT_SETFILE_BY_FROM_VERSION)
 	core = container_of(vender, struct fimc_is_core, vender);
-
-#if defined(CONFIG_COMPANION_USE) && defined(ENABLE_IS_CORE)
+#endif
+#ifdef CONFIG_COMPANION_USE
 	fimc_is_s_int_comb_isp(core, false, INTMR2_INTMCIS22);
 #endif
 
-	snprintf(vender->setfile_path[position], sizeof(vender->setfile_path[position]),
-		"%s%s", FIMC_IS_SETFILE_SDCARD_PATH, setfile_name);
-	snprintf(vender->request_setfile_path[position],
-		sizeof(vender->request_setfile_path[position]),
-		"%s", setfile_name);
+#ifdef SELECT_SETFILE_BY_FROM_VERSION
+	if (core->current_position == SENSOR_POSITION_REAR) {
+		if (fimc_is_sec_fw_module_compare(sysfs_finfo->header_ver, FW_IMX260_D)) {
+			snprintf(dst_name, sizeof(dst_name), "setfile_imx260_d.bin");
+		} else if (fimc_is_sec_fw_module_compare(sysfs_finfo->header_ver, FW_2L1_D)) {
+			snprintf(dst_name, sizeof(dst_name), "setfile_2l1_d.bin");
+		} else {
+			snprintf(dst_name, sizeof(dst_name), setfile_name);
+		}
+	} else {
+		if (fimc_is_sec_fw_module_compare(sysfs_finfo->header_ver, FW_IMX260_D) ||
+			fimc_is_sec_fw_module_compare(sysfs_finfo->header_ver, FW_2L1_D)) {
+			snprintf(dst_name, sizeof(dst_name), "setfile_4e6_d.bin");
+		} else {
+			snprintf(dst_name, sizeof(dst_name), setfile_name);
+		}
+	}
+
+	snprintf(vender->setfile_path, sizeof(vender->setfile_path), "%s%s",
+		FIMC_IS_SETFILE_SDCARD_PATH, setfile_name);
+	snprintf(vender->request_setfile_path, sizeof(vender->request_setfile_path), "%s",
+		dst_name);
+#else
+	snprintf(vender->setfile_path, sizeof(vender->setfile_path), "%s%s",
+		FIMC_IS_SETFILE_SDCARD_PATH, setfile_name);
+	snprintf(vender->request_setfile_path, sizeof(vender->request_setfile_path), "%s",
+		setfile_name);
+#endif
 
 	return ret;
 }
@@ -1371,7 +935,7 @@ void sensor_pwr_ctrl(struct work_struct *work)
 	}
 
 	pdata = g_module->pdata;
-	ret = pdata->gpio_cfg(g_module, SENSOR_SCENARIO_NORMAL,
+	ret = pdata->gpio_cfg(g_module->dev, SENSOR_SCENARIO_NORMAL,
 		GPIO_SCENARIO_STANDBY_OFF_SENSOR);
 	if (ret) {
 		err("gpio_cfg(sensor) is fail(%d)", ret);
@@ -1386,7 +950,6 @@ int fimc_is_vender_preprocessor_gpio_on_sel(struct fimc_is_vender *vender, u32 s
 {
 	int ret = 0;
 	struct fimc_is_core *core;
-	struct fimc_is_vender_specific *specific;
 
 #ifdef CONFIG_COMPANION_DCDC_USE
 	struct dcdc_power *dcdc;
@@ -1398,12 +961,19 @@ int fimc_is_vender_preprocessor_gpio_on_sel(struct fimc_is_vender *vender, u32 s
 	struct exynos_platform_fimc_is_module *pdata;
 	struct fimc_is_module_enum *module;
 #endif
-
+	struct fimc_is_vender_specific *specific;
 	specific = vender->private_data;
+
 	core = container_of(vender, struct fimc_is_core, vender);
 
 	/* Set spi pin to out */
-        fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+	if (specific->rear_sensor_id == SENSOR_NAME_S5K2L1)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPU);
+	else if (specific->rear_sensor_id == SENSOR_NAME_IMX260)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPD);
+	else
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_IDLE);
 
 #ifdef CONFIG_PREPROCESSOR_STANDBY_USE
@@ -1469,7 +1039,7 @@ int fimc_is_vender_preprocessor_gpio_on_sel(struct fimc_is_vender *vender, u32 s
 		}
 
 		pdata = module->pdata;
-		ret = pdata->gpio_cfg(module, scenario, GPIO_SCENARIO_STANDBY_OFF_PREPROCESSOR);
+		ret = pdata->gpio_cfg(module->dev, scenario, GPIO_SCENARIO_STANDBY_OFF_PREPROCESSOR);
 		if (ret) {
 			clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
 			err("gpio_cfg(companion) is fail(%d)", ret);
@@ -1503,19 +1073,24 @@ int fimc_is_vender_preprocessor_gpio_on(struct fimc_is_vender *vender, u32 scena
 
 int fimc_is_vender_sensor_gpio_on_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scenario)
 {
-	struct fimc_is_core *core;
 	int ret = 0;
-
+#if 0
+	struct fimc_is_core *core;
 	core = container_of(vender, struct fimc_is_core, vender);
 
-#if 0
 	/* In dual camera scenario,
 	while loading cal data to C3 with spi in rear camera, changing spi config in front camera is not valid.
 	Due to this issue, disable spi config here. (C3 + spi0, spi1 use case in rear camera)
 	Need to consider this on other project later depending on spi use cases.
 	*/
 	/* Set spi pin to out */
-        fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+	if (specific->rear_sensor_id == SENSOR_NAME_S5K2L1)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPU);
+	else if (specific->rear_sensor_id == SENSOR_NAME_IMX260)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPD);
+	else
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_IDLE);
 #endif
 
@@ -1533,20 +1108,25 @@ int fimc_is_vender_preprocessor_gpio_off_sel(struct fimc_is_vender *vender, u32 
 {
 	int ret = 0;
 	struct fimc_is_core *core;
-	struct fimc_is_vender_specific *specific;
-#ifdef CONFIG_SENSOR_RETENTION_USE
-	struct fimc_is_from_info *sysfs_finfo;
-#if defined(CONFIG_OIS_USE)
+#if defined(CONFIG_OIS_USE)	
 	struct fimc_is_module_enum *module = module_data;
 #endif
-	fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
+#ifdef CONFIG_SENSOR_RETENTION_USE
+	struct fimc_is_from_info *sysfs_finfo;
 #endif
-
+	struct fimc_is_vender_specific *specific;
 	specific = vender->private_data;
+
 	core = container_of(vender, struct fimc_is_core, vender);
 
 	/* Set spi pin to out */
-        fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+	if (specific->rear_sensor_id == SENSOR_NAME_S5K2L1)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPU);
+	else if (specific->rear_sensor_id == SENSOR_NAME_IMX260)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPD);
+	else
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_IDLE);
 
 #ifdef CONFIG_PREPROCESSOR_STANDBY_USE
@@ -1557,10 +1137,12 @@ int fimc_is_vender_preprocessor_gpio_off_sel(struct fimc_is_vender *vender, u32 
 		{
 			if (GET_SENSOR_STATE(specific->standby_state, SENSOR_STATE_COMPANION) == SENSOR_STATE_ON) {
 #ifdef CONFIG_SENSOR_RETENTION_USE
-				if (specific->rear_sensor_id == SENSOR_NAME_S5K2L2 && force_caldata_dump == false) {
+				fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
+				if (specific->rear_sensor_id == SENSOR_NAME_S5K2L1 && sysfs_finfo->sensor_version >= 0xC0
+					&& force_caldata_dump == false) {
 					*gpio_scenario = GPIO_SCENARIO_SENSOR_RETENTION_ON;
 
-#if defined(CONFIG_OIS_USE)
+#if defined(CONFIG_OIS_USE)					
 					/* Enable OIS gyro sleep */
 					if (module->position == SENSOR_POSITION_REAR) {
 						fimc_is_ois_gyro_sleep(core);
@@ -1585,11 +1167,11 @@ int fimc_is_vender_preprocessor_gpio_off_sel(struct fimc_is_vender *vender, u32 
 int fimc_is_vender_preprocessor_gpio_off(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
 {
 	int ret = 0;
+#ifdef CONFIG_PREPROCESSOR_STANDBY_USE
 	struct fimc_is_vender_specific *specific;
 
 	specific = vender->private_data;
 
-#ifdef CONFIG_PREPROCESSOR_STANDBY_USE
 	if (scenario == SENSOR_SCENARIO_NORMAL) {
 		if (gpio_scenario == GPIO_SCENARIO_STANDBY_ON
 #ifdef CONFIG_SENSOR_RETENTION_USE
@@ -1609,19 +1191,25 @@ int fimc_is_vender_preprocessor_gpio_off(struct fimc_is_vender *vender, u32 scen
 
 int fimc_is_vender_sensor_gpio_off_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scenario)
 {
-	struct fimc_is_core *core;
 	int ret = 0;
 
+#if 0
+	struct fimc_is_core *core;
 	core = container_of(vender, struct fimc_is_core, vender);
 
-#if 0
 	/* In dual camera scenario,
 	while loading cal data to C3 with spi in rear camera, changing spi config in front camera is not valid.
 	Due to this issue, disable spi config here. (C3 + spi0, spi1 use case in rear camera)
 	Need to consider this on other project later depending on spi use cases.
 	*/
 	/* Set spi pin to out */
-        fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+	if (specific->rear_sensor_id == SENSOR_NAME_S5K2L1)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPU);
+	else if (specific->rear_sensor_id == SENSOR_NAME_IMX260)
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE_INPD);
+	else
+		fimc_is_spi_s_pin(&core->spi0, SPI_PIN_STATE_IDLE);
+
 	fimc_is_spi_s_pin(&core->spi1, SPI_PIN_STATE_IDLE);
 #endif
 
@@ -1635,7 +1223,7 @@ int fimc_is_vender_sensor_gpio_off(struct fimc_is_vender *vender, u32 scenario, 
 	return ret;
 }
 
-void fimc_is_vender_check_retention(struct fimc_is_vender *vender, struct sensor_open_extended *ext_info)
+void fimc_is_vender_itf_open(struct fimc_is_vender *vender, struct sensor_open_extended *ext_info)
 {
 	struct fimc_is_vender_specific *specific;
 	struct fimc_is_from_info *sysfs_finfo;
@@ -1646,11 +1234,11 @@ void fimc_is_vender_check_retention(struct fimc_is_vender *vender, struct sensor
 	core = container_of(vender, struct fimc_is_core, vender);
 
 #ifdef CONFIG_SENSOR_RETENTION_USE
-	if (((specific->rear_sensor_id == SENSOR_NAME_IMX333 && sysfs_finfo->sensor_version >= 0x12) ||
+	if (((specific->rear_sensor_id == SENSOR_NAME_IMX260 && sysfs_finfo->sensor_version >= 0x06)
 #ifdef CONFIG_PREPROCESSOR_STANDBY_USE
-		(specific->rear_sensor_id == SENSOR_NAME_S5K2L2)
+		|| (specific->rear_sensor_id == SENSOR_NAME_S5K2L1 && sysfs_finfo->sensor_version >= 0xC0)
 #endif
-		)
+		)	
 		&& (force_caldata_dump == false)
 		&& (core->current_position == SENSOR_POSITION_REAR)
 	) {
@@ -1676,56 +1264,13 @@ void fimc_is_vender_check_retention(struct fimc_is_vender *vender, struct sensor
 		}
 	}
 
-	return;
-}
-
-void fimc_is_vender_sensor_s_input(struct fimc_is_vender *vender, void *module)
-{
-	struct fimc_is_core *core;
-	struct sensor_open_extended *ext_info;
-
-	core = container_of(vender, struct fimc_is_core, vender);
-	ext_info = &(((struct fimc_is_module_enum *)module)->ext);
-
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	fimc_is_vender_check_retention(vender, ext_info);
-#endif
-
-	return;
-}
-
-void fimc_is_vender_itf_open(struct fimc_is_vender *vender, struct sensor_open_extended *ext_info)
-{
-	struct fimc_is_vender_specific *specific;
-	struct fimc_is_from_info *sysfs_finfo;
-	struct fimc_is_core *core;
-
-	fimc_is_sec_get_sysfs_finfo(&sysfs_finfo);
-	specific = vender->private_data;
-	core = container_of(vender, struct fimc_is_core, vender);
-
-#ifndef CONFIG_USE_DIRECT_IS_CONTROL
-	fimc_is_vender_check_retention(vendor, ext_info);
-#endif
-
 #if defined(CONFIG_CAMERA_EEPROM_SUPPORT_REAR)
 	fimc_is_i2c_s_pin(specific->eeprom_client0, I2C_PIN_STATE_OFF);
 #endif
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_ON);
-#else
 	fimc_is_i2c_s_pin(core->client0, I2C_PIN_STATE_FW);
-#endif
-
-#if defined(CONFIG_OIS_USE)
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	mutex_lock(&core->i2c_lock[1]);
-	fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_ON);
-	mutex_unlock(&core->i2c_lock[1]);
-#else
-	fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_OFF);
-#endif
-#endif
+	if (specific->use_ois) {
+		fimc_is_i2c_s_pin(core->client1, I2C_PIN_STATE_OFF);
+	}
 
 	return;
 }
@@ -1788,8 +1333,6 @@ int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 	unsigned int value = 0;
 	unsigned int captureIntent = 0;
 	unsigned int captureCount = 0;
-	struct fimc_is_module_enum *module;
-	struct fimc_is_device_sensor_peri *sensor_peri;
 
 	BUG_ON(!device);
 	BUG_ON(!ctrl);
@@ -1802,9 +1345,9 @@ int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 		ctrl->id = VENDER_S_CTRL;
 		value = (unsigned int)ctrl->value;
 		captureIntent = (value >> 16) & 0x0000FFFF;
-		if (captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_DEBLUR_DYNAMIC_SHOT
-			|| captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_OIS_DYNAMIC_SHOT
-			|| captureIntent == AA_CAPTURE_INTENT_STILL_CAPTURE_EXPOSURE_DYNAMIC_SHOT) {
+		if (captureIntent == AA_CAPTRUE_INTENT_STILL_CAPTURE_DEBLUR_DYNAMIC_SHOT
+			|| captureIntent == AA_CAPTRUE_INTENT_STILL_CAPTURE_OIS_DYNAMIC_SHOT
+			|| captureIntent == AA_CAPTRUE_INTENT_STILL_CAPTURE_EXPOSURE_DYNAMIC_SHOT) {
 			captureCount = value & 0x0000FFFF;
 		} else {
 			captureIntent = ctrl->value;
@@ -1841,25 +1384,6 @@ int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 		case IS_COLD_RESET:
 			specific ->need_cold_reset = true;
 			minfo("[VENDER] need cold reset!!!\n", device);
-#if CONFIG_USE_DIRECT_IS_CONTROL
-			/* Dump preprocessor and sensor debug info */
-			fimc_is_vender_csi_err_print_debug_log(device->sensor);
-#endif
-			break;
-		case IS_REUSE_3A:
-			module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(device->sensor->subdev_module);
-			if (unlikely(!module)) {
-				err("%s, module in is NULL", __func__);
-				module = NULL;
-				ret = -1;
-			}
-			BUG_ON(!module);
-
-			sensor_peri = (struct fimc_is_device_sensor_peri*)module->private_data;
-
-			BUG_ON(!sensor_peri);
-
-			sensor_peri->reuse_3a_value = true;
 			break;
 		default:
 			err("[VENDER]unsupported ioctl(0x%X)", ctrl->id);
@@ -1879,91 +1403,4 @@ int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 	}
 
 	return ret;
-}
-
-int fimc_is_vender_ssx_video_s_ctrl(struct v4l2_control *ctrl,
-	void *device_data)
-{
-	return 0;
-}
-
-int fimc_is_vender_ssx_video_s_ext_ctrl(struct v4l2_ext_controls *ctrls, void *device_data)
-{
-	int ret = 0;
-	int i;
-	struct fimc_is_device_sensor *device = (struct fimc_is_device_sensor *)device_data;
-	struct fimc_is_core *core;
-	struct fimc_is_vender_specific *specific;
-	struct fimc_is_module_enum *module;
-	struct fimc_is_device_sensor_peri *sensor_peri;
-	struct v4l2_ext_control *ext_ctrl;
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-	struct rat_freq_info rat_info;
-#endif
-
-	BUG_ON(!device);
-	BUG_ON(!ctrls);
-
-	core = (struct fimc_is_core *)platform_get_drvdata(device->pdev);
-	specific = core->vender.private_data;
-
-	module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(device->subdev_module);
-	if (unlikely(!module)) {
-		err("%s, module in is NULL", __func__);
-		module = NULL;
-		ret = -1;
-		goto p_err;
-	}
-	BUG_ON(!module);
-
-	sensor_peri = (struct fimc_is_device_sensor_peri*)module->private_data;
-
-	BUG_ON(!sensor_peri);
-
-	for (i = 0; i < ctrls->count; i++) {
-		ext_ctrl = (ctrls->controls + i);
-		switch (ext_ctrl->id) {
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-			case V4L2_CID_SENSOR_SET_RAT_FREQ:
-				ext_ctrl->id = VENDER_S_CTRL;
-				ret = copy_from_user(&rat_info, ext_ctrl->ptr, sizeof(struct rat_freq_info));
-				if (ret) {
-					err("copy_from_user is fail(%d)", ret);
-					goto p_err;
-				}
-				CALL_CISOPS(&sensor_peri->cis, cis_update_mipi_index_info, sensor_peri->cis.subdev,
-							rat_info.rat, rat_info.freq);
-				break;
-#endif
-			default:
-				break;
-		}
-	}
-
-p_err:
-	return ret;
-}
-
-int fimc_is_vender_ssx_video_g_ctrl(struct v4l2_control *ctrl,
-	void *device_data)
-{
-	return 0;
-}
-
-bool fimc_is_vender_wdr_mode_on(void *cis_data)
-{
-	return ((((cis_shared_data *)cis_data)->companion_data.wdr_mode == COMPANION_WDR_ON ||
-		    ((cis_shared_data *)cis_data)->companion_data.wdr_mode == COMPANION_WDR_AUTO) ? true : false);
-}
-
-bool fimc_is_vender_enable_wdr(void *cis_data)
-{
-	return (((cis_shared_data *)cis_data)->companion_data.wdr_enable);
-}
-
-int fimc_is_vender_remove_dump_fw_file(void)
-{
-	info("%s\n", __func__);
-	remove_dump_fw_file();
-	return 0;
 }

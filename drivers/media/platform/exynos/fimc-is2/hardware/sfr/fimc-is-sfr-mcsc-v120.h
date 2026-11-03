@@ -13,6 +13,7 @@
 
 #include "fimc-is-hw-api-common.h"
 
+#define MCSC_REG_CNT 84
 enum fimc_is_mcsc_reg_name {
 	MCSC_R_SC_GCTRL_0,
 	MCSC_R_TRIGGER_CTRL_0,
@@ -97,11 +98,10 @@ enum fimc_is_mcsc_reg_name {
 	MCSC_R_WDMA0_HEIGHT,
 	MCSC_R_WDMA0_STRIDE,
 	MCSC_R_WDMA0_BASE_ADDR_EN,
-	MCSC_R_WDMA0_FRAME_CNT,
-	MCSC_REG_CNT
+	MCSC_R_WDMA0_FRAME_CNT
 };
 
-static const struct fimc_is_reg mcsc_regs[MCSC_REG_CNT] = {
+static struct fimc_is_reg mcsc_regs[MCSC_REG_CNT] = {
 	{0x0000, "SC_GCTRL_0"},
 	{0x0008, "TRIGGER_CTRL_0"},
 	{0x0014, "READ_SHADOW_REG_CTRL"},
@@ -188,6 +188,7 @@ static const struct fimc_is_reg mcsc_regs[MCSC_REG_CNT] = {
 	{0x1370, "WDMA0_FRAME_CNT"}
 };
 
+#define MCSC_REG_FIELD_CNT 160
 enum fimc_is_mcsc_reg_field {
 	MCSC_F_SCALER_ENABLE_0,
 	MCSC_F_SHADOWING_DISABLE_0,
@@ -348,11 +349,10 @@ enum fimc_is_mcsc_reg_field {
 	MCSC_F_WDMA0_BASE_ADDR_EN7,
 	MCSC_F_WDMA0_BASE_ADDR_EN8,
 	MCSC_F_WDMA0_FRAME_CNT_BEFORE,
-	MCSC_F_WDMA0_FRAME_CNT_PRESENT,
-	MCSC_REG_FIELD_CNT
+	MCSC_F_WDMA0_FRAME_CNT_PRESENT
 };
 
-static const struct fimc_is_field mcsc_fields[MCSC_REG_FIELD_CNT] = {
+static struct fimc_is_field mcsc_fields[MCSC_REG_FIELD_CNT] = {
 	/* 1. sfr addr 2. register name 3. bit start 4. bit width 5. access type 6. reset */
 	{"SCALER_ENABLE_0",		0,	1,	RW,	0},	/* SC_GCTRL_0 */
 	{"SHADOWING_DISABLE_0",		1,	1,	RW,	0},	/* TRIGGER_CTRL_0 */

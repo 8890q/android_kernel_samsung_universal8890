@@ -25,7 +25,6 @@
 #define PREPROC_MODULE_MASK		0x0FFFFFFF
 #define PREPROC_MODULE_SHIFT		0
 #define MAX_PREPROC_S_INPUT_WAITING	2000 /* 2 second */
-#define PREPROC_PDAF_BUF_NUM 2
 
 enum fimc_is_preproc_state {
 	FIMC_IS_PREPROC_OPEN,

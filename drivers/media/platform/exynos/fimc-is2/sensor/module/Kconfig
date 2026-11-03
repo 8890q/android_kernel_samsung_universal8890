@@ -175,18 +175,18 @@ config CAMERA_SENSOR_4H5_OBJ
         default n
         help
           Use to build 4H5 camera sensor.
+config CAMERA_SENSOR_4H5YC_OBJ
+        bool "Use 4H5YC camera sensor"
+        depends on CAMERA_MODULE_SELECT
+        default n
+        help
+          Use to build 4H5YC camera sensor.
 config CAMERA_SENSOR_SR261_OBJ
         bool "Use SR261 camera sensor"
         depends on CAMERA_MODULE_SELECT
         default n
         help
           Use to build SR261 camera sensor.
-config CAMERA_SENSOR_5E6_OBJ
-        bool "Use 5E6 camera sensor"
-        depends on CAMERA_MODULE_SELECT
-        default n
-        help
-          Use to build 5E6 camera sensor.
 config CAMERA_SENSOR_4E6_OBJ
         bool "Use 4E6 camera sensor"
         depends on CAMERA_MODULE_SELECT
@@ -211,19 +211,6 @@ config CAMERA_SENSOR_5E2_OBJ
         default n
         help
           Use to build 5E2 camera sensor.
-config CAMERA_SENSOR_DSIM_OBJ
-        bool "Use DSIM as an input source of CSIS"
-        depends on CAMERA_MODULE_SELECT
-        default n
-        help
-         Use DSIM as an input source of CSIS
-
-config CAMERA_SENSOR_VIRTUAL_OBJ
-        bool "Use Virtual sensor as an input source of CSIS"
-        depends on CAMERA_MODULE_SELECT
-        default n
-        help
-         Use Virtual sensor as an input source of CSIS
 config CAMERA_SENSOR_3P3_OBJ
         bool "Use 3P3 camera sensor"
         depends on CAMERA_MODULE_SELECT

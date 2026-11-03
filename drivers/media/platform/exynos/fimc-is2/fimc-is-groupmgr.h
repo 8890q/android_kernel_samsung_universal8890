@@ -21,53 +21,18 @@
 /* #define DEBUG_AA */
 /* #define DEBUG_FLASH */
 
-#define GROUP_STREAM_INVALID	0xFFFFFFFF
-
-#ifdef CONFIG_USE_SENSOR_GROUP
 #define TRACE_GROUP
 #define GROUP_ID_3AA0		0
 #define GROUP_ID_3AA1		1
 #define GROUP_ID_ISP0		2
 #define GROUP_ID_ISP1		3
 #define GROUP_ID_DIS0		4
-#define GROUP_ID_DIS1		5
-#define GROUP_ID_MCS0		6
-#define GROUP_ID_MCS1		7
-#define GROUP_ID_VRA0		8
-#define GROUP_ID_SS0		9
-#define GROUP_ID_SS1		10
-#define GROUP_ID_SS2		11
-#define GROUP_ID_SS3		12
-#define GROUP_ID_SS4		13
-#define GROUP_ID_SS5		14
-#define GROUP_ID_MAX		15
+#define GROUP_ID_MCS0		5
+#define GROUP_ID_MCS1		6
+#define GROUP_ID_VRA0		7
+#define GROUP_ID_MAX		8
 #define GROUP_ID_INVALID	0xFFFFFFFF
-#define GROUP_ID_PARM_MASK	(0xFF)
-#define GROUP_ID_SHIFT		(16)
-#define GROUP_ID_MASK		(0xFFFF)
-#define GROUP_ID(id)		(1 << (id))
-
-#define GROUP_SLOT_SENSOR	0
-#define GROUP_SLOT_3AA		1
-#define GROUP_SLOT_ISP		2
-#define GROUP_SLOT_DIS		3
-#define GROUP_SLOT_MCS		4
-#define GROUP_SLOT_VRA		5
-#define GROUP_SLOT_MAX		6
-#else
-#define TRACE_GROUP
-#define GROUP_ID_3AA0		0
-#define GROUP_ID_3AA1		1
-#define GROUP_ID_ISP0		2
-#define GROUP_ID_ISP1		3
-#define GROUP_ID_DIS0		4
-#define GROUP_ID_DIS1		5
-#define GROUP_ID_MCS0		6
-#define GROUP_ID_MCS1		7
-#define GROUP_ID_VRA0		8
-#define GROUP_ID_MAX		9
-#define GROUP_ID_INVALID	0xFFFFFFFF
-#define GROUP_ID_PARM_MASK	(0xFF)
+#define GROUP_ID_PARM_MASK	(0x3F)
 #define GROUP_ID_SHIFT		(16)
 #define GROUP_ID_MASK		(0xFFFF)
 #define GROUP_ID(id)		(1 << (id))
@@ -78,23 +43,11 @@
 #define GROUP_SLOT_MCS		3
 #define GROUP_SLOT_VRA		4
 #define GROUP_SLOT_MAX		5
-#endif
 
 #define FIMC_IS_MAX_GFRAME	(VIDEO_MAX_FRAME * 2) /* max shot buffer of F/W : 32, MAX 2 groups */
 #define MIN_OF_ASYNC_SHOTS	1
 #define MIN_OF_SYNC_SHOTS	2
-
-#ifdef ENABLE_IS_CORE
 #define MIN_OF_SHOT_RSC		(MIN_OF_ASYNC_SHOTS + MIN_OF_SYNC_SHOTS)
-#define MIN_OF_ASYNC_SHOTS_240FPS	(MIN_OF_ASYNC_SHOTS + 2)
-#else
-#define MIN_OF_SHOT_RSC		(1)
-#define MIN_OF_ASYNC_SHOTS_240FPS	(MIN_OF_ASYNC_SHOTS + 0)
-#endif
-
-#ifdef ENABLE_SYNC_REPROCESSING
-#define REPROCESSING_TICK_COUNT	(7) /* about 200ms */
-#endif
 
 enum fimc_is_group_state {
 	FIMC_IS_GROUP_OPEN,
@@ -108,7 +61,8 @@ enum fimc_is_group_state {
 	FIMC_IS_GROUP_PIPE_INPUT,
 	FIMC_IS_GROUP_PIPE_OUTPUT,
 	FIMC_IS_GROUP_SEMI_PIPE_INPUT,
-	FIMC_IS_GROUP_SEMI_PIPE_OUTPUT
+	FIMC_IS_GROUP_SEMI_PIPE_OUTPUT,
+	FIMC_IS_GROUP_UNMAP
 };
 
 enum fimc_is_group_input_type {
@@ -147,13 +101,11 @@ struct fimc_is_group {
 	struct fimc_is_group		*gprev;
 	struct fimc_is_group		*parent;
 	struct fimc_is_group		*child;
-	struct fimc_is_group		*head;
 	struct fimc_is_group		*tail;
 
 	struct fimc_is_subdev		leader;
 	struct fimc_is_subdev		*junction;
-	struct fimc_is_subdev		*subdev[ENTRY_END];
-	struct fimc_is_framemgr		*locked_sub_framemgr[ENTRY_END];
+	struct fimc_is_subdev		*subdev[ENTRY_ISCHAIN_END];
 
 	/* for otf interface */
 	atomic_t			sensor_fcount;
@@ -186,8 +138,6 @@ struct fimc_is_group {
 	fimc_is_shot_callback		shot_callback;
 	fimc_is_pipe_shot_callback	pipe_shot_callback;
 	struct fimc_is_device_ischain	*device;
-	struct fimc_is_device_sensor	*sensor;
-	enum fimc_is_device_type	device_type;
 
 #ifdef DEBUG_AA
 #ifdef DEBUG_FLASH
@@ -216,10 +166,6 @@ struct fimc_is_group_task {
 	struct semaphore		smp_resource;
 	unsigned long			state;
 	atomic_t			refcount;
-
-#ifdef ENABLE_SYNC_REPROCESSING
-	atomic_t			rep_tick; /* Sync reprocessing tick */
-#endif
 };
 
 struct fimc_is_groupmgr {
@@ -236,9 +182,9 @@ int fimc_is_groupmgr_start(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_device_ischain *device);
 int fimc_is_groupmgr_stop(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_device_ischain *device);
+
 int fimc_is_group_probe(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_group *group,
-	struct fimc_is_device_sensor *sensor,
 	struct fimc_is_device_ischain *device,
 	fimc_is_shot_callback shot_callback,
 	u32 slot,
@@ -276,19 +222,4 @@ int fimc_is_group_done(struct fimc_is_groupmgr *groupmgr,
 int fimc_is_gframe_cancel(struct fimc_is_groupmgr *groupmgr,
 	struct fimc_is_group *group, u32 target_fcount);
 
-unsigned long fimc_is_group_lock(struct fimc_is_group *group,
-		enum fimc_is_device_type device_type,
-		bool leader_lock);
-void fimc_is_group_unlock(struct fimc_is_group *group, unsigned long flags,
-		enum fimc_is_device_type device_type,
-		bool leader_lock);
-void fimc_is_group_subdev_cancel(struct fimc_is_group *group,
-		struct fimc_is_frame *ldr_frame,
-		enum fimc_is_device_type device_type,
-		enum fimc_is_frame_state frame_state,
-		bool flush);
-
-/* get head group's framemgr */
-#define GET_HEAD_GROUP_FRAMEMGR(group) \
-	(((group) && ((group)->head) && ((group)->head->leader.vctx)) ? (&((group)->head->leader).vctx->queue.framemgr) : NULL)
 #endif

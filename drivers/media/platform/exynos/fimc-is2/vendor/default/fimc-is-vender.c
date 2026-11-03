@@ -56,7 +56,6 @@ int fimc_is_vender_preproc_fw_load(struct fimc_is_vender *vender)
 	return ret;
 }
 
-#if !defined(CONFIG_SUPPORT_FROM)
 int fimc_is_vender_cal_load(struct fimc_is_vender *vender,
 	void *module_data)
 {
@@ -64,66 +63,6 @@ int fimc_is_vender_cal_load(struct fimc_is_vender *vender,
 
 	return ret;
 }
-#else
-int fimc_is_vender_cal_load(struct fimc_is_vender *vender,
-	void *module_data)
-{
-	struct fimc_is_core *core;
-	struct fimc_is_module_enum *module = module_data;
-	struct fimc_is_binary cal_bin;
-	ulong cal_addr = 0;
-	int ret = 0;
-
-	core = container_of(vender, struct fimc_is_core, vender);
-
-	setup_binary_loader(&cal_bin, 0, 0, NULL, NULL);
-	if (module->position == SENSOR_POSITION_REAR) {
-		/* Load calibration data from file system */
-		ret = request_binary(&cal_bin, FIMC_IS_REAR_CAL_SDCARD_PATH,
-								FIMC_IS_REAR_CAL, NULL);
-		if (ret) {
-			err("[Vendor]: request_binary filed: %s%s",
-					FIMC_IS_REAR_CAL_SDCARD_PATH, FIMC_IS_REAR_CAL);
-			goto exit;
-		}
-#ifdef ENABLE_IS_CORE
-		cal_addr = core->resourcemgr.minfo.kvaddr + CAL_OFFSET0;
-#else
-		cal_addr = core->resourcemgr.minfo.kvaddr_rear_cal + CAL_OFFSET0;
-#endif
-	} else if (module->position == SENSOR_POSITION_FRONT) {
-		/* Load calibration data from file system */
-		ret = request_binary(&cal_bin, FIMC_IS_REAR_CAL_SDCARD_PATH,
-								FIMC_IS_FRONT_CAL, NULL);
-		if (ret) {
-			err("[Vendor]: request_binary filed: %s%s",
-					FIMC_IS_REAR_CAL_SDCARD_PATH, FIMC_IS_FRONT_CAL);
-			goto exit;
-		}
-#ifdef ENABLE_IS_CORE
-		cal_addr = core->resourcemgr.minfo.kvaddr + CAL_OFFSET1;
-#else
-		cal_addr = core->resourcemgr.minfo.kvaddr_front_cal + CAL_OFFSET1;
-#endif
-	} else {
-		err("[Vendor]: Invalid sensor position: %d", module->position);
-		module->ext.sensor_con.cal_address = 0;
-		ret = -EINVAL;
-		goto exit;
-	}
-
-	memcpy((void *)(cal_addr), (void *)cal_bin.data, cal_bin.size);
-
-	release_binary(&cal_bin);
-exit:
-	if (ret)
-		err("CAL data loading is fail: skip");
-	else
-		info("CAL data(%d) loading is complete: 0x%lx\n", module->position, cal_addr);
-
-	return 0;
-}
-#endif
 
 int fimc_is_vender_module_sel(struct fimc_is_vender *vender, void *module_data)
 {
@@ -146,72 +85,42 @@ int fimc_is_vender_fw_sel(struct fimc_is_vender *vender)
 	return ret;
 }
 
-int fimc_is_vender_setfile_sel(struct fimc_is_vender *vender,
-	char *setfile_name,
-	int position)
+int fimc_is_vender_setfile_sel(struct fimc_is_vender *vender, char *setfile_name)
 {
 	int ret = 0;
 
 	BUG_ON(!vender);
 	BUG_ON(!setfile_name);
 
-	snprintf(vender->setfile_path[position], sizeof(vender->setfile_path[position]),
-		"%s%s", FIMC_IS_SETFILE_SDCARD_PATH, setfile_name);
-	snprintf(vender->request_setfile_path[position],
-		sizeof(vender->request_setfile_path[position]),
-		"%s", setfile_name);
+	snprintf(vender->setfile_path, sizeof(vender->setfile_path), "%s%s",
+		FIMC_IS_SETFILE_SDCARD_PATH, setfile_name);
+	snprintf(vender->request_setfile_path, sizeof(vender->request_setfile_path), "%s",
+		setfile_name);
 
 	return ret;
 }
 
-int fimc_is_vender_preprocessor_gpio_on_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scneario)
+int fimc_is_vender_gpio_on_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scneario)
 {
 	int ret = 0;
 
 	return ret;
 }
 
-int fimc_is_vender_preprocessor_gpio_on(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
+int fimc_is_vender_gpio_on(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
 {
 	int ret = 0;
 	return ret;
 }
 
-int fimc_is_vender_sensor_gpio_on_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scenario)
-{
-	int ret = 0;
-	return ret;
-}
-
-int fimc_is_vender_sensor_gpio_on(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
-{
-	int ret = 0;
-	return ret;
-}
-
-int fimc_is_vender_preprocessor_gpio_off_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scneario,
-	void *module_data)
+int fimc_is_vender_gpio_off_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scneario)
 {
 	int ret = 0;
 
 	return ret;
 }
 
-int fimc_is_vender_preprocessor_gpio_off(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int fimc_is_vender_sensor_gpio_off_sel(struct fimc_is_vender *vender, u32 scenario, u32 *gpio_scenario)
-{
-	int ret = 0;
-
-	return ret;
-}
-
-int fimc_is_vender_sensor_gpio_off(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
+int fimc_is_vender_gpio_off(struct fimc_is_vender *vender, u32 scenario, u32 gpio_scenario)
 {
 	int ret = 0;
 
@@ -232,31 +141,4 @@ int fimc_is_vender_video_s_ctrl(struct v4l2_control *ctrl,
 	void *device_data)
 {
 	return 0;
-}
-
-int fimc_is_vender_ssx_video_s_ctrl(struct v4l2_control *ctrl,
-	void *device_data)
-{
-	return 0;
-}
-
-int fimc_is_vender_ssx_video_g_ctrl(struct v4l2_control *ctrl,
-	void *device_data)
-{
-	return 0;
-}
-
-void fimc_is_vender_sensor_s_input(struct fimc_is_vender *vender, void *module)
-{
-	return;
-}
-
-bool fimc_is_vender_wdr_mode_on(void *cis_data)
-{
-	return false;
-}
-
-bool fimc_is_vender_enable_wdr(void *cis_data)
-{
-	return false;
 }

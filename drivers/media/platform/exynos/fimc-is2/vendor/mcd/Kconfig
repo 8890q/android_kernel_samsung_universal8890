@@ -34,30 +34,6 @@ config COMPANION_USE
         default n
         help
           Use companion C3.
- config COMPANION_DIRECT_USE
-        bool "Use direct control for companion"
-        depends on VENDER_MCD
-        depends on COMPANION_USE
-        depends on USE_DIRECT_IS_CONTROL
-        default n
-        help
-          Use device companion direct control.
- config COMPANION_C2_DIRECT_USE
-        bool "Use direct control for companion C2"
-        depends on VENDER_MCD
-        depends on COMPANION_C2_USE
-        depends on COMPANION_DIRECT_USE
-        default n
-        help
-          Use device companion C2.
- config COMPANION_C3_DIRECT_USE
-        bool "Use direct control for companion C3"
-        depends on VENDER_MCD
-        depends on COMPANION_C3_USE
-        depends on COMPANION_DIRECT_USE
-        default n
-        help
-          Use device companion C3.
 config COMPANION_DCDC_USE
         bool "Use companion DCDC regulator"
         depends on VENDER_MCD
@@ -106,76 +82,39 @@ config CAMERA_HERO
         default n
         help
           This camera is hero project.
+config CAMERA_GRACE
+        bool "This camera is grace project"
+        depends on VENDER_MCD
+        default n
+        help
+          This camera is grace project.
 config CAMERA_VJFLTE
         bool "This camera is vjflte project"
         depends on VENDER_MCD
         default n
         help
           This camera is vjflte project.
-config CAMERA_DREAM
-        bool "This camera is dream project"
+config CAMERA_ULTE
+        bool "This camera is ulte project"
         depends on VENDER_MCD
         default n
         help
-          This camera is hero project.
-config CAMERA_DREAM2
-        bool "This camera is dream2 project"
-        depends on VENDER_MCD
-        default n
-        help
-          This camera is hero project.
-config CAMERA_HERO2DREAM2
-        bool "This camera is hero2dream2 project"
-        depends on VENDER_MCD
-        default n
-        help
-          This camera is hero2dream2 project.
-config CAMERA_BAIKAL
-        bool "This camera is baikal project"
-        depends on VENDER_MCD
-        default n
-        help
-          This camera is baikal project.
-config CAMERA_GREAT
-        bool "This camera is great project"
-        depends on VENDER_MCD
-        default n
-        help
-          This camera is great project.
-config CAMERA_VALLEY
-        bool "This camera is valley project"
-        depends on VENDER_MCD
-        default n
-        help
-          This camera is great project.
+          This camera is ulte project.
 config OIS_USE_RUMBA_S4
         bool "Use RUMBA S4 ois driver IC"
         depends on OIS_USE
         default n
         help
-          Use RUMBA S4 ois driver IC.		  
-config OIS_USE_RUMBA_S6
-        bool "Use RUMBA S6 ois driver IC"
-        depends on OIS_USE
-        default n
-        help
-          Use RUMBA S6 ois driver IC.
+          Use RUMBA S4 ois driver IC.
 config COMPANION_FACTORY_VALIDATION
         bool "Use factory validation for companion ic"
         depends on COMPANION_USE
         default n
         help
-          Use factory validation for companion ic.          
+          Use factory validation for companion ic.
 config SECURE_CAMERA_USE
         bool "Use secure camera"
         depends on VENDER_MCD
         default n
         help
           Use secure camera.
-config USE_SIGNED_BINARY
-        bool "Enable signed binary processing."
-        depends on VENDER_MCD
-        default n
-        help
-          Enable signed binary processing.
-

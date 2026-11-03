@@ -22,11 +22,6 @@
 #include "fimc-is-pmic.h"
 #endif
 
-typedef enum FRomPowersource{
-    FROM_POWER_SOURCE_REAR	= 0,  /*wide*/
-    FROM_POWER_SOURCE_REAR_SECOND /*tele*/
-} FRomPowersource;
-
 /* #define USE_ION_ALLOC */
 #define FIMC_IS_COMPANION_CRC_SIZE	4
 #ifdef CONFIG_COMPANION_C3_USE
@@ -73,7 +68,6 @@ struct fimc_is_vender_specific {
 
 	bool			running_rear_camera;
 	bool			running_front_camera;
-	bool			running_rear_second_camera;
 
 	char			*comp_int_pin; /* Companion PAF INT */
 	char			*comp_int_pinctrl;
@@ -86,7 +80,6 @@ struct fimc_is_vender_specific {
 	/* dt */
 	u32			rear_sensor_id;
 	u32			front_sensor_id;
-	u32			rear_second_sensor_id;
 #ifdef CONFIG_SECURE_CAMERA_USE
 	u32			secure_sensor_id;
 #endif
@@ -94,12 +87,10 @@ struct fimc_is_vender_specific {
 	bool			skip_cal_loading;
 	bool			use_ois_hsi2c;
 	bool			use_ois;
-	u8			use_ois_online_cnt;
 	bool			use_module_check;
 
 	bool			suspend_resume_disable;
 	bool			need_cold_reset;
-	FRomPowersource		f_rom_power;
 };
 
 #endif

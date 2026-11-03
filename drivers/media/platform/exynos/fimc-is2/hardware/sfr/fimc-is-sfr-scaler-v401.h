@@ -480,7 +480,7 @@ enum fimc_is_scp_reg_name {
 	ISP_SC_MAX
 };
 
-struct const fimc_is_reg scp_regs[ISP_SC_MAX] = {
+struct fimc_is_reg scp_regs[ISP_SC_MAX] = {
 	{0x0000, "ISP_SC_GCTRL"},
 	{0x0008, "ISP_SC_CLK_GATE"},
 	{0x0010, "ISP_SC_BC"},
@@ -1506,7 +1506,7 @@ enum fimc_is_scp_reg_field {
 	SCP_F_MAX
 };
 
-static const struct fimc_is_field scp_fields[SCP_F_MAX] = {
+static struct fimc_is_field scp_fields[SCP_F_MAX] = {
 	/* 1. sfr addr 2. register name 3. bit start 4. bit width 5. access type 6. reset */
 	{"READ_SHADOW_REG",			28,	1,	RW,	0}, /* Global control */
 	{"SCALER_ENABLE",			24,	1,	RW,	0},

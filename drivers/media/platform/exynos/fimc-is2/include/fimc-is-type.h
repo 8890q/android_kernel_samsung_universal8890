@@ -14,12 +14,12 @@
 #define FIMC_IS_TYPE_H
 
 #include <linux/media-bus-format.h>
+
 #include <media/v4l2-device.h>
 
 enum fimc_is_device_type {
 	FIMC_IS_DEVICE_SENSOR,
-	FIMC_IS_DEVICE_ISCHAIN,
-	FIMC_IS_DEVICE_MAX
+	FIMC_IS_DEVICE_ISCHAIN
 };
 
 struct fimc_is_window {
@@ -35,7 +35,7 @@ struct fimc_is_window {
 
 struct fimc_is_fmt {
 	char				*name;
-	u32				mbus_code;
+	u32			mbus_code;
 	u32				pixelformat;
 	u32				field;
 	u32				num_planes;

@@ -45,8 +45,17 @@
 #define SENSOR_REG_STREAM_ON_1			(0x0100)
 #define SENSOR_REG_STREAM_ON_2			(0x3C22)
 #define SENSOR_REG_STREAM_OFF			(0x0100)
-#define SENSOR_REG_GAIN_ADJUST			(0x0204)
 #define SENSOR_REG_EXPOSURE_TIME		(0x0202)
+#define SENSOR_REG_GAIN_ADJUST_0		(0x0204)
+#define SENSOR_REG_GAIN_ADJUST_1		(0x0205)
+#define SENSOR_REG_SHUTTERSPEED_ADJUST_0	(0x0202)
+#define SENSOR_REG_SHUTTERSPEED_ADJUST_1	(0x0203)
+#define SENSOR_REG_VERSION			(0x0010)
+#define SENSOR_FPS_30		33333333
+#define SENSOR_FPS_15		66666666
+
+bool is_final_cam_module_iris  = false;
+bool is_iris_ver_read = false;
 
 static u16 setfile_vision_5e6[][2] = {
 	{0x3303, 0x02},
@@ -91,6 +100,9 @@ static u16 setfile_vision_5e6[][2] = {
 	{0x3942, 0xB0},
 	{0x3924, 0x2E},
 	{0x3925, 0xE0},
+};
+
+static u16 setfile_vision_5e6_fps_15[][2] = {
 	{0x0136, 0x1A},
 	{0x0137, 0x00},
 	{0x0305, 0x06},
@@ -140,14 +152,64 @@ static u16 setfile_vision_5e6[][2] = {
 	{0x0113, 0x08},
 };
 
+static u16 setfile_vision_5e6_fps_30[][2] = {
+	{0x0136, 0x1A},
+	{0x0137, 0x00},
+	{0x0305, 0x06},
+	{0x0306, 0x18},
+	{0x0307, 0x9C},
+	{0x0308, 0x27},
+	{0x0309, 0x42},
+	{0x3C1F, 0x00},
+	{0x3C17, 0x00},
+	{0x3C0B, 0x04},
+	{0x3C1C, 0x47},
+	{0x3C1D, 0x15},
+	{0x3C14, 0x04},
+	{0x3C16, 0x00},
+	{0x0820, 0x02},
+	{0x0821, 0xA8},
+	{0x0114, 0x01},
+	{0x0344, 0x01},
+	{0x0345, 0x58},
+	{0x0346, 0x00},
+	{0x0347, 0x14},
+	{0x0348, 0x08},
+	{0x0349, 0xD7},
+	{0x034A, 0x07},
+	{0x034B, 0x93},
+	{0x034C, 0x07},
+	{0x034D, 0x80},
+	{0x034E, 0x07},
+	{0x034F, 0x80},
+	{0x0900, 0x00},
+	{0x0901, 0x00},
+	{0x0381, 0x01},
+	{0x0383, 0x01},
+	{0x0385, 0x01},
+	{0x0387, 0x01},
+	{0x0340, 0x07},
+	{0x0341, 0xB4},
+	{0x0342, 0x0B},
+	{0x0343, 0x28},
+	{0x0200, 0x00},
+	{0x0201, 0x00},
+	{0x0202, 0x03},
+	{0x0203, 0xDE},
+	{0x0204, 0x00},
+	{0x0205, 0x20},
+	{0x0112, 0x08},
+	{0x0113, 0x08},
+};
+
 static struct fimc_is_sensor_cfg config_5e6[] = {
-	/* 1920x1920@15fps */
-	FIMC_IS_SENSOR_CFG(1920, 1920, 15, 15, 0, CSI_DATA_LANES_2),
+	/* 1920x1920@30fps */
+	FIMC_IS_SENSOR_CFG(1920, 1920, 30, 15, 0, CSI_DATA_LANES_2),
 };
 
 static struct fimc_is_vci vci_5e6[] = {
 	{
-		.pixelformat = V4L2_PIX_FMT_SGRBG8,
+		.pixelformat = V4L2_PIX_FMT_SBGGR8,
 		.config = {{0, HW_FORMAT_RAW8}, {1, 0}, {2, 0}, {3, 0}}
 	}
 };
@@ -188,6 +250,7 @@ static int sensor_5e6_init(struct v4l2_subdev *subdev, u32 val)
 	struct fimc_is_module_enum *module;
 	struct fimc_is_module_5e6 *module_5e6;
 	struct i2c_client *client;
+	u8 sensor_ver = 0;
 
 	BUG_ON(!subdev);
 
@@ -204,10 +267,33 @@ static int sensor_5e6_init(struct v4l2_subdev *subdev, u32 val)
 	for (i = 0; i < ARRAY_SIZE(setfile_vision_5e6); i++) {
 		ret = fimc_is_sensor_write8(client, setfile_vision_5e6[i][0],
 				(u8)setfile_vision_5e6[i][1]);
+		if (ret) {
+			err("i2c transfer failed.");
+			ret = -EINVAL;
+			goto exit;
+		}
+			
+	}
+
+	/* read sensor version */
+	if (!is_iris_ver_read) {
+		ret = fimc_is_sensor_read8(client, SENSOR_REG_VERSION, &sensor_ver);
+		if (ret == 0) {
+			is_iris_ver_read = true;
+			if (sensor_ver == 0x10) {
+				is_final_cam_module_iris = true;
+			} else {
+				is_final_cam_module_iris = false;
+				module->sensor_name = "S5K5E8";
+			}
+			pr_info("is_final_cam_module_iris = %s, sensor version = 0x%02x\n",
+				is_final_cam_module_iris ? "true" : "false", sensor_ver);
+		 }
 	}
 
 	pr_info("[MOD:D:%d] %s(%d)\n", module->sensor_id, __func__, val);
 
+exit:
 	return ret;
 }
 
@@ -303,17 +389,24 @@ static int sensor_5e6_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_fram
 
 static const struct v4l2_subdev_video_ops video_ops = {
 	.s_stream = sensor_5e6_s_stream,
-	.s_parm = sensor_5e6_s_param
+	.s_parm = sensor_5e6_s_param,
+
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return sensor_5e6_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = sensor_5e6_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 int sensor_5e6_stream_on(struct v4l2_subdev *subdev)
@@ -413,7 +506,42 @@ p_err:
  */
 int sensor_5e6_s_duration(struct v4l2_subdev *subdev, u64 duration)
 {
+	int i = 0;
 	int ret = 0;
+	struct fimc_is_module_enum *module;
+	struct i2c_client *client;
+
+	BUG_ON(!subdev);
+
+	module = (struct fimc_is_module_enum *)v4l2_get_subdevdata(subdev);
+	client = module->client;
+
+	/* sensor set fps */
+	if (duration == SENSOR_FPS_30) {
+		for (i = 0; i < ARRAY_SIZE(setfile_vision_5e6_fps_30); i++) {
+			ret = fimc_is_sensor_write8(client, setfile_vision_5e6_fps_30[i][0],
+					(u8)setfile_vision_5e6_fps_30[i][1]);
+			if (ret) {
+				err("i2c transfer failed.");
+				ret = -EINVAL;
+				goto exit;
+			}
+		}
+	} else if (duration == SENSOR_FPS_15) {
+		for (i = 0; i < ARRAY_SIZE(setfile_vision_5e6_fps_15); i++) {
+			ret = fimc_is_sensor_write8(client, setfile_vision_5e6_fps_15[i][0],
+					(u8)setfile_vision_5e6_fps_15[i][1]);
+			if (ret) {
+				err("i2c transfer failed.");
+				ret = -EINVAL;
+				goto exit;
+			}
+		}
+	} else {
+		err("set frame rate failed. Invalid value (%d)", (u32)duration);
+	}
+
+exit:
 	return ret;
 }
 
@@ -458,7 +586,7 @@ int sensor_5e6_s_exposure(struct v4l2_subdev *subdev, u64 exposure)
     
 	fimc_is_sensor_write8(client, SENSOR_REG_EXPOSURE_TIME, value);
     
-	p_err:
+p_err:
 	return ret;
 }
 
@@ -478,31 +606,37 @@ int sensor_5e6_s_again(struct v4l2_subdev *subdev, u64 gain)
 {
 	int ret = 0;
 	u8 value;
+	u16 calc_value = 0;
+
 	struct fimc_is_module_enum *sensor;
 	struct i2c_client *client;
- 
+
 	BUG_ON(!subdev);
-    
+
 	pr_info("%s(%d)\n", __func__, (u32)gain);
-    
+
+	calc_value = (u16)((gain * 32) / 10);
+
 	sensor = (struct fimc_is_module_enum *)v4l2_get_subdevdata(subdev);
 	if (unlikely(!sensor)) {
 		err("sensor is NULL");
 		ret = -EINVAL;
 		goto p_err;
 	}
-    
+
 	client = sensor->client;
 	if (unlikely(!client)) {
 		err("client is NULL");
 		ret = -EINVAL;
 		goto p_err;
 	}
-    
-	value = gain & 0xFF;    
-	fimc_is_sensor_write8(client, SENSOR_REG_GAIN_ADJUST, value);
-    
-	p_err:
+
+	value = calc_value >> 8;
+	fimc_is_sensor_write8(client, SENSOR_REG_GAIN_ADJUST_0, value);
+	value = calc_value & 0xFF;
+	fimc_is_sensor_write8(client, SENSOR_REG_GAIN_ADJUST_1, value);
+
+p_err:
 	return ret;
 }
 
@@ -536,6 +670,57 @@ int sensor_5e6_g_max_dgain(struct v4l2_subdev *subdev)
 	return ret;
 }
 
+int sensor_5e6_s_shutterspeed(struct v4l2_subdev *subdev, u64 shutterspeed)
+{
+	int ret = 0;
+	u8 value;
+	u16 calc_value = 0;
+
+	struct fimc_is_module_enum *sensor;
+	struct i2c_client *client;
+
+	BUG_ON(!subdev);
+
+	pr_info("%s(%d)\n", __func__, (u32)shutterspeed);
+
+	calc_value = (u16)(((shutterspeed * 170 * 1000) / 2856) / 10);
+
+	sensor = (struct fimc_is_module_enum *)v4l2_get_subdevdata(subdev);
+	if (unlikely(!sensor)) {
+		err("sensor is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+    
+	client = sensor->client;
+	if (unlikely(!client)) {
+		err("client is NULL");
+		ret = -EINVAL;
+		goto p_err;
+	}
+    
+	value = calc_value >> 8;
+	fimc_is_sensor_write8(client, SENSOR_REG_SHUTTERSPEED_ADJUST_0, value);
+	value = calc_value & 0xFF;
+	fimc_is_sensor_write8(client, SENSOR_REG_SHUTTERSPEED_ADJUST_1, value);
+
+p_err:
+	return ret;
+
+}
+
+int sensor_5e6_g_min_shutterspeed(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	return ret;
+}
+
+int sensor_5e6_g_max_shutterspeed(struct v4l2_subdev *subdev)
+{
+	int ret = 0;
+	return ret;
+}
+
 struct fimc_is_sensor_ops module_5e6_ops = {
 	.stream_on	= sensor_5e6_stream_on,
 	.stream_off	= sensor_5e6_stream_off,
@@ -550,7 +735,10 @@ struct fimc_is_sensor_ops module_5e6_ops = {
 	.g_max_again	= sensor_5e6_g_max_again,
 	.s_dgain	= sensor_5e6_s_dgain,
 	.g_min_dgain	= sensor_5e6_g_min_dgain,
-	.g_max_dgain	= sensor_5e6_g_max_dgain
+	.g_max_dgain	= sensor_5e6_g_max_dgain,
+	.s_shutterspeed = sensor_5e6_s_shutterspeed,
+	.g_min_shutterspeed = sensor_5e6_g_min_shutterspeed,
+	.g_max_shutterspeed = sensor_5e6_g_min_shutterspeed
 };
 
 #ifdef CONFIG_OF
@@ -560,10 +748,18 @@ static int sensor_5e6_power_setpin(struct device *dev,
 	struct device_node *dnode;
 	int gpio_none = 0, gpio_reset = 0;
 	int gpio_mclk = 0, gpio_iris_en = 0;
+	int gpio_iris_led_en = 0;
+	int hw_version = 1;
+	int ret = 0;
 
 	BUG_ON(!dev);
 
 	dnode = dev->of_node;
+
+	ret = of_property_read_u32(dnode, "hw_version", &hw_version);
+	if (ret) {
+		dev_err(dev, "%s: failed to get hw_version\n", __func__);
+	}
 
 	gpio_reset = of_get_named_gpio(dnode, "gpio_reset", 0);
 	if (!gpio_is_valid(gpio_reset)) {
@@ -595,25 +791,58 @@ static int sensor_5e6_power_setpin(struct device *dev,
 		gpio_free(gpio_iris_en);
 	}
 
+	gpio_iris_led_en = of_get_named_gpio(dnode, "gpio_iris_led_en", 0);
+	if (!gpio_is_valid(gpio_iris_led_en)) {
+		dev_err(dev, "%s: failed to get gpio_iris_led_en\n", __func__);
+	} else {
+		gpio_request_one(gpio_iris_led_en, GPIOF_OUT_INIT_LOW, "CAM_GPIO_OUTPUT_LOW");
+		gpio_free(gpio_iris_led_en);
+	}
+
 	SET_PIN_INIT(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON);
 	SET_PIN_INIT(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF);
 
-	/* FRONT CAMERA  - POWER ON */
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_iris_en, "iris_en_high", PIN_OUTPUT, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 1, 1000);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_high", PIN_OUTPUT, 1, 1000);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 4000);
+	if (hw_version == 1) {
+		/* FRONT CAMERA  - POWER ON */
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDD_IRIS_1P8", PIN_REGULATOR, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_iris_en, "iris_en_high", PIN_OUTPUT, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDD_IRIS_1P2", PIN_REGULATOR, 1, 1000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_high", PIN_OUTPUT, 1, 1000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 200);
+		if (gpio_is_valid(gpio_iris_led_en)) {
+			SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_iris_led_en, "iris_led_en_high", PIN_OUTPUT, 1, 0);
+		}
 
-	/* FRONT CAMERA  - POWER OFF */
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 0, 2000);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_iris_en, "iris_en_low", PIN_OUTPUT, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 0, 2000);
+		/* FRONT CAMERA  - POWER OFF */
+		if (gpio_is_valid(gpio_iris_led_en)) {
+			SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_iris_led_en, "iris_led_en_low", PIN_OUTPUT, 0, 0);
+		}
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 70);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDD_IRIS_1P2", PIN_REGULATOR, 0, 2000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_iris_en, "iris_en_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDD_IRIS_1P8", PIN_REGULATOR, 0, 2000);
+	} else {
+		/* FRONT CAMERA  - POWER ON */
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_iris_en, "iris_en_high", PIN_OUTPUT, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 1, 1000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_reset, "rst_high", PIN_OUTPUT, 1, 1000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 200);
+
+		/* FRONT CAMERA  - POWER OFF */
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 70);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_reset, "rst_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDDD_1.2V_VT", PIN_REGULATOR, 0, 2000);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_iris_en, "iris_en_low", PIN_OUTPUT, 0, 0);
+		SET_PIN(pdata, SENSOR_SCENARIO_SECURE, GPIO_SCENARIO_OFF, gpio_none, "VDDIO_1.8V_VT", PIN_REGULATOR, 0, 2000);
+	}
 
 	return 0;
 }
@@ -743,7 +972,6 @@ static const struct of_device_id exynos_fimc_is_sensor_5e6_match[] = {
 
 static const struct i2c_device_id sensor_5e6_idt[] = {
 	{ SENSOR_NAME, 0 },
-	{},
 };
 
 static struct i2c_driver sensor_5e6_driver = {

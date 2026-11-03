@@ -13,15 +13,6 @@
 #define FIMC_IS_CIS_H
 
 #define CIS_TEST_PATTERN_MODE 0
-#define CIS_STREAM_OFF_WAIT_TIME 4	/* 4ms */
-
-struct sensor_pll_info_compact {
-	u32 ext_clk;
-	u32 mipi_datarate;
-	u32 pclk;
-	u32 frame_length_lines;
-	u32 line_length_pck;
-};
 
 struct sensor_pll_info {
 	u32 ext_clk;
@@ -38,6 +29,12 @@ struct sensor_pll_info {
 	u32 line_length_pck;
 };
 
+/* FIXME: make it dynamic parsing */
+#define I2C_WRITE 3
+#define I2C_BYTE  2
+#define I2C_DATA  1
+#define I2C_ADDR  0
+
 int sensor_cis_set_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size);
 int sensor_cis_check_rev(struct fimc_is_cis *cis);
 
@@ -52,11 +49,5 @@ int sensor_cis_compensate_gain_for_extremely_br(struct v4l2_subdev *subdev, u32 
 int sensor_cis_dump_registers(struct v4l2_subdev *subdev, const u32 *regs, const u32 size);
 
 u32 sensor_cis_do_div64(u64 num, u32 den);
-
-int sensor_cis_wait_streamoff(struct v4l2_subdev *subdev);
-
-#ifdef USE_FACE_UNLOCK_AE_AWB_INIT
-int sensor_cis_set_initial_exposure(struct v4l2_subdev *subdev);
-#endif
 
 #endif

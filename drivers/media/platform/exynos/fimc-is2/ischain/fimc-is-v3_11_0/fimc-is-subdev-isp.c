@@ -11,7 +11,6 @@
  */
 
 #include "fimc-is-device-ischain.h"
-#include "fimc-is-device-sensor.h"
 #include "fimc-is-subdev-ctrl.h"
 #include "fimc-is-config.h"
 #include "fimc-is-param.h"
@@ -34,10 +33,8 @@ static int fimc_is_ischain_isp_cfg(struct fimc_is_subdev *leader,
 	struct param_otf_output *otf_output;
 	struct param_dma_input *dma_input;
 	struct param_control *control;
-	struct fimc_is_crop *scc_incrop = NULL;
-	struct fimc_is_crop *scp_incrop = NULL;
-	struct fimc_is_crop *vra_incrop = NULL;
-	struct fimc_is_module_enum *module;
+	struct fimc_is_crop *scc_incrop;
+	struct fimc_is_crop *scp_incrop;
 	struct fimc_is_device_ischain *device;
 	u32 hw_format = DMA_INPUT_FORMAT_BAYER;
 	u32 hw_bitwidth = DMA_INPUT_BIT_WIDTH_16BIT;
@@ -74,12 +71,6 @@ static int fimc_is_ischain_isp_cfg(struct fimc_is_subdev *leader,
 		hw_bitwidth = queue->framecfg.format->hw_bitwidth; /* memory width per pixel */
 	}
 
-	ret = fimc_is_sensor_g_module(device->sensor, &module);
-	if (ret) {
-		merr("fimc_is_sensor_g_module is fail(%d)", device, ret);
-		goto p_err;
-	}
-
 	/* Configure Control */
 	if (!frame) {
 		control = fimc_is_itf_g_param(device, NULL, PARAM_ISP_CONTROL);
@@ -114,7 +105,7 @@ static int fimc_is_ischain_isp_cfg(struct fimc_is_subdev *leader,
 		dma_input->cmd = DMA_INPUT_COMMAND_ENABLE;
 	dma_input->format = hw_format;
 	dma_input->bitwidth = hw_bitwidth;
-	dma_input->msb = ((module->bitwidth < hw_bitwidth) ?  module->bitwidth : hw_bitwidth) - 1;
+	dma_input->msb = hw_bitwidth - 1;
 	dma_input->width = width;
 	dma_input->height = height;
 	dma_input->dma_crop_offset = (incrop->x << 16) | (incrop->y << 0);
@@ -168,15 +159,8 @@ static int fimc_is_ischain_isp_cfg(struct fimc_is_subdev *leader,
 #endif
 
 #ifdef SOC_SCP
-	if (group->subdev[ENTRY_SCP]) {
+	if (group->subdev[ENTRY_SCP])
 		CALL_SOPS(group->subdev[ENTRY_SCP], cfg, device, frame, scp_incrop, NULL, lindex, hindex, indexes);
-		vra_incrop = &device->scp.output.crop;
-	}
-#endif
-
-#ifdef SOC_VRA
-	if (group->subdev[ENTRY_VRA])
-		CALL_SOPS(group->subdev[ENTRY_VRA], cfg, device, frame, vra_incrop, NULL, lindex, hindex, indexes);
 #endif
 
 	leader->input.crop = *incrop;

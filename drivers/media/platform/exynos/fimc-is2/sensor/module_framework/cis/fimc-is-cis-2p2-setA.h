@@ -16,8 +16,6 @@
 #include "fimc-is-cis-2p2.h"
 
 /* 16x12 margin, EXTCLK 24Mhz */
-const u32 sensor_2p2_setfile_A_Global[] = {};
-
 const u32 sensor_2p2_setfile_A_5328x3000_30fps[] = {
 	/* Arm go */
 	0x6010, 0x0001, 0x02,

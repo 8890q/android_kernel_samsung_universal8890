@@ -30,7 +30,6 @@
 #include <linux/delay.h>
 #include <exynos-fimc-is-sensor.h>
 #include "fimc-is-core.h"
-#include "fimc-is-device-sensor-peri.h"
 #include "fimc-is-interface.h"
 #include "fimc-is-sec-define.h"
 #include "fimc-is-device-ischain.h"
@@ -43,22 +42,21 @@
 #include <linux/pinctrl/pinctrl.h>
 #if defined (CONFIG_OIS_USE_RUMBA_S4)
 #include "fimc-is-device-ois_s4.h"
-#elif  defined (CONFIG_OIS_USE_RUMBA_S6)
-#include "fimc-is-device-ois_s6.h"
 #elif defined (CONFIG_OIS_USE_RUMBA_SA)
 #include "fimc-is-device-ois_sa.h"
 #endif
 
 #define FIMC_IS_OIS_DEV_NAME		"exynos-fimc-is-ois"
+#define OIS_GYRO_SCALE_FACTOR_IDG	175
+#define OIS_GYRO_SCALE_FACTOR_K2G	131
 #define OIS_I2C_RETRY_COUNT	2
+
+ bool not_crc_bin;
 
 struct fimc_is_ois_info ois_minfo;
 struct fimc_is_ois_info ois_pinfo;
 struct fimc_is_ois_info ois_uinfo;
 struct fimc_is_ois_exif ois_exif_data;
-#ifdef USE_OIS_SLEEP_MODE
-struct fimc_is_ois_shared_info ois_shared_info;
-#endif
 
 void fimc_is_ois_i2c_config(struct i2c_client *client, bool onoff)
 {
@@ -86,7 +84,7 @@ void fimc_is_ois_i2c_config(struct i2c_client *client, bool onoff)
 				devm_pinctrl_put(pinctrl_i2c);
 			}
 		} else {
-			pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "off_i2c");
+			pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "default");
 			if (IS_ERR_OR_NULL(pinctrl_i2c)) {
 				printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
 			} else {
@@ -287,7 +285,7 @@ int fimc_is_ois_gpio_on(struct fimc_is_core *core)
 	}
 #endif
 
-	ret = module_pdata->gpio_cfg(module, SENSOR_SCENARIO_OIS_FACTORY, GPIO_SCENARIO_ON);
+	ret = module_pdata->gpio_cfg(module->dev, SENSOR_SCENARIO_OIS_FACTORY, GPIO_SCENARIO_ON);
 	if (ret) {
 		err("gpio_cfg is fail(%d)", ret);
 		goto p_err;
@@ -331,7 +329,7 @@ int fimc_is_ois_gpio_off(struct fimc_is_core *core)
 		goto p_err;
 	}
 
-	ret = module_pdata->gpio_cfg(module, SENSOR_SCENARIO_OIS_FACTORY, GPIO_SCENARIO_OFF);
+	ret = module_pdata->gpio_cfg(module->dev, SENSOR_SCENARIO_OIS_FACTORY, GPIO_SCENARIO_OFF);
 	if (ret) {
 		err("gpio_cfg is fail(%d)", ret);
 		goto p_err;
@@ -351,35 +349,251 @@ p_err:
 
 void fimc_is_ois_enable(struct fimc_is_core *core)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
+	int ret = 0;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	CALL_OISOPS(ois_device, ois_enable, core);
+	info("%s : E\n", __FUNCTION__);
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x02, 0x00);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x00, 0x01);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+	info("%s : X\n", __FUNCTION__);
+}
+
+int fimc_is_ois_sine_mode(struct fimc_is_core *core, int mode)
+{
+	int ret = 0;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
+
+	info("%s : E\n", __FUNCTION__);
+	if (specific->use_ois_hsi2c) {
+		fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	if (mode == OPTICAL_STABILIZATION_MODE_SINE_X) {
+		ret = fimc_is_ois_i2c_write(core->client1, 0x18, 0x01);
+	} else if (mode == OPTICAL_STABILIZATION_MODE_SINE_Y) {
+		ret = fimc_is_ois_i2c_write(core->client1, 0x18, 0x02);
+	}
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x19, 0x01);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x1A, 0x1E);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x02, 0x03);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	msleep(20);
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x00, 0x01);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+		fimc_is_ois_i2c_config(core->client1, false);
+	}
+	info("%s : X\n", __FUNCTION__);
+
+	return ret;
+}
+EXPORT_SYMBOL(fimc_is_ois_sine_mode);
+
+void fimc_is_ois_version(struct fimc_is_core *core)
+{
+	int ret = 0;
+	u8 val_c = 0, val_d = 0;
+	u16 version = 0;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x00FC, &val_c);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x00FD, &val_d);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	version = (val_d << 8) | val_c;
+	info("OIS version = 0x%04x\n", version);
 }
 
 void fimc_is_ois_offset_test(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
+	int ret = 0, i = 0;
+	u8 val = 0, x = 0, y = 0;
+	int x_sum = 0, y_sum = 0, sum = 0;
+	int retries = 0, avg_count = 20;
+	int scale_factor = 0;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	CALL_OISOPS(ois_device, ois_offset_test, core, raw_data_x, raw_data_y);
+	info("%s : E\n", __FUNCTION__);
+
+	if (ois_minfo.header_ver[0] == '6') {
+		scale_factor = OIS_GYRO_SCALE_FACTOR_IDG;
+	} else {
+		scale_factor = OIS_GYRO_SCALE_FACTOR_K2G;
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x0014, 0x01);
+	if (ret) {
+		err("i2c write fail\n");
+	}
+
+	retries = avg_count;
+	do {
+		ret = fimc_is_ois_i2c_read(core->client1, 0x0014, &val);
+		if (ret != 0) {
+			break;
+		}
+		msleep(10);
+		if (--retries < 0) {
+			err("Read register failed!!!!, data = 0x%04x\n", val);
+			break;
+		}
+	} while (val);
+
+	sum = 0;
+	retries = avg_count;
+	for (i = 0; i < retries; retries--) {
+		fimc_is_ois_i2c_read(core->client1, 0x0248, &val);
+		x = val;
+		fimc_is_ois_i2c_read(core->client1, 0x0249, &val);
+		x_sum = (val << 8) | x;
+		if (x_sum > 0x7FFF) {
+			x_sum = -((x_sum ^ 0xFFFF) + 1);
+		}
+		sum += x_sum;
+	}
+	sum = sum * 10 / avg_count;
+	*raw_data_x = sum * 1000 / scale_factor / 10;
+
+	sum = 0;
+	retries = avg_count;
+	for (i = 0; i < retries; retries--) {
+		fimc_is_ois_i2c_read(core->client1, 0x024A, &val);
+		y = val;
+		fimc_is_ois_i2c_read(core->client1, 0x024B, &val);
+		y_sum = (val << 8) | y;
+		if (y_sum > 0x7FFF) {
+			y_sum = -((y_sum ^ 0xFFFF) + 1);
+		}
+		sum += y_sum;
+	}
+	sum = sum * 10 / avg_count;
+	*raw_data_y = sum * 1000 / scale_factor / 10;
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	fimc_is_ois_version(core);
+	info("%s : X\n", __FUNCTION__);
+	return;
 }
 
 void fimc_is_ois_get_offset_data(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
+	int i = 0;
+	u8 val = 0, x = 0, y = 0;
+	int x_sum = 0, y_sum = 0, sum = 0;
+	int retries = 0, avg_count = 20;
+	int scale_factor = 0;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	CALL_OISOPS(ois_device, ois_get_offset_data, core, raw_data_x, raw_data_y);
+	info("%s : E\n", __FUNCTION__);
+
+	if (ois_minfo.header_ver[0] == '6') {
+		scale_factor = OIS_GYRO_SCALE_FACTOR_IDG;
+	} else {
+		scale_factor = OIS_GYRO_SCALE_FACTOR_K2G;
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	retries = avg_count;
+	for (i = 0; i < retries; retries--) {
+		fimc_is_ois_i2c_read(core->client1, 0x0248, &val);
+		x = val;
+		fimc_is_ois_i2c_read(core->client1, 0x0249, &val);
+		x_sum = (val << 8) | x;
+		if (x_sum > 0x7FFF) {
+			x_sum = -((x_sum ^ 0xFFFF) + 1);
+		}
+		sum += x_sum;
+	}
+	sum = sum * 10 / avg_count;
+	*raw_data_x = sum * 1000 / scale_factor / 10;
+
+	sum = 0;
+	retries = avg_count;
+	for (i = 0; i < retries; retries--) {
+		fimc_is_ois_i2c_read(core->client1, 0x024A, &val);
+		y = val;
+		fimc_is_ois_i2c_read(core->client1, 0x024B, &val);
+		y_sum = (val << 8) | y;
+		if (y_sum > 0x7FFF) {
+			y_sum = -((y_sum ^ 0xFFFF) + 1);
+		}
+		sum += y_sum;
+	}
+	sum = sum * 10 / avg_count;
+	*raw_data_y = sum * 1000 / scale_factor / 10;
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	fimc_is_ois_version(core);
+	info("%s : X\n", __FUNCTION__);
+	return;
 }
 
 int fimc_is_ois_self_test(struct fimc_is_core *core)
 {
 	int ret = 0;
-	struct fimc_is_device_ois *ois_device = NULL;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	ret = CALL_OISOPS(ois_device, ois_self_test, core);
+	ret = fimc_is_ois_self_test_impl(core);
 
 	return ret;
 }
@@ -387,43 +601,23 @@ int fimc_is_ois_self_test(struct fimc_is_core *core)
 bool fimc_is_ois_diff_test(struct fimc_is_core *core, int *x_diff, int *y_diff)
 {
 	bool result = false;
-	struct fimc_is_device_ois *ois_device = NULL;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	result = CALL_OISOPS(ois_device, ois_diff_test, core, x_diff, y_diff);
+	result = fimc_is_ois_diff_test_impl(core, x_diff, y_diff);
 
 	return result;
 }
 
 bool fimc_is_ois_auto_test(struct fimc_is_core *core,
 		            int threshold, bool *x_result, bool *y_result, int *sin_x, int *sin_y)
+
 {
 	bool result = false;
-	struct fimc_is_device_ois *ois_device = NULL;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	result = CALL_OISOPS(ois_device, ois_auto_test, core,
-			threshold, x_result, y_result, sin_x, sin_y);
+	result = fimc_is_ois_auto_test_impl(core,
+		threshold, x_result, y_result, sin_x, sin_y);
 
 	return result;
 }
-
-#ifdef CAMERA_REAR2_OIS
-bool fimc_is_ois_auto_test_rear2(struct fimc_is_core *core,
-		            int threshold, bool *x_result, bool *y_result, int *sin_x, int *sin_y,
-		            bool *x_result_2nd, bool *y_result_2nd, int *sin_x_2nd, int *sin_y_2nd)
-{
-	bool result = false;
-	struct fimc_is_device_ois *ois_device = NULL;
-
-	ois_device = i2c_get_clientdata(core->client1);
-	result = CALL_OISOPS(ois_device, ois_auto_test_rear2, core,
-			threshold, x_result, y_result, sin_x, sin_y,
-			x_result_2nd, y_result_2nd, sin_x_2nd, sin_y_2nd);
-
-	return result;
-}
-#endif
 
 u16 fimc_is_ois_calc_checksum(u8 *data, int size)
 {
@@ -439,18 +633,86 @@ u16 fimc_is_ois_calc_checksum(u8 *data, int size)
 
 void fimc_is_ois_gyro_sleep(struct fimc_is_core *core)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
+	int ret = 0;
+	u8 val = 0;
+	int retries = 20;
+	
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	CALL_OISOPS(ois_device, ois_gyro_sleep, core);
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x0000, 0x00);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	do {
+		ret = fimc_is_ois_i2c_read(core->client1, 0x0001, &val);
+		if (ret != 0) {
+			break;
+		}
+
+		if (val == 0x01)
+			break;
+
+		msleep(1);
+	} while (--retries > 0);
+
+	if (retries <= 0) {
+		err("Read register failed!!!!, data = 0x%04x\n", val);
+	}
+
+	ret = fimc_is_ois_i2c_write(core->client1, 0x0030, 0x03);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+	msleep(1);
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	return;
 }
 
 void fimc_is_ois_exif_data(struct fimc_is_core *core)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
+	int ret = 0;
+	u8 error_reg[2], status_reg;
+	u16 error_sum;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	CALL_OISOPS(ois_device, ois_exif_data, core);
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x0004, &error_reg[0]);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x0005, &error_reg[1]);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	error_sum = (error_reg[1] << 8) | error_reg[0];
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x0001, &status_reg);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
+
+	ois_exif_data.error_data = error_sum;
+	ois_exif_data.status_data = status_reg;
+
+	return;
 }
 
 int fimc_is_ois_get_exif_data(struct fimc_is_ois_exif **exif_info)
@@ -507,22 +769,44 @@ bool fimc_is_ois_version_compare_default(char *fw_ver1, char *fw_ver2)
 
 u8 fimc_is_ois_read_status(struct fimc_is_core *core)
 {
+	int ret = 0;
 	u8 status = 0;
-	struct fimc_is_device_ois *ois_device = NULL;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	status = CALL_OISOPS(ois_device, ois_read_status, core);
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x0006, &status);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
 
 	return status;
 }
 
 u8 fimc_is_ois_read_cal_checksum(struct fimc_is_core *core)
 {
+	int ret = 0;
 	u8 status = 0;
-	struct fimc_is_device_ois *ois_device = NULL;
+	struct fimc_is_vender_specific *specific = core->vender.private_data;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	status = CALL_OISOPS(ois_device, ois_read_cal_checksum, core);
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, true);
+	}
+
+	ret = fimc_is_ois_i2c_read(core->client1, 0x0005, &status);
+	if (ret) {
+		err("i2c read fail\n");
+	}
+
+	if (specific->use_ois_hsi2c) {
+	    fimc_is_ois_i2c_config(core->client1, false);
+	}
 
 	return status;
 }
@@ -541,11 +825,8 @@ bool fimc_is_ois_crc_check(struct fimc_is_core *core, char *buf)
 	u32 *buf32 = NULL;
 	u32 checksum;
 	u32 checksum_bin;
-	struct fimc_is_device_ois *ois_device = NULL;
 
-	ois_device = i2c_get_clientdata(core->client1);
-
-	if (ois_device->not_crc_bin) {
+	if (not_crc_bin) {
 		err("ois binary does not conatin crc checksum.\n");
 		return false;
 	}
@@ -571,49 +852,122 @@ bool fimc_is_ois_crc_check(struct fimc_is_core *core, char *buf)
 bool fimc_is_ois_check_fw(struct fimc_is_core *core)
 {
 	bool ret = false;
-	struct fimc_is_device_ois *ois_device = NULL;
 
-	ois_device = i2c_get_clientdata(core->client1);
-	ret = CALL_OISOPS(ois_device, ois_check_fw, core);
-
-	return ret;
-}
-
-bool fimc_is_ois_read_fw_ver(struct fimc_is_core *core, char *name, char *ver)
-{
-	bool ret = false;
-	struct fimc_is_device_ois *ois_device = NULL;
-
-	ois_device = i2c_get_clientdata(core->client1);
-	ret = CALL_OISOPS(ois_device, ois_read_fw_ver, name, ver);
+	ret = fimc_is_ois_check_fw_impl(core);
 
 	return ret;
 }
 
 void fimc_is_ois_fw_update(struct fimc_is_core *core)
 {
-	struct fimc_is_device_ois *ois_device = NULL;
-
-	ois_device = i2c_get_clientdata(core->client1);
-
 	fimc_is_ois_gpio_on(core);
 	msleep(150);
-	CALL_OISOPS(ois_device, ois_fw_update, core);
+	fimc_is_ois_fw_update_impl(core);
 	fimc_is_ois_gpio_off(core);
 
 	return;
 }
 
-#ifdef USE_OIS_SLEEP_MODE
-void fimc_is_ois_set_oissel_info(int oissel)
+int fimc_is_ois_parse_dt(struct i2c_client *client)
 {
-	ois_shared_info.oissel = oissel;
+	int ret = 0;
+
+	return ret;
 }
-int fimc_is_ois_get_oissel_info(void)
+
+static int fimc_is_ois_probe(struct i2c_client *client,
+				  const struct i2c_device_id *id)
 {
-	return ois_shared_info.oissel;
+	struct fimc_is_device_ois *device;
+	struct fimc_is_core *core;
+	struct device *i2c_dev;
+	struct pinctrl *pinctrl_i2c = NULL;
+	int ret = 0;
+	struct fimc_is_vender_specific *specific;
+
+	if (fimc_is_dev == NULL) {
+		warn("fimc_is_dev is not yet probed");
+		client->dev.init_name = FIMC_IS_OIS_DEV_NAME;
+		return -EPROBE_DEFER;
+	}
+
+	core = (struct fimc_is_core *)dev_get_drvdata(fimc_is_dev);
+	if (!core)
+		return -EINVAL;
+
+	specific = core->vender.private_data;
+	if (!specific)
+		return -EINVAL;
+
+	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
+		err("No I2C functionality found\n");
+		return -ENODEV;
+	}
+
+	device = kzalloc(sizeof(struct fimc_is_device_ois), GFP_KERNEL);
+	if (!device) {
+		err("fimc_is_device_companion is NULL");
+		return -ENOMEM;
+	}
+
+	device->ois_hsi2c_status = false;
+	core->client1 = client;
+	i2c_set_clientdata(client, device);
+	specific->ois_ver_read = false;
+	not_crc_bin = false;
+
+	if (client->dev.of_node) {
+		ret = fimc_is_ois_parse_dt(client);
+		if (ret) {
+			err("parsing device tree is fail(%d)", ret);
+			return -ENODEV;
+		}
+	}
+
+	/* Initial i2c pin */
+	i2c_dev = client->dev.parent->parent;
+	pinctrl_i2c = devm_pinctrl_get_select(i2c_dev, "default");
+	if (IS_ERR_OR_NULL(pinctrl_i2c)) {
+		printk(KERN_ERR "%s: Failed to configure i2c pin\n", __func__);
+	} else {
+		devm_pinctrl_put(pinctrl_i2c);
+	}
+
+	return 0;
 }
+
+static int fimc_is_ois_remove(struct i2c_client *client)
+{
+	return 0;
+}
+
+static const struct i2c_device_id ois_id[] = {
+	{FIMC_IS_OIS_DEV_NAME, 0},
+	{}
+};
+MODULE_DEVICE_TABLE(i2c, ois_id);
+
+#ifdef CONFIG_OF
+static struct of_device_id ois_dt_ids[] = {
+	{ .compatible = "rumba,ois",},
+	{},
+};
 #endif
+
+static struct i2c_driver ois_i2c_driver = {
+	.driver = {
+		   .name = FIMC_IS_OIS_DEV_NAME,
+		   .owner = THIS_MODULE,
+#ifdef CONFIG_OF
+		   .of_match_table = ois_dt_ids,
+#endif
+	},
+	.probe = fimc_is_ois_probe,
+	.remove = fimc_is_ois_remove,
+	.id_table = ois_id,
+};
+module_i2c_driver(ois_i2c_driver);
+
 MODULE_DESCRIPTION("OIS driver for Rumba");
 MODULE_AUTHOR("kyoungho yun <kyoungho.yun@samsung.com>");
 MODULE_LICENSE("GPL v2");

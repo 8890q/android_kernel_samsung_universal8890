@@ -40,14 +40,6 @@ const struct v4l2_file_operations fimc_is_ssxvc0_video_fops;
 const struct v4l2_ioctl_ops fimc_is_ssxvc0_video_ioctl_ops;
 const struct vb2_ops fimc_is_ssxvc0_qops;
 
-#define TRACKING_BUF_INDEX
-#ifdef TRACKING_BUF_INDEX
-#define MAX_BUFFERS_VC0	FIMC_IS_MAX_BUFS
-static u32 qbuf_index[FIMC_IS_SENSOR_COUNT];
-static u32 dqbuf_index[FIMC_IS_SENSOR_COUNT];
-static u32 qbuf_arr[FIMC_IS_SENSOR_COUNT][MAX_BUFFERS_VC0];
-#endif
-
 int fimc_is_ssxvc0_video_probe(void *data)
 {
 	int ret = 0;
@@ -360,22 +352,6 @@ static int fimc_is_ssxvc0_video_reqbufs(struct file *file, void *priv,
 		merr("fimc_is_video_reqbufs is fail(%d)", device, ret);
 		goto p_err;
 	}
-#ifdef TRACKING_BUF_INDEX
-	{
-		int i;
-		int instance = 0;
-		struct fimc_is_device_sensor *device;
-
-		device = GET_DEVICE(vctx);
-		instance = device->instance;
-
-		for (i = 0; i < MAX_BUFFERS_VC0; i++)
-			qbuf_arr[instance][i] = -1;
-
-		qbuf_index[instance] = 0;
-		dqbuf_index[instance] = 0;
-	}
-#endif
 
  p_err:
 	return ret;
@@ -410,21 +386,6 @@ static int fimc_is_ssxvc0_video_qbuf(struct file *file, void *priv,
 	if (ret)
 		merr("qbuf is fail(%d)", vctx, ret);
 
-#ifdef TRACKING_BUF_INDEX
-	if (!ret) {
-	    int instance = 0;
-	    struct fimc_is_queue *queue;
-	    struct fimc_is_device_sensor *device;
-
-	    device = GET_DEVICE(vctx);
-	    queue = GET_QUEUE(vctx);
-	    instance = device->instance;
-
-	    qbuf_arr[instance][qbuf_index[instance]] = buf->index;
-	    qbuf_index[instance] = ((qbuf_index[instance] + 1) % (queue->buf_maxcount));
-	}
-#endif
-
 	return ret;
 }
 
@@ -435,45 +396,13 @@ static int fimc_is_ssxvc0_video_dqbuf(struct file *file, void *priv,
 	struct fimc_is_video_ctx *vctx = file->private_data;
 	bool blocking = file->f_flags & O_NONBLOCK;
 
+#ifdef DBG_STREAMING
+	mdbgv_ssxvc0("%s\n", vctx, __func__);
+#endif
+
 	ret = CALL_VOPS(vctx, dqbuf, buf, blocking);
 	if (ret)
 		merr("dqbuf is fail(%d)", vctx, ret);
-
-#ifdef DBG_STREAMING
-	mdbgv_ssxvc0("%s(index: %d)\n", vctx, __func__, ret ? -1 : buf->index);
-#endif
-
-#ifdef TRACKING_BUF_INDEX
-	if (!ret) {
-		int i;
-		int instance = 0;
-		struct fimc_is_queue *queue;
-		struct fimc_is_device_sensor *device;
-
-		queue = GET_QUEUE(vctx);
-		device = GET_DEVICE(vctx);
-		instance = device->instance;
-
-		if (qbuf_arr[instance][dqbuf_index[instance]] != buf->index) {
-			err("[%d] Detect!!(reverse index) >> ssxvc0_dqbuf: internal idx(%d), expected dq(%d) != actual dq(%d)\n",
-				instance,
-				dqbuf_index[instance],
-				qbuf_arr[instance][dqbuf_index[instance]],
-				buf->index);
-
-			for (i = 0; i < queue->buf_maxcount; i++) {
-				err(" - [%d] internal idx(q:%d, dq:%d), qbuf_arr[%d]: %d\n",
-					instance,
-					qbuf_index[instance],
-					dqbuf_index[instance],
-					i,
-					qbuf_arr[instance][i]);
-			}
-		} else {
-		    dqbuf_index[instance] = ((dqbuf_index[instance] + 1) % (queue->buf_maxcount));
-		}
-	}
-#endif
 
 	return ret;
 }
@@ -775,19 +704,17 @@ static void fimc_is_ssxvc0_buffer_queue(struct vb2_buffer *vb)
 		return;
 	}
 
-	ret = fimc_is_subdev_buffer_queue(subdev, vb);
+	ret = fimc_is_subdev_buffer_queue(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
 	}
 
-#if !defined(CONFIG_USE_SENSOR_GROUP)
 	ret = fimc_is_sensor_subdev_buffer_queue(device, ENTRY_SSVC0, vb->index);
 	if (ret) {
 		merr("fimc_is_sensor_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
 	}
-#endif
 }
 
 static void fimc_is_ssxvc0_buffer_finish(struct vb2_buffer *vb)
@@ -807,7 +734,7 @@ static void fimc_is_ssxvc0_buffer_finish(struct vb2_buffer *vb)
 	device = GET_DEVICE(vctx);
 	subdev = &device->ssvc0;
 
-	ret = fimc_is_subdev_buffer_finish(subdev, vb);
+	ret = fimc_is_subdev_buffer_finish(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_finish is fail(%d)", device, ret);
 		return;
@@ -816,7 +743,6 @@ static void fimc_is_ssxvc0_buffer_finish(struct vb2_buffer *vb)
 
 const struct vb2_ops fimc_is_ssxvc0_qops = {
 	.queue_setup		= fimc_is_ssxvc0_queue_setup,
-	.buf_init		= fimc_is_buffer_init,
 	.buf_prepare		= fimc_is_ssxvc0_buffer_prepare,
 	.buf_queue		= fimc_is_ssxvc0_buffer_queue,
 	.buf_finish		= fimc_is_ssxvc0_buffer_finish,

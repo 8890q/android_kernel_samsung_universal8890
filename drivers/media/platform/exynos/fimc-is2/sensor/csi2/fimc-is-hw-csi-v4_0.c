@@ -219,10 +219,6 @@ int csi_hw_s_control(u32 __iomem *base_reg, u32 id, u32 value)
 		fimc_is_hw_set_field(base_reg, &csi_regs[CSIS_R_DMA_CMN_CTRL],
 				&csi_fields[CSIS_F_DMA_ABORT_REQ], value);
 		break;
-	case CSIS_CTRL_ENABLE_LINE_IRQ:
-		fimc_is_hw_set_field(base_reg, &csi_regs[CSIS_R_CSIS_INT_MSK1],
-				&csi_fields[CSIS_F_MSK_LINE_END], value);
-		break;
 	default:
 		err("control id is invalid(%d)", id);
 		break;
@@ -265,7 +261,7 @@ p_err:
 	return ret;
 }
 
-int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image, u32 hwformat)
+int csi_hw_s_config_dma(u32 __iomem *base_reg, u32 channel, struct fimc_is_image *image)
 {
 	int ret = 0;
 	u32 val;
@@ -314,7 +310,7 @@ int csi_hw_s_irq_msk(u32 __iomem *base_reg, bool on)
 		dma_msk = CSIS_IRQ_MASK1;
 #if defined(SUPPORTED_EARLYBUF_DONE_SW) || defined(SUPPORTED_EARLYBUF_DONE_HW)
 #if defined(SUPPORTED_EARLYBUF_DONE_HW)
-		dma_msk = fimc_is_hw_set_field_value(dma_msk, &csi_fields[CSIS_F_MSK_LINE_END], 0x1);
+		dma_msk = fimc_is_hw_set_field_value(dma_msk, &csi_fields[CSIS_F_MSK_LINE_END], 0xF);
 #endif
 		otf_msk = fimc_is_hw_set_field_value(otf_msk, &csi_fields[CSIS_F_FRAMEEND], 0x0);
 #endif
@@ -448,7 +444,7 @@ int csi_hw_g_irq_src(u32 __iomem *base_reg, struct csis_irq_src *src, bool clear
 	return 0;
 }
 
-void csi_hw_s_frameptr(u32 __iomem *base_reg, u32 vc, u32 number, bool clear)
+static void csi_hw_s_frameptr(u32 __iomem *base_reg, u32 vc, u32 number, bool clear)
 {
 	u32 frame_ptr = 0;
 	u32 val = fimc_is_hw_get_reg(base_reg, &csi_regs[CSIS_R_DMA0_CTRL + (vc * 15)]);
@@ -459,15 +455,6 @@ void csi_hw_s_frameptr(u32 __iomem *base_reg, u32 vc, u32 number, bool clear)
 		frame_ptr &= ~(1 << number);
 	val = fimc_is_hw_set_field_value(val, &csi_fields[CSIS_F_DMA_N_UPDT_FRAMEPTR], frame_ptr);
 	fimc_is_hw_set_reg(base_reg, &csi_regs[CSIS_R_DMA0_CTRL + (vc * 15)], val);
-}
-
-u32 csi_hw_g_frameptr(u32 __iomem *base_reg, u32 vc)
-{
-	u32 frame_ptr = 0;
-	u32 val = fimc_is_hw_get_reg(base_reg, &csi_regs[CSIS_R_DMA0_ACT_CTRL + (vc * 15)]);
-	frame_ptr = fimc_is_hw_get_field_value(val, &csi_fields[CSIS_F_ACTIVE_DMA_N_FRAMEPTR]);
-
-	return frame_ptr;
 }
 
 void csi_hw_s_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr)
@@ -485,11 +472,6 @@ void csi_hw_s_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr)
 	 */
 	for (i = 0; i < 8; i++)
 		fimc_is_hw_set_reg(base_reg, &csi_regs[CSIS_R_DMA0_ADDR1 + (vc * 15) + i], addr);
-}
-
-void csi_hw_s_multibuf_dma_addr(u32 __iomem *base_reg, u32 vc, u32 number, u32 addr)
-{
-	fimc_is_hw_set_reg(base_reg, &csi_regs[CSIS_R_DMA0_ADDR1 + (vc * 15) + number], addr);
 }
 
 void csi_hw_s_output_dma(u32 __iomem *base_reg, u32 vc, bool enable)

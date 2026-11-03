@@ -49,6 +49,7 @@
 static u8 bootCode[OIS_BOOT_FW_SIZE] = {0,};
 static u8 progCode[OIS_PROG_FW_SIZE] = {0,};
 static bool fw_sdcard = false;
+extern static bool not_crc_bin;
 extern struct fimc_is_ois_info ois_minfo;
 extern struct fimc_is_ois_info ois_pinfo;
 extern struct fimc_is_ois_info ois_uinfo;
@@ -498,9 +499,6 @@ int fimc_is_ois_open_fw(struct fimc_is_core *core, char *name, u8 **buf)
 	long nread;
 	int fw_requested = 1;
 	int retry_count = 0;
-	struct fimc_is_device_ois *ois_device = NULL;
-
-	ois_device = i2c_get_clientdata(core->client1);
 
 	fw_sdcard = false;
 	old_fs = get_fs();
@@ -536,7 +534,7 @@ int fimc_is_ois_open_fw(struct fimc_is_core *core, char *name, u8 **buf)
 
 	fw_sdcard = true;
 	if (OIS_BIN_LEN >= nread) {
-		ois_device->not_crc_bin = true;
+		not_crc_bin = true;
 		err("ois fw binary size = %ld.\n", nread);
 	}
 
@@ -583,7 +581,7 @@ request_fw:
 		memcpy(progCode, *buf + OIS_BIN_LEN - OIS_PROG_FW_SIZE, OIS_PROG_FW_SIZE);
 
 		if (OIS_BIN_LEN >= size) {
-			ois_device->not_crc_bin = true;
+			not_crc_bin = true;
 			err("ois fw binary size = %lu.\n", size);
 		}
 		info("OIS firmware is loaded from Phone binary.\n");

@@ -11,14 +11,12 @@
 #ifndef FIMC_IS_SENSOR_INTERFACE_H
 #define FIMC_IS_SENSOR_INTERFACE_H
 
-#include "fimc-is-core.h"
 #include "fimc-is-mem.h"
 #include "fimc-is-config.h"
 #include "exynos-fimc-is-sensor.h"
 #include "fimc-is-metadata.h"
+#include "fimc-is-regs.h"
 #include "fimc-is-binary.h"
-#include "fimc-is-device-sensor.h"
-#include "fimc-is-interface-preprocessor.h"
 
 #define SENSOR_INTERFACE_MAGIC 0xFEDCBA98
 
@@ -62,25 +60,15 @@
 #define dbg_fls_itf(fmt, args...) \
 	dbg_sen_itf(fmt, ##args)
 
-/* static memory size for DDK/RTA backup data */
-#define STATIC_DATA_SIZE	100
-
 enum DIFF_BET_SEN_ISP { /* Set to 0: 3AA 3frame delay, 1: 3AA 4frame delay, 3: M2M */
 	DIFF_OTF_DELAY	= 0,
 	DIFF_M2M_DELAY	= 3
 };
 
-enum {
-	ITF_CTRL_ID_DDK = 0,
-	ITF_CTRL_ID_RTA = 1,
-};
-
 /* DEVICE SENSOR INTERFACE */
-#define SENSOR_REGISTER_FUNC_ADDR	(DDK_LIB_ADDR + 0x40)
-#define SENSOR_REGISTER_FUNC_ADDR_RTA	(RTA_LIB_ADDR + 0x40)
-#define PREPROC_REGISTER_FUNC_ADDR	(RTA_LIB_ADDR + 0xC0)
-
+#define SENSOR_REGISTER_FUNC_ADDR	(FIMC_IS_SDK_LIB_ADDR + 0x28)
 typedef int (*register_sensor_interface)(void *itf);
+static const register_sensor_interface register_sensor_itf = (register_sensor_interface)SENSOR_REGISTER_FUNC_ADDR;
 
 struct ae_param {
 	union {
@@ -209,31 +197,39 @@ typedef struct {
 	unsigned int short_exposure_analog_gain;
 	unsigned int short_exposure_digital_gain;
 	unsigned int short_exposure_companion_digital_gain;
-} preprocessor_ae_setting;
+} companion_ae_setting;
 
 
 typedef struct {
-	bool stream_on;
+/* #if(USING_CONCORD_SENSOR_EXTINFO == 1)//Jong 20131106 */
+	bool companion_available;
+/* #endif */
 
-	unsigned int config_idx;
+	bool stream_on;
+	unsigned int comp_config_index_cur;
+	unsigned int comp_config_Index_Pre;
+
+	unsigned int Config_Idx;
+	unsigned int Stat_Method_Addr;
+	unsigned int Stat_Enable_Addr;
+	unsigned short Stat_Enable_Val;
+
 	bool bypass;
-#ifdef CONFIG_VENDER_MCD
-	bool paf_stat_enable;
-	bool caf_stat_enable;
-	bool wdr_enable;
-#endif
+	bool stat_enable;
 	bool enable_lsc;
+	bool enable_wdr;
+	bool enable_wdr_pre;
+	bool enable_pdaf;
 	bool enable_drc;
+	bool enable_dynamic_bpc;
+	bool enable_tango_bpc;
 	bool enable_pdaf_bpc;
 	bool enable_xtalk;
 
-#ifdef CONFIG_VENDER_MCD
-	enum companion_wdr_mode wdr_mode;
-	enum companion_wdr_mode pre_wdr_mode;
-	enum companion_disparity_mode disparity_mode;
-	enum companion_paf_mode paf_mode;
-	enum companion_caf_mode caf_mode;
-#endif
+	bool change_config;
+
+	unsigned int pre_pdaf_setting[NUM_OF_PDAF_PARAMETERS];
+	unsigned int cur_pdaf_setting[NUM_OF_PDAF_PARAMETERS];
 } companion_shared_data;
 
 typedef struct {
@@ -258,9 +254,6 @@ typedef struct {
 	/** Video Timing Pixel Clock, vt_pix_clk_freq. */
 	unsigned int pclk;
 	unsigned int min_frame_us_time;
-#ifdef CAMERA_REAR2
-	unsigned int min_sync_frame_us_time;
-#endif
 
 	/** Frame valid time */
 	unsigned int frame_valid_us_time;
@@ -275,7 +268,6 @@ typedef struct {
 	unsigned int max_analog_gain[2];
 	unsigned int min_digital_gain[2];
 	unsigned int max_digital_gain[2];
-	unsigned int cur_coarse_integration_time_step;
 
 	unsigned int cur_frame_us_time;
 	unsigned int cur_width;
@@ -331,9 +323,6 @@ typedef struct {
 	bool called_common_sensor_setting; /* [hc0105.kim, 2013/09/13] Added to avoid calling common sensor register setting again. */
 /* #ifdef C1_LSC_CHANGE // [ist.song 2014.08.19] Added to inform videomode to sensor. */
 	bool video_mode;
-#ifdef USE_NEW_PER_FRAME_CONTROL
-        unsigned int num_of_frame;
-#endif
 /* #endif */
 	unsigned int actuator_position;
 
@@ -341,7 +330,7 @@ typedef struct {
 	ois_shared_data ois_data;
 
 	ae_setting auto_exposure[2];
-	preprocessor_ae_setting preproc_auto_exposure[2];
+	companion_ae_setting companion_auto_exposure[2];
 
 /*	SysSema_t pFlashCtrl_IsrSema; //[2014.08.13, kh14.koo] to add for sema of KTD2692 (flash dirver) */
 
@@ -357,7 +346,6 @@ struct fimc_is_cis_ops {
         int (*cis_init)(struct v4l2_subdev *subdev);
         int (*cis_log_status)(struct v4l2_subdev *subdev);
         int (*cis_group_param_hold)(struct v4l2_subdev *subdev, bool hold);
-        int (*cis_set_global_setting)(struct v4l2_subdev *subdev);
         int (*cis_mode_change)(struct v4l2_subdev *subdev, u32 mode);
         int (*cis_set_size)(struct v4l2_subdev *subdev, cis_shared_data *cis_data);
         int (*cis_stream_on)(struct v4l2_subdev *subdev);
@@ -387,21 +375,6 @@ struct fimc_is_cis_ops {
 	cis_func_type cis_get_line_readout_time_ns; /* TBD */
 	cis_func_type cis_read_sysreg; /* TBD */
 	cis_func_type cis_read_userreg; /* TBD */
-	int (*cis_wait_streamoff)(struct v4l2_subdev *subdev);
-	void (*cis_data_calculation)(struct v4l2_subdev *subdev, u32 mode);
-	int (*cis_set_long_term_exposure)(struct v4l2_subdev *subdev);
-	int (*cis_set_adjust_sync)(struct v4l2_subdev *subdev, u32 adjust_sync);
-#ifdef CONFIG_SENSOR_RETENTION_USE
-	int (*cis_retention_prepare)(struct v4l2_subdev *subdev);
-	int (*cis_retention_crc_check)(struct v4l2_subdev *subdev);
-#endif
-#ifdef USE_CAMERA_MIPI_CLOCK_VARIATION
-	int (*cis_update_settle_info)(struct v4l2_subdev *subdev);
-	int (*cis_update_mipi_index_info)(struct v4l2_subdev *subdev, u32 rat, u32 channel);
-#endif
-#ifdef USE_FACE_UNLOCK_AE_AWB_INIT
-	int (*cis_set_initial_exposure)(struct v4l2_subdev *subdev);
-#endif
 };
 
 struct fimc_is_sensor_ctl
@@ -459,12 +432,6 @@ typedef enum fimc_is_sensor_adjust_direction_ {
 	SENSOR_ADJUST_TO_LONG	= 2,
 } fimc_is_sensor_adjust_direction;
 
-/* If companion statistics are used, then 3A algorithms need to know whether current stat. are ready to use or not. */
-enum itf_cis_hdr_stat_status {
-	SENSOR_STAT_STATUS_NO_DATA = 0,
-	SENSOR_STAT_STATUS_DONE = 1,
-};
-
 enum itf_cis_interface {
 	ITF_CIS_SMIA = 0,
 	ITF_CIS_SMIA_WDR,
@@ -484,7 +451,7 @@ enum itf_param_type {
 enum fimc_is_sensor_peri_state {
 	FIMC_IS_SENSOR_ACTUATOR_AVAILABLE,
 	FIMC_IS_SENSOR_FLASH_AVAILABLE,
-	FIMC_IS_SENSOR_PREPROCESSOR_AVAILABLE,
+	FIMC_IS_SENSOR_COMPANION_AVAILABLE,
 	FIMC_IS_SENSOR_OIS_AVAILABLE
 };
 
@@ -510,86 +477,11 @@ struct fimc_is_actuator_ops {
 	actuator_func_type actuator_get_status;
 	actuator_func_type actuator_set_pos;
 	actuator_func_type actuator_cal_data;
-#ifdef USE_AF_SLEEP_MODE
-	int (*set_active)(struct v4l2_subdev *subdev, int enable);
-#endif
-};
-
-/* for SetAlgResFlag API */
-struct fimc_is_3a_res_to_sensor {
-	u32 hdr_ratio;
-	u32 red_gain;
-	u32 green_gain;
-	u32 blue_gain;
-	u32 hdr_enabled;
-	u32 hdr_state;
-	u32 thermal_mode;
-	bool video_mode;
 };
 
 /* Flash */
 struct fimc_is_flash_ops {
 	int (*flash_control)(struct v4l2_subdev *subdev, enum flash_mode mode, u32 intensity);
-};
-
-struct fimc_is_preproc_lemode_set{
-	u16 lemode;
-	bool every_frame;
-};
-
-/* Long Term Exposure mode(LTE mode) interface */
-struct fimc_is_long_term_expo_mode {
-	u32 expo[2];
-	u32 tgain[2];
-	u32 again[2];
-	u32 dgain[2];
-	bool sen_strm_off_on_enable;
-	u32 sen_strm_off_on_step;
-	u32 frm_num_strm_off_on[2];
-	u32 frm_num_strm_off_on_interval;
-	struct fimc_is_preproc_lemode_set lemode_set;
-	/* Back up now line_length_pck when start LTE mode */
-	u32 pre_line_length_pck;
-	/* Control to frame_interval in sensor driver when LTE mode */
-	u32 frame_interval;
-};
-
-/* OIS */
-struct fimc_is_ois_ops {
-	int (*ois_init)(struct v4l2_subdev *subdev);
-#ifdef CONFIG_OIS_USE_RUMBA_S6
-	int (*ois_deinit)(struct v4l2_subdev *subdev);
-#endif
-#ifdef USE_OIS_SLEEP_MODE
-	int (*ois_start)(struct v4l2_subdev *subdev);
-	int (*ois_stop)(struct v4l2_subdev *subdev);
-#endif
-	int (*ois_set_mode)(struct v4l2_subdev *subdev, int mode);
-	int (*ois_shift_compensation)(struct v4l2_subdev *subdev, int position, int resolution);
-#ifdef CONFIG_OIS_DIRECT_FW_CONTROL
-	int (*ois_fw_update)(struct v4l2_subdev *subdev);
-#else
-	void (*ois_fw_update)(struct fimc_is_core *core);
-#endif
-	int (*ois_self_test)(struct fimc_is_core *core);
-	bool (*ois_diff_test)(struct fimc_is_core *core, int *x_diff, int *y_diff);
-	bool (*ois_auto_test)(struct fimc_is_core *core,
-				int threshold, bool *x_result, bool *y_result, int *sin_x, int *sin_y);
-#ifdef CAMERA_REAR2_OIS
-	bool (*ois_auto_test_rear2)(struct fimc_is_core *core,
-				int threshold, bool *x_result, bool *y_result, int *sin_x, int *sin_y,
-				bool *x_result_2nd, bool *y_result_2nd, int *sin_x_2nd, int *sin_y_2nd);
-#endif
-	bool (*ois_check_fw)(struct fimc_is_core *core);
-	void (*ois_enable)(struct fimc_is_core *core);
-	void (*ois_offset_test)(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y);
-	void (*ois_get_offset_data)(struct fimc_is_core *core, long *raw_data_x, long *raw_data_y);
-	void (*ois_gyro_sleep)(struct fimc_is_core *core);
-	void (*ois_exif_data)(struct fimc_is_core *core);
-	u8 (*ois_read_status)(struct fimc_is_core *core);
-	u8 (*ois_read_cal_checksum)(struct fimc_is_core *core);
-	int (*ois_set_coef)(struct v4l2_subdev *subdev, u8 coef);
-	int (*ois_read_fw_ver)(char *name, char *ver);
 };
 
 struct fimc_is_sensor_interface;
@@ -688,8 +580,7 @@ struct fimc_is_cis_interface_ops {
 	int (*get_sensor_frame_timing)(struct fimc_is_sensor_interface *itf,
 				u32 *pclk,
 				u32 *line_length_pck,
-				u32 *frame_length_lines,
-				u32 *max_margin_cit);
+				u32 *frame_length_lines);
 
 	int (*get_sensor_cur_size)(struct fimc_is_sensor_interface *itf,
 				u32 *cur_width,
@@ -716,16 +607,6 @@ struct fimc_is_cis_interface_ops {
 	int (*set_initial_exposure_of_setfile)(struct fimc_is_sensor_interface *itf,
 				u32 expo);
 
-#ifdef USE_NEW_PER_FRAME_CONTROL
-	int (*reserved0)(struct fimc_is_sensor_interface *itf,
-				bool reserved0);
-
-	int (*set_num_of_frame_per_one_3aa)(struct fimc_is_sensor_interface *itf,
-				u32 *num_of_frame);
-
-	int (*reserved1)(struct fimc_is_sensor_interface *itf,
-				u32 *reserved1);
-#else
 	int (*set_video_mode_of_setfile)(struct fimc_is_sensor_interface *itf,
 				bool video_mode);
 
@@ -734,7 +615,7 @@ struct fimc_is_cis_interface_ops {
 
 	int (*get_offset_from_cur_result)(struct fimc_is_sensor_interface *itf,
 				u32 *offset);
-#endif
+
 	int (*set_cur_uctl_list)(struct fimc_is_sensor_interface *itf);
 
 	int (*apply_sensor_setting)(struct fimc_is_sensor_interface *itf);
@@ -750,9 +631,6 @@ struct fimc_is_cis_interface_ops {
 					u32 short_again,
 					u32 short_dgain);
 	int (*set_sensor_info_mode_change)(struct fimc_is_sensor_interface *itf,
-					u32 long_expo,
-					u32 long_again,
-					u32 long_dgain,
 					u32 expo,
 					u32 again,
 					u32 dgain);
@@ -776,39 +654,6 @@ struct fimc_is_cis_interface_ops {
 	/* Set sensor 3a mode - OTF/M2M */
 	int (*set_sensor_3a_mode)(struct fimc_is_sensor_interface *itf,
 					u32 mode);
-
-#ifdef USE_FACE_UNLOCK_AE_AWB_INIT
-	int (*get_initial_exposure_gain_of_sensor)(struct fimc_is_sensor_interface *itf,
-			u32 *long_expo,
-			u32 *long_again,
-			u32 *long_dgain,
-			u32 *short_expo,
-			u32 *short_again,
-			u32 *short_dgain);
-#endif
-};
-
-struct fimc_is_cis_ext_interface_ops {
-	int (*get_sensor_hdr_stat)(struct fimc_is_sensor_interface *itf,
-			enum itf_cis_hdr_stat_status *status);
-
-	int (*set_3a_alg_res_to_sens)(struct fimc_is_sensor_interface *itf,
-			struct fimc_is_3a_res_to_sensor *sensor_setting);
-
-	/* In order to change a current CIS mode when an user select the WDR (long and short exposure) mode or the normal AE mo */
-	int (*change_cis_mode)(struct fimc_is_sensor_interface *itf,
-			enum itf_cis_interface cis_mode);
-	u32(*set_adjust_sync)(struct fimc_is_sensor_interface *itf, u32 setsync);
-	u32(*request_frame_length_line)(struct fimc_is_sensor_interface *itf, u32 framelengthline);
-	int (*request_sensitivity)(struct fimc_is_sensor_interface *itf,
-							   u32 sensitivity);
-};
-
-struct fimc_is_cis_ext2_interface_ops {
-	int (*set_long_term_expo_mode)(struct fimc_is_sensor_interface *itf,
-				struct fimc_is_long_term_expo_mode *long_term_expo_mode);
-	int (*get_static_mem)(int ctrl_id, void **mem, int *size);
-	void *reserved[19];
 };
 
 struct fimc_is_cis_event_ops {
@@ -913,45 +758,6 @@ struct fimc_is_flash_interface_ops {
 					camera2_shot_t *shot);
 };
 
-/* MIPI-CSI interface */
-enum itf_vc_buf_data_type {
-	VC_BUF_DATA_TYPE_INVALID = -1,
-	VC_BUF_DATA_TYPE_PDAF = 0,
-	VC_BUF_DATA_TYPE_MIPI_STAT,
-	VC_BUF_DATA_TYPE_MAX
-};
-
-struct fimc_is_csi_interface_ops {
-	int (*get_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
-				enum itf_vc_buf_data_type data_type,
-				u32 *buf_index,
-				u64 *buf_addr,
-				u32 *frame_count);
-	int (*put_vc_dma_buf)(struct fimc_is_sensor_interface *itf,
-				enum itf_vc_buf_data_type data_type,
-				u32 index);
-	int (*get_vc_dma_buf_size)(struct fimc_is_sensor_interface *itf,
-				enum itf_vc_buf_data_type data_type,
-				u32 *width,
-				u32 *height,
-				u32 *element_size);
-	int (*get_vc_dma_buf_max_size)(struct fimc_is_sensor_interface *itf,
-				enum itf_vc_buf_data_type data_type,
-				u32 *width,
-				u32 *height,
-				u32 *element_size);
-	int (*reserved[4])(struct fimc_is_sensor_interface *itf);
-};
-
-struct fimc_is_dual_interface_ops {
-        int (*get_sensor_state)(struct fimc_is_sensor_interface *itf);
-        int (*get_reuse_3a_state)(struct fimc_is_sensor_interface *itf,
-                        u32 *position, u32 *ae_exposure, u32 *ae_deltaev, bool is_clear);
-        int (*set_reuse_ae_exposure)(struct fimc_is_sensor_interface *itf,
-                        u32 ae_exposure, u32 ae_deltaev);
-        int (*reserved[2])(struct fimc_is_sensor_interface *itf);
-};
-
 struct fimc_is_sensor_interface {
 	u32					magic;
 	struct fimc_is_cis_interface_ops	cis_itf_ops;
@@ -974,12 +780,6 @@ struct fimc_is_sensor_interface {
 	u32			flash_mode[NUM_FRAMES];
 	u32			flash_intensity[NUM_FRAMES];
 	u32			flash_firing_duration[NUM_FRAMES];
-	struct fimc_is_cis_ext_interface_ops	cis_ext_itf_ops;
-	struct fimc_is_csi_interface_ops	csi_itf_ops;
-	/* Add interface for LTE mode */
-	struct fimc_is_cis_ext2_interface_ops	cis_ext2_itf_ops;
-	/* Add interface for DUAL scenario */
-	struct fimc_is_dual_interface_ops	dual_itf_ops;
 };
 
 int init_sensor_interface(struct fimc_is_sensor_interface *itf);

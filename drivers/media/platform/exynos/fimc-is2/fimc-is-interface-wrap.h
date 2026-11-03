@@ -29,7 +29,7 @@ int fimc_is_itf_open_wrap(struct fimc_is_device_ischain *device, u32 module_id,
 	u32 flag, u32 offset_path);
 int fimc_is_itf_close_wrap(struct fimc_is_device_ischain *device);
 int fimc_is_itf_setaddr_wrap(struct fimc_is_interface *itf,
-	struct fimc_is_device_ischain *device, ulong *setfile_addr);
+	struct fimc_is_device_ischain *device, u32 *setfile_addr);
 int fimc_is_itf_setfile_wrap(struct fimc_is_interface *itf, ulong setfile_addr,
 	struct fimc_is_device_ischain *device);
 int fimc_is_itf_map_wrap(struct fimc_is_device_ischain *device,
@@ -40,11 +40,10 @@ int fimc_is_itf_stream_off_wrap(struct fimc_is_device_ischain *device);
 int fimc_is_itf_process_on_wrap(struct fimc_is_device_ischain *device, u32 group);
 int fimc_is_itf_process_off_wrap(struct fimc_is_device_ischain *device, u32 group,
 	u32 fstop);
-void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance);
 int fimc_is_itf_power_down_wrap(struct fimc_is_interface *interface, u32 instance);
 int fimc_is_itf_sys_ctl_wrap(struct fimc_is_device_ischain *device,
 	int cmd, int val);
-int fimc_is_itf_sensor_mode_wrap(struct fimc_is_device_ischain *device,
+int fimc_is_itf_sensor_mode_wrap(struct fimc_is_device_ischain *ischain,
 	struct fimc_is_sensor_cfg *cfg);
 int fimc_is_itf_shot_wrap(struct fimc_is_device_ischain *device,
 	struct fimc_is_group *group, struct fimc_is_frame *frame);

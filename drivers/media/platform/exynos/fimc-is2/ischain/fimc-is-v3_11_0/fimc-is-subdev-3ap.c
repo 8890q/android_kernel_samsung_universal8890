@@ -11,7 +11,6 @@
  */
 
 #include "fimc-is-device-ischain.h"
-#include "fimc-is-device-sensor.h"
 #include "fimc-is-subdev-ctrl.h"
 #include "fimc-is-config.h"
 #include "fimc-is-param.h"
@@ -42,7 +41,6 @@ static int fimc_is_ischain_3ap_start(struct fimc_is_device_ischain *device,
 {
 	int ret = 0;
 	struct param_dma_output *dma_output;
-	struct fimc_is_module_enum *module;
 	u32 hw_format, hw_bitwidth;
 
 	BUG_ON(!queue);
@@ -50,12 +48,6 @@ static int fimc_is_ischain_3ap_start(struct fimc_is_device_ischain *device,
 
 	hw_format = queue->framecfg.format->hw_format;
 	hw_bitwidth = queue->framecfg.format->hw_bitwidth; /* memory width per pixel */
-
-	ret = fimc_is_sensor_g_module(device->sensor, &module);
-	if (ret) {
-		merr("fimc_is_sensor_g_module is fail(%d)", device, ret);
-		goto p_err;
-	}
 
 	if ((otcrop->w > taa_param->otf_input.bayer_crop_width) ||
 		(otcrop->h > taa_param->otf_input.bayer_crop_height)) {
@@ -85,7 +77,7 @@ static int fimc_is_ischain_3ap_start(struct fimc_is_device_ischain *device,
 	dma_output->cmd = DMA_OUTPUT_COMMAND_ENABLE;
 	dma_output->format = hw_format;
 	dma_output->bitwidth = hw_bitwidth;
-	dma_output->msb = ((module->bitwidth < hw_bitwidth) ?  module->bitwidth : hw_bitwidth) - 1;
+	dma_output->msb = hw_bitwidth - 1;
 	dma_output->width = otcrop->w;
 	dma_output->height = otcrop->h;
 	dma_output->dma_crop_offset_x = otcrop->x;

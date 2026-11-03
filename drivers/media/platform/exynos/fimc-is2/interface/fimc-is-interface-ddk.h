@@ -14,7 +14,6 @@
 #include "fimc-is-core.h"
 #include "fimc-is-interface-library.h"
 #include "fimc-is-param.h"
-#include "fimc-is-config.h"
 
 #define CHAIN_ID_MASK		(0x0000000F)
 #define CHAIN_ID_SHIFT		(0)
@@ -33,7 +32,6 @@
 struct fimc_is_lib_isp {
 	void				*object;
 	struct lib_interface_func	*func;
-	ulong				tune_count;
 };
 
 enum lib_cb_event_type {
@@ -43,25 +41,7 @@ enum lib_cb_event_type {
 	LIB_EVENT_DMA_A_OUT_DONE	= 4,
 	LIB_EVENT_DMA_B_OUT_DONE	= 5,
 	LIB_EVENT_FRAME_START_ISR	= 6,
-	LIB_EVENT_ERROR_CIN_OVERFLOW	= 7,
-	LIB_EVENT_ERROR_CIN_COLUMN	= 8,
-	LIB_EVENT_ERROR_CIN_LINE	= 9,
-	LIB_EVENT_ERROR_CIN_TOTAL_SIZE	= 10,
-	LIB_EVENT_ERROR_COUT_OVERFLOW	= 11,
-	LIB_EVENT_ERROR_COUT_COLUMN	= 12,
-	LIB_EVENT_ERROR_COUT_LINE	= 13,
-	LIB_EVENT_ERROR_COUT_TOTAL_SIZE	= 14,
 	LIB_EVENT_END
-};
-
-enum dcp_dma_type {
-	DCP_DMA_MASTER_Y,
-	DCP_DMA_MASTER_C,
-	DCP_DMA_SLAVE,
-	DCP_DMA_DISPARITY,
-	DCP_DMA_DISPARITY_STAT,
-	DCP_DMA_FUSION,
-	DCP_DMA_MAX
 };
 
 #ifdef SOC_DRC
@@ -89,15 +69,14 @@ struct taa_param_set {
 	struct param_dma_output		dma_output_before_bds;
 	struct param_dma_output		dma_output_after_bds;
 	struct param_dma_output		ddma_output;	/* deprecated */
-#if 0 /* #ifdef SOC_DRC *//* DRC is controlled by library */
+#ifdef SOC_DRC
 	bool				drc_en;
 	u32				drc_grid0_dvaddr;
 	u32				drc_grid1_dvaddr;
 #endif
-	u32				input_dva[FIMC_IS_MAX_PLANES];
-	u32				output_dva_before_bds[FIMC_IS_MAX_PLANES];
-	u32				output_dva_after_bds[FIMC_IS_MAX_PLANES];
-
+	u32				input_dva;
+	u32				output_dva_before_bds;
+	u32				output_dva_after_bds;
 	u32				instance_id;
 	u32				fcount;
 	bool				reprocessing;
@@ -111,47 +90,13 @@ struct isp_param_set {
 	struct param_otf_output		otf_output;
 	struct param_dma_output		dma_output_chunk;
 	struct param_dma_output		dma_output_yuv;
-#if 0 /* #ifdef SOC_DRC *//* DRC is controlled by library */
+#ifdef SOC_DRC
 	struct param_grid_dma_input	*drc_grid_input;
 #endif
-	u32				input_dva[FIMC_IS_MAX_PLANES];
-	u32				output_dva_chunk[FIMC_IS_MAX_PLANES];
-	u32				output_dva_yuv[FIMC_IS_MAX_PLANES];
-
+	u32				input_dva;
+	u32				output_dva_chunk;
+	u32				output_dva_yuv;
 	u32				instance_id;
-	u32				fcount;
-	bool				reprocessing;
-};
-
-struct tpu_param_set {
-	struct param_control		control;
-	struct param_tpu_config		config;
-	struct param_otf_input		otf_input;
-	struct param_dma_input		dma_input;
-	struct param_otf_output		otf_output;
-	struct param_dma_output		dma_output;
-	u32				input_dva[FIMC_IS_MAX_PLANES];
-	u32				output_dva[FIMC_IS_MAX_PLANES];
-
-	u32 				instance_id;
-	u32				fcount;
-	bool				reprocessing;
-};
-
-struct dcp_param_set {
-	struct param_control		control;
-	struct param_dcp_config		config;
-	struct param_dma_input		dma_input_m;	/* master input */
-	struct param_dma_input		dma_input_s;	/* slave input */
-	struct param_dma_output		dma_output_m;	/* master output */
-	struct param_dma_output		dma_output_s;	/* slave output */
-	struct param_dma_output		output_disparity;
-	struct param_dma_output		output_disparity_stat;
-	struct param_dma_output		dma_output_f;	/* fusion */
-	u32				input_dva[DCP_DMA_MAX];
-	u32				output_dva[DCP_DMA_MAX];
-
-	u32 				instance_id;
 	u32				fcount;
 	bool				reprocessing;
 };
@@ -174,19 +119,13 @@ struct cal_info {
 	u32 data[16];
 };
 
-#define LIB_ISP_ADDR		(DDK_LIB_ADDR + LIB_ISP_OFFSET)
+#define LIB_ISP_ADDR		(LIB_ISP_BASE_ADDR + LIB_ISP_OFFSET)
 enum lib_func_type {
 	LIB_FUNC_3AA = 1,
 	LIB_FUNC_ISP,
 	LIB_FUNC_TPU,
-	LIB_FUNC_DCP,
 	LIB_FUNC_VRA,
 	LIB_FUNC_TYPE_END
-};
-
-struct lib_system_config {
-	u32 overflow_recovery;	/* 0: do not execute recovery, 1: execute recovery */
-	u32 reserved[9];
 };
 
 typedef u32 (*register_lib_isp)(u32 type, void **lib_func);
@@ -203,7 +142,7 @@ struct lib_interface_func {
 	int (*set_param)(void *object, void *param_set);
 	int (*set_ctrl)(void *object, u32 instance, u32 frame_number,
 		struct camera2_shot *shot);
-	int (*shot)(void *object, void *param_set, struct camera2_shot *shot, u32 num_buffers);
+	int (*shot)(void *object, void *param_set, struct camera2_shot *shot);
 	int (*get_meta)(void *object, u32 instance, u32 frame_number,
 		struct camera2_shot *shot);
 	int (*create_tune_set)(void *isp_object, u32 instance, struct lib_tune_set *set);
@@ -219,7 +158,6 @@ struct lib_interface_func {
 		struct camera2_shot *shot);
 	int (*sensor_update_ctl)(void *isp_object, u32 instance_id,
 		u32 frame_count, struct camera2_shot *shot);
-	int (*set_system_config)(struct lib_system_config *config);
 };
 
 int fimc_is_lib_isp_chain_create(struct fimc_is_hw_ip *hw_ip,
@@ -230,7 +168,7 @@ void fimc_is_lib_isp_chain_destroy(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, u32 instance_id);
 void fimc_is_lib_isp_object_destroy(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, u32 instance_id);
-int fimc_is_lib_isp_set_param(struct fimc_is_hw_ip *hw_ip,
+int fimc_is_lib_isp_s_param(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, void *param);
 int fimc_is_lib_isp_set_ctrl(struct fimc_is_hw_ip *hw_ip,
 	struct fimc_is_lib_isp *this, struct fimc_is_frame *frame);
@@ -258,21 +196,4 @@ int fimc_is_lib_isp_convert_face_map(struct fimc_is_hardware *hardware,
 	struct taa_param_set *param_set, struct fimc_is_frame *frame);
 void fimc_is_lib_isp_configure_algorithm(void);
 void fimc_is_isp_get_bcrop1_size(void __iomem *base_addr, u32 *width, u32 *height);
-
-#ifdef ENABLE_FPSIMD_FOR_USER
-#define CALL_LIBOP(lib, op, args...)					\
-	({								\
-		int ret_call_libop;					\
-									\
-		fpsimd_get();						\
-		ret_call_libop = ((lib)->func->op ?			\
-				(lib)->func->op(args) : -EINVAL);	\
-		fpsimd_put();						\
-									\
-	ret_call_libop;})
-#else
-#define CALL_LIBOP(lib, op, args...)				\
-	((lib)->func->op ? (lib)->func->op(args) : -EINVAL)
-#endif
-
 #endif

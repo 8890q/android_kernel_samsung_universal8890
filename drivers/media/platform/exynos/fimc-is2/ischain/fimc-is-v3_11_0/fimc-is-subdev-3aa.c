@@ -50,6 +50,18 @@ static int fimc_is_ischain_3aa_cfg(struct fimc_is_subdev *leader,
 	BUG_ON(!indexes);
 
 	group = &device->group_3aa;
+	queue = GET_SUBDEV_QUEUE(leader);
+	if (!queue) {
+		merr("queue is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
+
+	if (!queue->framecfg.format) {
+		merr("format is NULL", device);
+		ret = -EINVAL;
+		goto p_err;
+	}
 
 	ret = fimc_is_sensor_g_module(device->sensor, &module);
 	if (ret) {
@@ -58,13 +70,6 @@ static int fimc_is_ischain_3aa_cfg(struct fimc_is_subdev *leader,
 	}
 
 	if (!test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state)) {
-		queue = GET_SUBDEV_QUEUE(leader);
-		if (!queue) {
-			merr("queue is NULL", device);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
 		if (!queue->framecfg.format) {
 			merr("format is NULL", device);
 			ret = -EINVAL;

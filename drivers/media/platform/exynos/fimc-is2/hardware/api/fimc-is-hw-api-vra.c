@@ -69,10 +69,3 @@ void fimc_is_vra_chain1_set_clear_intr(void __iomem *base_addr, u32 value)
 			&vra_chain1_fields[VRA_F_CHAIN1_CLEAR_INT],
 			value);
 }
-
-u32 fimc_is_vra_chain1_get_image_mode(void __iomem *base_addr)
-{
-	return fimc_is_hw_get_field(base_addr,
-			&vra_chain1_regs[VRA_R_CHAIN1_IMAGE_MODE],
-			&vra_chain1_fields[VRA_F_CHAIN1_IMAGE_MODE]);
-}

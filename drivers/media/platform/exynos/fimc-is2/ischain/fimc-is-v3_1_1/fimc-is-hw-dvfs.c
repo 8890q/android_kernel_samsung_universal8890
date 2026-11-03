@@ -280,7 +280,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_PREVIEW_HIGH_SPEED_FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_FHD_60FPS);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_FHD_60FPS);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 60) &&
@@ -294,7 +294,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 120 &&
@@ -308,7 +308,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_240FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_FHD_240FPS);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_FHD_240FPS);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 240) &&  setfile_flag)

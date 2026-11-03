@@ -131,7 +131,7 @@ enum hrtimer_restart fimc_is_actuator_m2m_af_set(struct hrtimer *timer)
 	actuator = container_of(actuator_data, struct fimc_is_actuator, actuator_data);
 	BUG_ON(!actuator);
 
-	sensor_peri = actuator->sensor_peri;
+	sensor_peri = container_of(actuator, struct fimc_is_device_sensor_peri, actuator);
 	BUG_ON(!sensor_peri);
 
 	device = v4l2_get_subdev_hostdata(sensor_peri->subdev_actuator);
@@ -154,7 +154,7 @@ int fimc_is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 
 	u32 af_window_ratio = 0;
 	u32 virtual_image_size = 0;
-	ulong timer_setting = 0;
+	u32 timer_setting = 0;
 
 	BUG_ON(!subdev);
 
@@ -167,10 +167,10 @@ int fimc_is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 	sensor_peri = (struct fimc_is_device_sensor_peri *)module->private_data;
 	BUG_ON(!sensor_peri);
 
-	left_x = sensor_peri->actuator->left_x;
-	left_y = sensor_peri->actuator->left_y;
-	right_x = sensor_peri->actuator->right_x;
-	right_y = sensor_peri->actuator->right_y;
+	left_x = sensor_peri->actuator.left_x;
+	left_y = sensor_peri->actuator.left_y;
+	right_x = sensor_peri->actuator.right_x;
+	right_y = sensor_peri->actuator.right_y;
 
 	/*
 	 *  valid_time : usec
@@ -180,19 +180,19 @@ int fimc_is_actuator_notify_m2m_actuator(struct v4l2_subdev *subdev)
 	 */
 	af_window_ratio = (right_y * VIRTUAL_COORDINATE_WIDTH) + right_x;
 	virtual_image_size = (VIRTUAL_COORDINATE_WIDTH * VIRTUAL_COORDINATE_HEIGHT) / 1000;
-	timer_setting = (sensor_peri->actuator->valid_time * (af_window_ratio / virtual_image_size)) / 1000;
+	timer_setting = (sensor_peri->actuator.valid_time * (af_window_ratio / virtual_image_size)) / 1000;
 
 	/*
 	 * If not finish previous hrtimer work that's
 	 * have problem hrtimer or sensor working
 	 */
-	if (sensor_peri->actuator->actuator_data.timer_check != HRTIMER_POSSIBLE)
+	if (sensor_peri->actuator.actuator_data.timer_check != HRTIMER_POSSIBLE)
 		err("have problem of hrtimer, check set the time");
 
-	sensor_peri->actuator->actuator_data.timer_check = HRTIMER_IMPOSSIBLE;
+	sensor_peri->actuator.actuator_data.timer_check = HRTIMER_IMPOSSIBLE;
 
 	/* timer msec setting */
-	hrtimer_start(&sensor_peri->actuator->actuator_data.afwindow_timer,
+	hrtimer_start(&sensor_peri->actuator.actuator_data.afwindow_timer,
 			ktime_set(0, (timer_setting / 1000) * NSEC_PER_MSEC), HRTIMER_MODE_REL);
 
 	return ret;

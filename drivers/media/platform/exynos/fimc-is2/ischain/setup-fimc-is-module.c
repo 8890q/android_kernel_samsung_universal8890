@@ -27,22 +27,6 @@
 
 #include <exynos-fimc-is-module.h>
 
-static int acquire_shared_rsc(struct exynos_sensor_pin *pin_ctrls)
-{
-	if (pin_ctrls->shared_rsc_count)
-		return atomic_inc_return(pin_ctrls->shared_rsc_count);
-
-	return 1;
-}
-
-static int release_shared_rsc(struct exynos_sensor_pin *pin_ctrls)
-{
-	if (pin_ctrls->shared_rsc_count)
-		return atomic_dec_return(pin_ctrls->shared_rsc_count);
-
-	return 0;
-}
-
 static int exynos_fimc_is_module_pin_control(struct device *dev,
 	struct pinctrl *pinctrl, struct exynos_sensor_pin *pin_ctrls)
 {
@@ -51,32 +35,8 @@ static int exynos_fimc_is_module_pin_control(struct device *dev,
 	u32 delay = pin_ctrls->delay;
 	u32 value = pin_ctrls->value;
 	u32 voltage = pin_ctrls->voltage;
-	u32 act = pin_ctrls->act;
+	enum pin_act act = pin_ctrls->act;
 	int ret = 0;
-	int active_count;
-	unsigned long flags;
-
-	if (pin_ctrls->shared_rsc_type) {
-		spin_lock_irqsave(pin_ctrls->shared_rsc_slock, flags);
-
-		if (pin_ctrls->shared_rsc_type == SRT_ACQUIRE)
-			active_count = acquire_shared_rsc(pin_ctrls);
-		else if (pin_ctrls->shared_rsc_type == SRT_RELEASE)
-			active_count = release_shared_rsc(pin_ctrls);
-
-		pr_info("[@] shared rsc (act(%d), pin(%ld), val(%d), nm(%s), active(cur: %d, target: %d))\n",
-			pin_ctrls->act,
-			(pin_ctrls->act == PIN_FUNCTION) ? 0 : pin_ctrls->pin,
-			pin_ctrls->value,
-			pin_ctrls->name,
-			active_count,
-			pin_ctrls->shared_rsc_active);
-
-		spin_unlock_irqrestore(pin_ctrls->shared_rsc_slock, flags);
-
-		if (active_count != pin_ctrls->shared_rsc_active)
-			return 0;
-	}
 
 	switch (act) {
 	case PIN_NONE:
@@ -140,8 +100,11 @@ static int exynos_fimc_is_module_pin_control(struct device *dev,
 					}
 				}
 
-				if (regulator_is_enabled(regulator))
+				if (regulator_is_enabled(regulator)) {
 					pr_warning("%s regulator is already enabled\n", name);
+					regulator_put(regulator);
+					return 0;
+				}
 
 				ret = regulator_enable(regulator);
 				if (ret) {
@@ -176,9 +139,9 @@ static int exynos_fimc_is_module_pin_control(struct device *dev,
 	return ret;
 }
 
-int exynos_fimc_is_module_pins_cfg(struct fimc_is_module_enum *module,
+int exynos_fimc_is_module_pins_cfg(struct device *dev,
 	u32 scenario,
-	u32 gpio_scenario)
+	u32 enable)
 {
 	int ret = 0;
 	u32 idx_max, idx;
@@ -186,28 +149,28 @@ int exynos_fimc_is_module_pins_cfg(struct fimc_is_module_enum *module,
 	struct exynos_sensor_pin (*pin_ctrls)[GPIO_SCENARIO_MAX][GPIO_CTRL_MAX];
 	struct exynos_platform_fimc_is_module *pdata;
 
-	BUG_ON(!module);
-	BUG_ON(!module->pdata);
-	BUG_ON(gpio_scenario >= GPIO_SCENARIO_MAX);
+	BUG_ON(!dev);
+	BUG_ON(!dev->platform_data);
+	BUG_ON(enable >= GPIO_SCENARIO_MAX);
 	BUG_ON(scenario > SENSOR_SCENARIO_MAX);
 
-	pdata = module->pdata;
+	pdata = dev_get_platdata(dev);
 	pinctrl = pdata->pinctrl;
 	pin_ctrls = pdata->pin_ctrls;
-	idx_max = pdata->pinctrl_index[scenario][gpio_scenario];
+	idx_max = pdata->pinctrl_index[scenario][enable];
 
 	/* print configs */
 	for (idx = 0; idx < idx_max; ++idx) {
 		printk(KERN_DEBUG "[@] pin_ctrl(act(%d), pin(%ld), val(%d), nm(%s)\n",
-			pin_ctrls[scenario][gpio_scenario][idx].act,
-			(pin_ctrls[scenario][gpio_scenario][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][gpio_scenario][idx].pin,
-			pin_ctrls[scenario][gpio_scenario][idx].value,
-			pin_ctrls[scenario][gpio_scenario][idx].name);
+			pin_ctrls[scenario][enable][idx].act,
+			(pin_ctrls[scenario][enable][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][enable][idx].pin,
+			pin_ctrls[scenario][enable][idx].value,
+			pin_ctrls[scenario][enable][idx].name);
 	}
 
 	/* do configs */
 	for (idx = 0; idx < idx_max; ++idx) {
-		ret = exynos_fimc_is_module_pin_control(module->dev, pinctrl, &pin_ctrls[scenario][gpio_scenario][idx]);
+		ret = exynos_fimc_is_module_pin_control(dev, pinctrl, &pin_ctrls[scenario][enable][idx]);
 		if (ret) {
 			pr_err("[@] exynos_fimc_is_sensor_gpio(%d) is fail(%d)", idx, ret);
 			goto p_err;
@@ -224,7 +187,7 @@ static int exynos_fimc_is_module_pin_debug(struct device *dev,
 	int ret = 0;
 	ulong pin = pin_ctrls->pin;
 	char* name = pin_ctrls->name;
-	u32 act = pin_ctrls->act;
+	enum pin_act act = pin_ctrls->act;
 
 	switch (act) {
 	case PIN_NONE:
@@ -287,9 +250,9 @@ static int exynos_fimc_is_module_pin_debug(struct device *dev,
 	return ret;
 }
 
-int exynos_fimc_is_module_pins_dbg(struct fimc_is_module_enum *module,
+int exynos_fimc_is_module_pins_dbg(struct device *dev,
 	u32 scenario,
-	u32 gpio_scenario)
+	u32 enable)
 {
 	int ret = 0;
 	u32 idx_max, idx;
@@ -297,28 +260,28 @@ int exynos_fimc_is_module_pins_dbg(struct fimc_is_module_enum *module,
 	struct exynos_sensor_pin (*pin_ctrls)[GPIO_SCENARIO_MAX][GPIO_CTRL_MAX];
 	struct exynos_platform_fimc_is_module *pdata;
 
-	BUG_ON(!module);
-	BUG_ON(!module->pdata);
-	BUG_ON(gpio_scenario > 1);
+	BUG_ON(!dev);
+	BUG_ON(!dev->platform_data);
+	BUG_ON(enable > 1);
 	BUG_ON(scenario > SENSOR_SCENARIO_MAX);
 
-	pdata = module->pdata;
+	pdata = dev_get_platdata(dev);
 	pinctrl = pdata->pinctrl;
 	pin_ctrls = pdata->pin_ctrls;
-	idx_max = pdata->pinctrl_index[scenario][gpio_scenario];
+	idx_max = pdata->pinctrl_index[scenario][enable];
 
 	/* print configs */
 	for (idx = 0; idx < idx_max; ++idx) {
 		printk(KERN_DEBUG "[@] pin_ctrl(act(%d), pin(%ld), val(%d), nm(%s)\n",
-			pin_ctrls[scenario][gpio_scenario][idx].act,
-			(pin_ctrls[scenario][gpio_scenario][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][gpio_scenario][idx].pin,
-			pin_ctrls[scenario][gpio_scenario][idx].value,
-			pin_ctrls[scenario][gpio_scenario][idx].name);
+			pin_ctrls[scenario][enable][idx].act,
+			(pin_ctrls[scenario][enable][idx].act == PIN_FUNCTION) ? 0 : pin_ctrls[scenario][enable][idx].pin,
+			pin_ctrls[scenario][enable][idx].value,
+			pin_ctrls[scenario][enable][idx].name);
 	}
 
 	/* do configs */
 	for (idx = 0; idx < idx_max; ++idx) {
-		ret = exynos_fimc_is_module_pin_debug(module->dev, pinctrl, &pin_ctrls[scenario][gpio_scenario][idx]);
+		ret = exynos_fimc_is_module_pin_debug(dev, pinctrl, &pin_ctrls[scenario][enable][idx]);
 		if (ret) {
 			pr_err("[@] exynos_fimc_is_sensor_gpio(%d) is fail(%d)", idx, ret);
 			goto p_err;

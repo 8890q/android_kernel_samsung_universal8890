@@ -20,7 +20,7 @@
 #define CSIS_REG_DMA_NORMAL			(0)
 #define CSIS_REG_DMA_DUMP			(1)
 
-#if defined(CONFIG_SOC_EXYNOS7870) || defined(CONFIG_SOC_EXYNOS7570)
+#if defined(CONFIG_SOC_EXYNOS7870)
 #define CSIS_REG_DOUBLE_CLK_EN			(0)
 #else
 #define CSIS_REG_DOUBLE_CLK_EN			(1)

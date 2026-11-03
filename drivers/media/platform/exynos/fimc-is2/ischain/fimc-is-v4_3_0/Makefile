@@ -14,14 +14,6 @@ obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-dis.o
 obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-mcs.o
 obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-mcsp.o
 obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-vra.o
-ifeq ($(CONFIG_USE_SENSOR_GROUP),y)
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor.o
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor_bns.o
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor_vc0.o
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor_vc1.o
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor_vc2.o
-obj-$(CONFIG_FIMC_IS_V4_3_0) += fimc-is-subdev-sensor_vc3.o
-endif
 
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2/include

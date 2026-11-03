@@ -103,9 +103,6 @@ void tasklet_flite_str_otf(unsigned long data)
 		goto trigger_skip;
 	}
 
-	if (group_3aa->sync_shots == 0)
-		goto trigger_skip;
-
 	if (unlikely(list_empty(&group_3aa->smp_trigger.wait_list))) {
 		atomic_set(&group_3aa->sensor_fcount, fcount + group_3aa->skip_shots);
 
@@ -846,9 +843,7 @@ p_err:
 	return 0;
 }
 
-static int flite_s_format(struct v4l2_subdev *subdev,
-	struct v4l2_subdev_pad_config *cfg,
-	struct v4l2_subdev_format *fmt)
+static int flite_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_framefmt *fmt)
 {
 	int ret = 0;
 	struct fimc_is_device_flite *flite;
@@ -870,16 +865,15 @@ static int flite_s_format(struct v4l2_subdev *subdev,
 
 	flite->image.window.offs_h = 0;
 	flite->image.window.offs_v = 0;
-	flite->image.window.width = fmt->format.width;
-	flite->image.window.height = fmt->format.height;
-	flite->image.window.o_width = fmt->format.width;
-	flite->image.window.o_height = fmt->format.height;
-	flite->image.format.pixelformat = fmt->format.code;
-	flite->image.format.bitwidth = fmt->format.reserved[0];
+	flite->image.window.width = fmt->width;
+	flite->image.window.height = fmt->height;
+	flite->image.window.o_width = fmt->width;
+	flite->image.window.o_height = fmt->height;
+	flite->image.format.pixelformat = fmt->code;
+	flite->image.format.bitwidth = fmt->reserved[0];
 
 p_err:
-	mdbgd_back("%s(%dx%d, %X)\n", flite, __func__, fmt->format.width,
-			fmt->format.height, fmt->format.code);
+	mdbgd_back("%s(%dx%d, %X)\n", flite, __func__, fmt->width, fmt->height, fmt->code);
 	return ret;
 }
 
@@ -980,17 +974,24 @@ static const struct v4l2_subdev_core_ops core_ops = {
 
 static const struct v4l2_subdev_video_ops video_ops = {
 	.s_stream = flite_s_stream,
+
 	.s_rx_buffer= flite_s_buffer
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return flite_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = flite_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 int fimc_is_flite_probe(struct fimc_is_device_sensor *device,
@@ -1027,8 +1028,6 @@ int fimc_is_flite_probe(struct fimc_is_device_sensor *device,
 		goto err_get_resource;
 	}
 
-	flite->regs_start = mem_res->start;
-	flite->regs_end = mem_res->end;
 	flite->base_reg =  devm_ioremap_nocache(&pdev->dev, mem_res->start, resource_size(mem_res));
 	if (!flite->base_reg) {
 		probe_err("Failed to remap io region(%p)", flite->base_reg);

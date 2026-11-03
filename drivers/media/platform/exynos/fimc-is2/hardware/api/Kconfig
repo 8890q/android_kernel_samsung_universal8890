@@ -1,34 +1,6 @@
-config MC_SCALER_V1_20
-        bool "Use MC-SCALER H/W v1.20"
-	depends on CAMERA_MC_SCALER_VER1_USE
-        default n
-        help
-          use mc-scaler v1.20
-
-config MC_SCALER_V1_22_V1_23
-        bool "Use MC-SCALER H/W v1.22 / v1.23"
-	depends on CAMERA_MC_SCALER_VER2_USE
-        default n
-        help
-          use mc-scaler v1.22/v1.23
-
-config MC_SCALER_V2_0
-        bool "Use MC-SCALER H/W v2.0"
-	depends on CAMERA_MC_SCALER_VER2_USE
-        default n
-        help
-          use mc-scaler v2.0
-
-config MC_SCALER_V2_10
-        bool "Use MC-SCALER H/W v2.10"
-	depends on CAMERA_MC_SCALER_VER2_USE
-        default n
-        help
-          use mc-scaler v2.10
-
-config MC_SCALER_V3_0
-        bool "Use MC-SCALER H/W v3.0"
-	depends on CAMERA_MC_SCALER_VER2_USE
-        default n
-        help
-          use mc-scaler v3.0
+config USE_HW_API_COMMON
+	bool "Use HW API Common library"
+	depends on EXYNOS_FIMC_IS_HARDWARE
+	default y
+	help
+	  Enalbe HW API Common library.

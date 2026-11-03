@@ -13,8 +13,6 @@
 
 #include <linux/workqueue.h>
 #include <linux/bug.h>
-#include <linux/videodev2.h>
-#include <linux/videodev2_exynos_camera.h>
 
 #include "fimc-is-core.h"
 #include "fimc-is-regs.h"
@@ -56,8 +54,10 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	BUG_ON(!resourcemgr);
 
 	this->state = 0;
-	this->regs_mcuctl = fimc_is_hw_get_sysreg(core_regs);
-	this->minfo = &resourcemgr->minfo;
+	if (core_regs)
+		this->regs_mcuctl = (void *)core_regs;
+	else
+		this->regs_mcuctl = NULL;
 
 #if defined(SOC_30S)
 	hw_id = DEV_HW_3AA0;
@@ -66,6 +66,11 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 		err_itfc("invalid hw_slot (%d) ", hw_slot);
 		return -EINVAL;
 	}
+
+	this->itf_ip[hw_slot].kvaddr = resourcemgr->minfo.kvaddr;
+	this->itf_ip[hw_slot].dvaddr = resourcemgr->minfo.dvaddr;
+	this->itf_ip[hw_slot].fw_cookie = resourcemgr->minfo.fw_cookie;
+	this->itf_ip[hw_slot].alloc_ctx = resourcemgr->mem.alloc_ctx;
 
 	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
 	ret = fimc_is_interface_3aa_probe(this, hw_id, pdev);
@@ -83,6 +88,11 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 		return -EINVAL;
 	}
 
+	this->itf_ip[hw_slot].kvaddr = resourcemgr->minfo.kvaddr;
+	this->itf_ip[hw_slot].dvaddr = resourcemgr->minfo.dvaddr;
+	this->itf_ip[hw_slot].fw_cookie = resourcemgr->minfo.fw_cookie;
+	this->itf_ip[hw_slot].alloc_ctx = resourcemgr->mem.alloc_ctx;
+
 	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
 	ret = fimc_is_interface_3aa_probe(this, hw_id, pdev);
 	if (ret) {
@@ -98,6 +108,11 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 		err_itfc("invalid hw_slot (%d) ", hw_slot);
 		return -EINVAL;
 	}
+
+	this->itf_ip[hw_slot].kvaddr = resourcemgr->minfo.kvaddr;
+	this->itf_ip[hw_slot].dvaddr = resourcemgr->minfo.dvaddr;
+	this->itf_ip[hw_slot].fw_cookie = resourcemgr->minfo.fw_cookie;
+	this->itf_ip[hw_slot].alloc_ctx = resourcemgr->mem.alloc_ctx;
 
 	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
 	ret = fimc_is_interface_isp_probe(this, hw_id, pdev);
@@ -115,6 +130,11 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 		return -EINVAL;
 	}
 
+	this->itf_ip[hw_slot].kvaddr = resourcemgr->minfo.kvaddr;
+	this->itf_ip[hw_slot].dvaddr = resourcemgr->minfo.dvaddr;
+	this->itf_ip[hw_slot].fw_cookie = resourcemgr->minfo.fw_cookie;
+	this->itf_ip[hw_slot].alloc_ctx = resourcemgr->mem.alloc_ctx;
+
 	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
 	ret = fimc_is_interface_isp_probe(this, hw_id, pdev);
 	if (ret) {
@@ -123,8 +143,8 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if defined(SOC_DIS) || defined(SOC_D0S)
-	hw_id = DEV_HW_TPU0;
+#if defined(SOC_DIS)
+	hw_id = DEV_HW_TPU;
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
 		err_itfc("invalid hw_slot (%d)", hw_slot);
@@ -140,24 +160,7 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if defined(SOC_D1S)
-	hw_id = DEV_HW_TPU1;
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d)", hw_slot);
-		return -EINVAL;
-	}
-
-	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
-
-	ret = fimc_is_interface_tpu_probe(this, hw_id, pdev);
-	if (ret) {
-		err_itfc("interface probe fail (%d,%d)", hw_id, hw_slot);
-		return -EINVAL;
-	}
-#endif
-
-#if (defined(SOC_SCP) && !defined(MCS_USE_SCP_PARAM))
+#if (defined(SOC_SCP) && !defined(SOC_MCS_1x1))
 	hw_id = DEV_HW_SCP;
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
@@ -174,7 +177,7 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if (defined(SOC_SCP) && defined(MCS_USE_SCP_PARAM))
+#if (defined(SOC_SCP) && defined(SOC_MCS_1x1))
 	hw_id = DEV_HW_MCSC0;
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
@@ -191,7 +194,8 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if (defined(SOC_MCS) && defined(SOC_MCS0))
+#if defined(SOC_MCS)
+	/* TODO : it will re-implemented as MCSC(2x5) used */
 	hw_id = DEV_HW_MCSC0;
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
@@ -208,24 +212,7 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if (defined(SOC_MCS) && defined(SOC_MCS1))
-	hw_id = DEV_HW_MCSC1;
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d)", hw_slot);
-		return -EINVAL;
-	}
-
-	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
-
-	ret = fimc_is_interface_scaler_probe(this, hw_id, pdev);
-	if (ret) {
-		err_itfc("interface probe fail (%d,%d)", hw_id, hw_slot);
-		return -EINVAL;
-	}
-#endif
-
-#if defined(SOC_VRA) && defined(ENABLE_VRA)
+#if defined(SOC_VRA)
 	hw_id = DEV_HW_VRA;
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
@@ -242,42 +229,11 @@ int fimc_is_interface_ischain_probe(struct fimc_is_interface_ischain *this,
 	}
 #endif
 
-#if defined(SOC_DCP) && defined(CONFIG_DCP_V1_0)
-	hw_id = DEV_HW_DCP;
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d)", hw_slot);
-		return -EINVAL;
-	}
-
-	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
-
-	ret = fimc_is_interface_dcp_probe(this, hw_id, pdev);
-	if (ret) {
-		err_itfc("interface probe fail (%d,%d)", hw_id, hw_slot);
-		return -EINVAL;
-	}
-#endif
-
-#if defined(SOC_SRDZ) && defined(CONFIG_SRDZ_V1_0)
-	hw_id = DEV_HW_SRDZ;
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d)", hw_slot);
-		return -EINVAL;
-	}
-
-	this->itf_ip[hw_slot].hw_ip = &(hardware->hw_ip[hw_slot]);
-
-	ret = fimc_is_interface_srdz_probe(this, hw_id, pdev);
-	if (ret) {
-		err_itfc("interface probe fail (%d,%d)", hw_id, hw_slot);
-		return -EINVAL;
-	}
-#endif
-
 	set_bit(IS_CHAIN_IF_STATE_INIT, &this->state);
-	dbg_itfc("interface ishchain probe done (%d,%d,%d)(%d)", hw_id, hw_slot, hw_slot, ret);
+
+
+	if (ret)
+		err_itfc("probe fail (%d,%d,%d)(%d)", hw_id, hw_slot, hw_slot, ret);
 
 	return ret;
 }
@@ -288,19 +244,11 @@ int fimc_is_interface_3aa_probe(struct fimc_is_interface_ischain *itfc,
 	struct fimc_is_interface_hwip *itf_3aa = NULL;
 	int i, ret = 0;
 	int hw_slot = -1;
-	int handler_id = 0;
 
 	BUG_ON(!itfc);
 	BUG_ON(!pdev);
 
-	switch (hw_id) {
-	case DEV_HW_3AA0:
-		handler_id = ID_3AA_0;
-		break;
-	case DEV_HW_3AA1:
-		handler_id = ID_3AA_1;
-		break;
-	default:
+	if ((hw_id < DEV_HW_3AA0) || (hw_id >= DEV_HW_ISP0)) {
 		err_itfc("invalid hw_id(%d)", hw_id);
 		return -EINVAL;
 	}
@@ -327,34 +275,28 @@ int fimc_is_interface_3aa_probe(struct fimc_is_interface_ischain *itfc,
 		return -EINVAL;
 	}
 
-#ifndef CONFIG_VENDER_PSV
 	ret = fimc_is_hw_request_irq(itf_3aa, hw_id);
 	if (ret) {
 		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
 		return -EINVAL;
 	}
-#endif
 
 	for (i = 0; i < INTR_HWIP_MAX; i++) {
 		itf_3aa->handler[i].valid = false;
 
-		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
+		gPtr_lib_support.intr_handler_taaisp[hw_slot][i]
 			= (struct hwip_intr_handler *)&itf_3aa->handler[i];
 	}
 
-	/* library data settings */
-	if (!gPtr_lib_support.minfo) {
-		gPtr_lib_support.itfc		= itfc;
-		gPtr_lib_support.minfo		= itfc->minfo;
-
-		gPtr_lib_support.pdev		= pdev;
-
-		info_itfc("[ID:%2d] kvaddr for taaisp: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_taaisp, kvaddr,
-					gPtr_lib_support.minfo->pb_taaisp));
-	}
-
 	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_3aa->state);
+
+	/* library data settings */
+	gPtr_lib_support.itfc      = itfc;
+	gPtr_lib_support.kvaddr    = itf_3aa->kvaddr;
+	gPtr_lib_support.dvaddr    = itf_3aa->dvaddr;
+	gPtr_lib_support.fw_cookie = itf_3aa->fw_cookie;
+	gPtr_lib_support.alloc_ctx = itf_3aa->alloc_ctx;
+	gPtr_lib_support.pdev = pdev;
 
 	dbg_itfc("[ID:%2d] probe done\n", hw_id);
 
@@ -367,19 +309,11 @@ int fimc_is_interface_isp_probe(struct fimc_is_interface_ischain *itfc,
 	struct fimc_is_interface_hwip *itf_isp = NULL;
 	int i, ret = 0;
 	int hw_slot = -1;
-	int handler_id = 0;
 
 	BUG_ON(!itfc);
 	BUG_ON(!pdev);
 
-	switch (hw_id) {
-	case DEV_HW_ISP0:
-		handler_id = ID_ISP_0;
-		break;
-	case DEV_HW_ISP1:
-		handler_id = ID_ISP_1;
-		break;
-	default:
+	if (hw_id != DEV_HW_ISP0 && hw_id != DEV_HW_ISP1) {
 		err_itfc("invalid hw_id(%d)", hw_id);
 		return -EINVAL;
 	}
@@ -406,35 +340,28 @@ int fimc_is_interface_isp_probe(struct fimc_is_interface_ischain *itfc,
 		return -EINVAL;
 	}
 
-#ifndef CONFIG_VENDER_PSV
 	ret = fimc_is_hw_request_irq(itf_isp, hw_id);
 	if (ret) {
 		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
 		return -EINVAL;
 	}
-#endif
 
 	for (i = 0; i < INTR_HWIP_MAX; i++) {
 		itf_isp->handler[i].valid = false;
 
 		/* TODO: this is not cool */
-		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
+		gPtr_lib_support.intr_handler_taaisp[hw_slot][i]
 			= (struct hwip_intr_handler *)&itf_isp->handler[i];
 	}
 
-	/* library data settings */
-	if (!gPtr_lib_support.minfo) {
-		gPtr_lib_support.itfc		= itfc;
-		gPtr_lib_support.minfo		= itfc->minfo;
-
-		gPtr_lib_support.pdev		= pdev;
-
-		info_itfc("[ID:%2d] kvaddr for taaisp: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_taaisp, kvaddr,
-					gPtr_lib_support.minfo->pb_taaisp));
-	}
-
 	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_isp->state);
+
+	/* library data settings */
+	gPtr_lib_support.kvaddr    = itf_isp->kvaddr;
+	gPtr_lib_support.dvaddr    = itf_isp->dvaddr;
+	gPtr_lib_support.fw_cookie = itf_isp->fw_cookie;
+	gPtr_lib_support.alloc_ctx = itf_isp->alloc_ctx;
+	gPtr_lib_support.pdev = pdev;
 
 	dbg_itfc("[ID:%2d] probe done\n", hw_id);
 
@@ -445,24 +372,11 @@ int fimc_is_interface_tpu_probe(struct fimc_is_interface_ischain *itfc,
 	int hw_id, struct platform_device *pdev)
 {
 	struct fimc_is_interface_hwip *itf_tpu = NULL;
-	int i, ret = 0;
+	int ret = 0;
 	int hw_slot = -1;
-	int handler_id = 0;
 
 	BUG_ON(!itfc);
 	BUG_ON(!pdev);
-
-	switch (hw_id) {
-	case DEV_HW_TPU0:
-		handler_id = ID_TPU_0;
-		break;
-	case DEV_HW_TPU1:
-		handler_id = ID_TPU_1;
-		break;
-	default:
-		err_itfc("invalid hw_id(%d)", hw_id);
-		return -EINVAL;
-	}
 
 	hw_slot = fimc_is_hw_slot_id(hw_id);
 	if (!valid_hw_slot_id(hw_slot)) {
@@ -486,38 +400,10 @@ int fimc_is_interface_tpu_probe(struct fimc_is_interface_ischain *itfc,
 		return -EINVAL;
 	}
 
-#ifndef CONFIG_VENDER_PSV
 	ret = fimc_is_hw_request_irq(itf_tpu, hw_id);
 	if (ret) {
 		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
 		return -EINVAL;
-	}
-#endif
-
-	for (i = 0; i < INTR_HWIP_MAX; i++) {
-		itf_tpu->handler[i].valid = false;
-
-		/* TODO: this is not cool */
-		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
-			= (struct hwip_intr_handler *)&itf_tpu->handler[i];
-	}
-
-	/* library data settings */
-	if (!gPtr_lib_support.minfo) {
-		gPtr_lib_support.itfc		= itfc;
-		gPtr_lib_support.minfo		= itfc->minfo;
-
-		gPtr_lib_support.pdev		= pdev;
-
-#if defined(ENABLE_ODC) || defined(ENABLE_VDIS) || defined(ENABLE_DNR)
-		info_itfc("[ID:%2d] kvaddr for tpu: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_tpu, kvaddr,
-					gPtr_lib_support.minfo->pb_tpu));
-	} else {
-		info_itfc("[ID:%2d] kvaddr for tpu: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_tpu, kvaddr,
-					gPtr_lib_support.minfo->pb_tpu));
-#endif
 	}
 
 	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_tpu->state);
@@ -559,13 +445,11 @@ int fimc_is_interface_scaler_probe(struct fimc_is_interface_ischain *itfc,
 		return -EINVAL;
 	}
 
-#ifndef CONFIG_VENDER_PSV
 	ret = fimc_is_hw_request_irq(itf_scaler, hw_id);
 	if (ret) {
 		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
 		return -EINVAL;
 	}
-#endif
 
 	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_scaler->state);
 
@@ -606,161 +490,13 @@ int fimc_is_interface_vra_probe(struct fimc_is_interface_ischain *itfc,
 		return -EINVAL;
 	}
 
-#ifndef CONFIG_VENDER_PSV
 	ret = fimc_is_hw_request_irq(itf_vra, hw_id);
 	if (ret) {
 		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
 		return -EINVAL;
 	}
-#endif
-
-	/* library data settings */
-	if (!gPtr_lib_support.minfo) {
-		gPtr_lib_support.itfc		= itfc;
-		gPtr_lib_support.minfo		= itfc->minfo;
-
-		gPtr_lib_support.pdev		= pdev;
-
-		info_itfc("[ID:%2d] kvaddr for vra: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_vra, kvaddr,
-					gPtr_lib_support.minfo->pb_vra));
-	} else {
-		info_itfc("[ID:%2d] kvaddr for vra: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_vra, kvaddr,
-					gPtr_lib_support.minfo->pb_vra));
-	}
 
 	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_vra->state);
-
-	dbg_itfc("[ID:%2d] probe done\n", hw_id);
-
-	return ret;
-}
-
-int fimc_is_interface_dcp_probe(struct fimc_is_interface_ischain *itfc,
-	int hw_id, struct platform_device *pdev)
-{
-	struct fimc_is_interface_hwip *itf_dcp = NULL;
-	int i, ret = 0;
-	int hw_slot = -1;
-	int handler_id = 0;
-
-	BUG_ON(!itfc);
-	BUG_ON(!pdev);
-
-	switch (hw_id) {
-	case DEV_HW_DCP:
-		handler_id = ID_DCP;
-		break;
-	default:
-		err_itfc("invalid hw_id(%d)", hw_id);
-		return -EINVAL;
-	}
-
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d) ", hw_slot);
-		return -EINVAL;
-	}
-
-	itf_dcp = &itfc->itf_ip[hw_slot];
-	itf_dcp->id = hw_id;
-	itf_dcp->state = 0;
-
-	ret = fimc_is_hw_get_address(itf_dcp, pdev, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_get_address failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-
-	ret = fimc_is_hw_get_irq(itf_dcp, pdev, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_get_irq failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-
-#ifndef CONFIG_VENDER_PSV
-	ret = fimc_is_hw_request_irq(itf_dcp, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-#endif
-
-	for (i = 0; i < INTR_HWIP_MAX; i++) {
-		itf_dcp->handler[i].valid = false;
-
-		/* TODO: this is not cool */
-		gPtr_lib_support.intr_handler_taaisp[handler_id][i]
-			= (struct hwip_intr_handler *)&itf_dcp->handler[i];
-	}
-
-#if 0 /* TODO */
-	/* library data settings */
-	if (!gPtr_lib_support.minfo) {
-		gPtr_lib_support.itfc		= itfc;
-		gPtr_lib_support.minfo		= itfc->minfo;
-
-		gPtr_lib_support.pdev		= pdev;
-
-		info_itfc("[ID:%2d] kvaddr for dcp: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_dcp, kvaddr,
-					gPtr_lib_support.minfo->pb_dcp));
-	} else {
-		info_itfc("[ID:%2d] kvaddr for dcp: 0x%lx\n", hw_id,
-			CALL_BUFOP(gPtr_lib_support.minfo->pb_dcp, kvaddr,
-					gPtr_lib_support.minfo->pb_dcp));
-	}
-#endif
-
-	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_dcp->state);
-
-	dbg_itfc("[ID:%2d] probe done\n", hw_id);
-
-	return ret;
-}
-
-int fimc_is_interface_srdz_probe(struct fimc_is_interface_ischain *itfc,
-	int hw_id, struct platform_device *pdev)
-{
-	struct fimc_is_interface_hwip *itf_srdz = NULL;
-	int ret = 0;
-	int hw_slot = -1;
-
-	BUG_ON(!itfc);
-	BUG_ON(!pdev);
-
-	hw_slot = fimc_is_hw_slot_id(hw_id);
-	if (!valid_hw_slot_id(hw_slot)) {
-		err_itfc("invalid hw_slot (%d) ", hw_slot);
-		return -EINVAL;
-	}
-
-	itf_srdz = &itfc->itf_ip[hw_slot];
-	itf_srdz->id = hw_id;
-	itf_srdz->state = 0;
-
-	ret = fimc_is_hw_get_address(itf_srdz, pdev, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_get_address failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-
-	ret = fimc_is_hw_get_irq(itf_srdz, pdev, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_get_irq failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-
-#ifndef CONFIG_VENDER_PSV
-	ret = fimc_is_hw_request_irq(itf_srdz, hw_id);
-	if (ret) {
-		err_itfc("[ID:%2d] hw_request_irq failed (%d)", hw_id, ret);
-		return -EINVAL;
-	}
-#endif
-
-	set_bit(IS_CHAIN_IF_STATE_INIT, &itf_srdz->state);
 
 	dbg_itfc("[ID:%2d] probe done\n", hw_id);
 
@@ -818,8 +554,7 @@ int print_req_work_list(struct fimc_is_work_list *this)
 	printk(KERN_ERR "[INF] req(%02X, %02d) :", this->id, this->work_request_cnt);
 
 	list_for_each_entry_safe(work, temp, &this->work_request_head, list) {
-		printk(KERN_CONT "%X([%d][G%X][F%d])->", work->msg.command,
-				work->msg.instance, work->msg.group, work->fcount);
+		printk(KERN_CONT "%X(%d)->", work->msg.command, work->fcount);
 	}
 
 	printk(KERN_CONT "X\n");
@@ -870,55 +605,6 @@ static void init_work_list(struct fimc_is_work_list *this, u32 id, u32 count)
 	init_waitqueue_head(&this->wait_queue);
 }
 
-#ifdef ENABLE_SYNC_REPROCESSING
-static inline void fimc_is_sync_reprocessing_queue(struct fimc_is_groupmgr *groupmgr,
-	struct fimc_is_group *group)
-{
-	int i;
-	struct fimc_is_group_task *gtask;
-	struct fimc_is_group *rgroup;
-	struct fimc_is_framemgr *rframemgr;
-	struct fimc_is_frame *rframe;
-	ulong flags;
-
-	if (test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &group->device->state))
-		return;
-
-	gtask = &groupmgr->gtask[group->id];
-
-	if (atomic_read(&gtask->rep_tick) < REPROCESSING_TICK_COUNT) {
-		if (atomic_read(&gtask->rep_tick) > 0)
-			atomic_dec(&gtask->rep_tick);
-
-		return;
-	}
-
-	for (i = 0; i < FIMC_IS_STREAM_COUNT; ++i) {
-		if (!groupmgr->group[i][group->slot])
-			continue;
-
-		if (test_bit(FIMC_IS_ISCHAIN_REPROCESSING, &groupmgr->group[i][group->slot]->device->state)) {
-			rgroup = groupmgr->group[i][group->slot];
-			break;
-		}
-	}
-
-	if (i == FIMC_IS_STREAM_COUNT) {
-		mgwarn("reprocessing group not exists", group, group);
-		return;
-	}
-
-	rframemgr = GET_HEAD_GROUP_FRAMEMGR(rgroup);
-
-	framemgr_e_barrier_irqs(rframemgr, 0, flags);
-	rframe = peek_frame(rframemgr, FS_REQUEST);
-	framemgr_x_barrier_irqr(rframemgr, 0, flags);
-
-	if (rframe)
-		queue_kthread_work(&gtask->worker, &rframe->work);
-}
-#endif
-
 static inline void wq_func_schedule(struct fimc_is_interface *itf,
 	struct work_struct *work_wq)
 {
@@ -939,7 +625,6 @@ static void wq_func_subdev(struct fimc_is_subdev *leader,
 	struct fimc_is_framemgr *ldr_framemgr, *sub_framemgr;
 	struct fimc_is_frame *ldr_frame;
 	struct camera2_node *capture;
-	int i = 0;
 
 	BUG_ON(!sub_frame);
 
@@ -948,14 +633,6 @@ static void wq_func_subdev(struct fimc_is_subdev *leader,
 
 	ldr_framemgr = GET_FRAMEMGR(ldr_vctx);
 	sub_framemgr = GET_FRAMEMGR(sub_vctx);
-	if (!ldr_framemgr) {
-		mserr("ldr_framemgr is NULL", subdev, subdev);
-		goto p_err;
-	}
-	if (!sub_framemgr) {
-		mserr("sub_framemgr is NULL", subdev, subdev);
-		goto p_err;
-	}
 
 	findex = sub_frame->stream->findex;
 	mindex = ldr_vctx->queue.buf_maxcount;
@@ -1012,21 +689,9 @@ static void wq_func_subdev(struct fimc_is_subdev *leader,
 complete:
 	sub_frame->stream->fcount = fcount;
 	sub_frame->stream->rcount = rcount;
-	sub_frame->fcount = fcount;
-	sub_frame->rcount = rcount;
 
 	trans_frame(sub_framemgr, sub_frame, FS_COMPLETE);
-
-	/* for debug */
-	for (i = 0; i < sub_frame->num_buffers; i++)
-		DBG_DIGIT_TAG((ldr_frame->group) ? ((struct fimc_is_group *)ldr_frame->group)->slot : 0,
-			0, GET_QUEUE(sub_vctx), sub_frame, fcount - sub_frame->num_buffers + i, i);
-
 	CALL_VOPS(sub_vctx, done, sub_frame->index, done_state);
-
-p_err:
-	return;
-
 }
 
 static void wq_func_frame(struct fimc_is_subdev *leader,
@@ -1105,6 +770,11 @@ static void wq_func_30c(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1155,6 +825,11 @@ static void wq_func_30p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1205,6 +880,11 @@ static void wq_func_31c(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1255,6 +935,11 @@ static void wq_func_31p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1305,6 +990,11 @@ static void wq_func_i0c(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1355,6 +1045,11 @@ static void wq_func_i0p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1405,6 +1100,11 @@ static void wq_func_i1c(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1455,6 +1155,11 @@ static void wq_func_i1p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1477,106 +1182,6 @@ static void wq_func_i1p(struct work_struct *data)
 p_err:
 		set_free_work(&itf->work_list[WORK_I1P_FDONE], work);
 		get_req_work(&itf->work_list[WORK_I1P_FDONE], &work);
-	}
-}
-
-static void wq_func_d0c(struct work_struct *data)
-{
-	u32 instance, fcount, rcount, status;
-	struct fimc_is_interface *itf;
-	struct fimc_is_device_ischain *device;
-	struct fimc_is_subdev *leader, *subdev;
-	struct fimc_is_work *work;
-	struct fimc_is_msg *msg;
-
-	itf = container_of(data, struct fimc_is_interface, work_wq[WORK_D0C_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_D0C_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= FIMC_IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
-		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->dxc;
-		if (!test_bit(FIMC_IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_D0C_FDONE], work);
-		get_req_work(&itf->work_list[WORK_D0C_FDONE], &work);
-	}
-}
-
-static void wq_func_d1c(struct work_struct *data)
-{
-	u32 instance, fcount, rcount, status;
-	struct fimc_is_interface *itf;
-	struct fimc_is_device_ischain *device;
-	struct fimc_is_subdev *leader, *subdev;
-	struct fimc_is_work *work;
-	struct fimc_is_msg *msg;
-
-	itf = container_of(data, struct fimc_is_interface, work_wq[WORK_D1C_FDONE]);
-
-	get_req_work(&itf->work_list[WORK_D1C_FDONE], &work);
-	while (work) {
-		msg = &work->msg;
-		instance = msg->instance;
-		fcount = msg->param1;
-		rcount = msg->param2;
-		status = msg->param3;
-
-		if (instance >= FIMC_IS_STREAM_COUNT) {
-			err("instance is invalid(%d)", instance);
-			goto p_err;
-		}
-
-		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
-		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
-			merr("device is not open", device);
-			goto p_err;
-		}
-
-		subdev = &device->dxc;
-		if (!test_bit(FIMC_IS_SUBDEV_START, &subdev->state)) {
-			merr("subdev is not start", device);
-			goto p_err;
-		}
-
-		leader = subdev->leader;
-		if (!leader) {
-			merr("leader is NULL", device);
-			goto p_err;
-		}
-
-		wq_func_frame(leader, subdev, fcount, rcount, status);
-
-p_err:
-		set_free_work(&itf->work_list[WORK_D1C_FDONE], work);
-		get_req_work(&itf->work_list[WORK_D1C_FDONE], &work);
 	}
 }
 
@@ -1605,6 +1210,11 @@ static void wq_func_scc(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1655,6 +1265,11 @@ static void wq_func_scp(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1705,6 +1320,11 @@ static void wq_func_m0p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1761,6 +1381,11 @@ static void wq_func_m1p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1817,6 +1442,11 @@ static void wq_func_m2p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1873,6 +1503,11 @@ static void wq_func_m3p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1929,6 +1564,11 @@ static void wq_func_m4p(struct work_struct *data)
 		}
 
 		device = &((struct fimc_is_core *)itf->core)->ischain[instance];
+		if (!device) {
+			err("device is NULL");
+			goto p_err;
+		}
+
 		if (!test_bit(FIMC_IS_ISCHAIN_OPEN, &device->state)) {
 			merr("device is not open", device);
 			goto p_err;
@@ -1973,26 +1613,17 @@ static void wq_func_group_xxx(struct fimc_is_groupmgr *groupmgr,
 	BUG_ON(!framemgr);
 	BUG_ON(!frame);
 
-	/* perframe error control */
-	if (test_bit(FIMC_IS_SUBDEV_PARAM_ERR, &group->leader.state)) {
-		if (!status) {
-			if (frame->lindex || frame->hindex)
-				clear_bit(FIMC_IS_SUBDEV_PARAM_ERR, &group->leader.state);
-			else
-				status = SHOT_ERR_PERFRAME;
-		}
-	} else {
-		if (status && (frame->lindex || frame->hindex))
-			set_bit(FIMC_IS_SUBDEV_PARAM_ERR, &group->leader.state);
-	}
-
 	if (status) {
 		mgrinfo("[ERR] NDONE(%d, E%X(L%X H%X))\n", group, group, frame, frame->index, status,
 			lindex, hindex);
 		done_state = VB2_BUF_STATE_ERROR;
 
+		/* specially force set is enabled when perframe control is fail */
+		if (lindex || hindex)
+			set_bit(FIMC_IS_SUBDEV_FORCE_SET, &group->leader.state);
+
 		if (status == IS_SHOT_OVERFLOW) {
-#ifdef OVERFLOW_PANIC_ENABLE_ISCHAIN
+#ifdef OVERFLOW_PANIC_ENABLE
 			panic("G%d overflow", group->id);
 #else
 			err("G%d overflow", group->id);
@@ -2004,13 +1635,6 @@ static void wq_func_group_xxx(struct fimc_is_groupmgr *groupmgr,
 #ifdef DBG_STREAMING
 	if (!status)
 		mgrinfo(" DONE(%d)\n", group, group, frame, frame->index);
-#endif
-
-#ifdef ENABLE_SYNC_REPROCESSING
-	/* Sync Reprocessing */
-	if ((atomic_read(&groupmgr->gtask[group->id].refcount) > 1)
-		&& (group->device->resourcemgr->hal_version == IS_HAL_VER_1_0))
-		fimc_is_sync_reprocessing_queue(groupmgr, group);
 #endif
 
 	/* Cache Invalidation */
@@ -2091,7 +1715,6 @@ static void wq_func_shot(struct work_struct *data)
 	struct fimc_is_frame *frame;
 	struct fimc_is_groupmgr *groupmgr;
 	struct fimc_is_group *group;
-	struct fimc_is_group *head;
 	struct fimc_is_work_list *work_list;
 	struct fimc_is_work *work;
 	struct fimc_is_video_ctx *vctx;
@@ -2103,8 +1726,8 @@ static void wq_func_shot(struct work_struct *data)
 
 	BUG_ON(!data);
 
-	itf = container_of(data, struct fimc_is_interface, work_wq[WORK_SHOT_DONE]);
-	work_list = &itf->work_list[WORK_SHOT_DONE];
+	itf = container_of(data, struct fimc_is_interface, work_wq[INTR_SHOT_DONE]);
+	work_list = &itf->work_list[INTR_SHOT_DONE];
 	group  = NULL;
 	vctx = NULL;
 	framemgr = NULL;
@@ -2131,7 +1754,6 @@ static void wq_func_shot(struct work_struct *data)
 			group = &device->group_isp;
 			break;
 		case GROUP_ID(GROUP_ID_DIS0):
-		case GROUP_ID(GROUP_ID_DIS1):
 			group = &device->group_dis;
 			break;
 		case GROUP_ID(GROUP_ID_MCS0):
@@ -2149,8 +1771,12 @@ static void wq_func_shot(struct work_struct *data)
 			goto remain;
 		}
 
-		head = group->head;
-		vctx = head->leader.vctx;
+		if (!group) {
+			merr("group is NULL", device);
+			goto remain;
+		}
+
+		vctx = group->leader.vctx;
 		if (!vctx) {
 			merr("vctx is NULL", device);
 			goto remain;
@@ -2168,10 +1794,6 @@ static void wq_func_shot(struct work_struct *data)
 
 		if (frame) {
 			PROGRAM_COUNT(13);
-
-			/* clear bit for child group */
-			if (group != head)
-				clear_bit(group->leader.id, &frame->out_flag);
 #ifdef MEASURE_TIME
 #ifdef EXTERNAL_TIME
 			do_gettimeofday(&frame->tzone[TM_SHOT_D]);
@@ -2184,12 +1806,12 @@ static void wq_func_shot(struct work_struct *data)
 					sysfs_debug.clk_gate_mode == CLOCK_GATE_MODE_HOST)
 				fimc_is_clk_gate_set(core, group->id, false, false, true);
 #endif
-			wq_func_group(device, groupmgr, head, framemgr, frame,
+			wq_func_group(device, groupmgr, group, framemgr, frame,
 				vctx, status, fcount);
 
 			PROGRAM_COUNT(14);
 		} else {
-			mgerr("invalid shot done(%d)", device, head, fcount);
+			mgerr("invalid shot done(%d)", device, group, fcount);
 			frame_manager_print_queues(framemgr);
 		}
 
@@ -2216,7 +1838,7 @@ static inline void print_framemgr_spinlock_usage(struct fimc_is_core *core)
 
 	for (i = 0; i < FIMC_IS_SENSOR_COUNT; ++i) {
 		sensor = &core->sensor[i];
-		if (test_bit(FIMC_IS_SENSOR_OPEN, &sensor->state) && (framemgr = &sensor->vctx->queue.framemgr))
+		if (test_bit(FIMC_IS_SENSOR_OPEN, &sensor->state) && (framemgr = GET_SUBDEV_FRAMEMGR(sensor)))
 			info("[@] framemgr(0x%08X) sindex : 0x%08lX\n", framemgr->id, framemgr->sindex);
 	}
 
@@ -2265,187 +1887,7 @@ static inline void print_framemgr_spinlock_usage(struct fimc_is_core *core)
 	}
 }
 
-static void interface_timer(unsigned long data)
-{
-	u32 shot_count, scount_3ax, scount_isp;
-	u32 fcount, i;
-	unsigned long flags;
-	struct fimc_is_interface *itf = (struct fimc_is_interface *)data;
-	struct fimc_is_core *core;
-	struct fimc_is_device_ischain *device;
-	struct fimc_is_device_sensor *sensor;
-	struct fimc_is_framemgr *framemgr;
-	struct fimc_is_work_list *work_list;
-
-	BUG_ON(!itf);
-	BUG_ON(!itf->core);
-
-	if (!test_bit(IS_IF_STATE_OPEN, &itf->state)) {
-		pr_info("shot timer is terminated\n");
-		return;
-	}
-
-	core = itf->core;
-
-	for (i = 0; i < FIMC_IS_STREAM_COUNT; ++i) {
-		device = &core->ischain[i];
-		shot_count = 0;
-		scount_3ax = 0;
-		scount_isp = 0;
-
-		sensor = device->sensor;
-		if (!sensor)
-			continue;
-
-		if (!test_bit(FIMC_IS_SENSOR_FRONT_START, &sensor->state))
-			continue;
-
-		if (test_bit(FIMC_IS_ISCHAIN_OPEN_STREAM, &device->state)) {
-			spin_lock_irqsave(&itf->shot_check_lock, flags);
-			if (atomic_read(&itf->shot_check[i])) {
-				atomic_set(&itf->shot_check[i], 0);
-				atomic_set(&itf->shot_timeout[i], 0);
-				spin_unlock_irqrestore(&itf->shot_check_lock, flags);
-				continue;
-			}
-			spin_unlock_irqrestore(&itf->shot_check_lock, flags);
-
-			if (test_bit(FIMC_IS_GROUP_START, &device->group_3aa.state)) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_3aa);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, FMGR_IDX_6, flags);
-					scount_3ax = framemgr->queued_count[FS_PROCESS];
-					shot_count += scount_3ax;
-					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_6, flags);
-				} else {
-					minfo("\n### group_3aa framemgr is null ###\n", device);
-				}
-			}
-
-			if (test_bit(FIMC_IS_GROUP_START, &device->group_isp.state)) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_isp);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, FMGR_IDX_7, flags);
-					scount_isp = framemgr->queued_count[FS_PROCESS];
-					shot_count += scount_isp;
-					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_7, flags);
-				} else {
-					minfo("\n### group_isp framemgr is null ###\n", device);
-				}
-			}
-
-			if (test_bit(FIMC_IS_GROUP_START, &device->group_dis.state)) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_dis);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, FMGR_IDX_8, flags);
-					shot_count += framemgr->queued_count[FS_PROCESS];
-					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_8, flags);
-				} else {
-					minfo("\n### group_dis framemgr is null ###\n", device);
-				}
-			}
-
-			if (test_bit(FIMC_IS_GROUP_START, &device->group_vra.state)) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_vra);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, FMGR_IDX_31, flags);
-					shot_count += framemgr->queued_count[FS_PROCESS];
-					framemgr_x_barrier_irqr(framemgr, FMGR_IDX_31, flags);
-				} else {
-					minfo("\n### group_vra framemgr is null ###\n", device);
-				}
-			}
-		}
-
-		if (shot_count) {
-			atomic_inc(&itf->shot_timeout[i]);
-			minfo("shot timer[%d] is increased to %d\n", device,
-				i, atomic_read(&itf->shot_timeout[i]));
-		}
-
-		if (atomic_read(&itf->shot_timeout[i]) > TRY_TIMEOUT_COUNT) {
-			merr("shot command is timeout(%d, %d(%d+%d))", device,
-				atomic_read(&itf->shot_timeout[i]),
-				shot_count, scount_3ax, scount_isp);
-
-			minfo("\n### 3ax framemgr info ###\n", device);
-			if (scount_3ax) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_3aa);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, 0, flags);
-					frame_manager_print_queues(framemgr);
-					framemgr_x_barrier_irqr(framemgr, 0, flags);
-				} else {
-					minfo("\n### 3ax framemgr is null ###\n", device);
-				}
-			}
-
-			minfo("\n### isp framemgr info ###\n", device);
-			if (scount_isp) {
-				framemgr = GET_HEAD_GROUP_FRAMEMGR(&device->group_isp);
-				if (framemgr) {
-					framemgr_e_barrier_irqs(framemgr, 0, flags);
-					frame_manager_print_queues(framemgr);
-					framemgr_x_barrier_irqr(framemgr, 0, flags);
-				} else {
-					minfo("\n### isp framemgr is null ###\n", device);
-				}
-			}
-
-			minfo("\n### work list info ###\n", device);
-			work_list = &itf->work_list[WORK_SHOT_DONE];
-			print_fre_work_list(work_list);
-			print_req_work_list(work_list);
-
-			/* framemgr spinlock check */
-			print_framemgr_spinlock_usage(core);
-			atomic_set(&itf->shot_timeout[i], 0);
-			return;
-		}
-	}
-
-	for (i = 0; i < FIMC_IS_STREAM_COUNT; ++i) {
-		sensor = &core->sensor[i];
-
-		if (!test_bit(FIMC_IS_SENSOR_BACK_START, &sensor->state))
-			continue;
-
-		if (!test_bit(FIMC_IS_SENSOR_FRONT_START, &sensor->state))
-			continue;
-
-		fcount = fimc_is_sensor_g_fcount(sensor);
-		if (fcount == atomic_read(&itf->sensor_check[i])) {
-			atomic_inc(&itf->sensor_timeout[i]);
-			pr_err ("sensor timer[%d] is increased to %d(fcount : %d)\n", i,
-				atomic_read(&itf->sensor_timeout[i]), fcount);
-			fimc_is_sensor_dump(sensor);
-		} else {
-			atomic_set(&itf->sensor_timeout[i], 0);
-			atomic_set(&itf->sensor_check[i], fcount);
-		}
-
-		if (atomic_read(&itf->sensor_timeout[i]) > SENSOR_TIMEOUT_COUNT) {
-			merr("sensor is timeout(%d, %d)", sensor,
-				atomic_read(&itf->sensor_timeout[i]),
-				atomic_read(&itf->sensor_check[i]));
-
-			/* framemgr spinlock check */
-			print_framemgr_spinlock_usage(core);
-
-#ifdef SENSOR_PANIC_ENABLE
-			/* if panic happened, fw log dump should be happened by panic handler */
-			mdelay(2000);
-			panic("[@] camera sensor panic!!!");
-#else
-			fimc_is_resource_dump();
-#endif
-			return;
-		}
-	}
-
-	mod_timer(&itf->timer, jiffies + (FIMC_IS_COMMAND_TIMEOUT/TRY_TIMEOUT_COUNT));
-}
-
+#define VERSION_OF_NO_NEED_IFLAG 221
 int fimc_is_interface_probe(struct fimc_is_interface *this,
 	struct fimc_is_minfo *minfo,
 	ulong regs,
@@ -2464,10 +1906,11 @@ int fimc_is_interface_probe(struct fimc_is_interface *this,
 	init_waitqueue_head(&this->idle_wait_queue);
 	spin_lock_init(&this->shot_check_lock);
 
-	this->workqueue = alloc_workqueue("fimc-is/[H/U]", WQ_HIGHPRI | WQ_UNBOUND, 0);
+	this->workqueue = alloc_workqueue("fimc-is/highpri", WQ_HIGHPRI, 0);
 	if (!this->workqueue)
 		probe_warn("failed to alloc own workqueue, will be use global one");
 
+	INIT_WORK(&this->work_wq[WORK_SHOT_DONE], wq_func_shot);
 	INIT_WORK(&this->work_wq[WORK_SHOT_DONE], wq_func_shot);
 	INIT_WORK(&this->work_wq[WORK_30C_FDONE], wq_func_30c);
 	INIT_WORK(&this->work_wq[WORK_30P_FDONE], wq_func_30p);
@@ -2477,8 +1920,6 @@ int fimc_is_interface_probe(struct fimc_is_interface *this,
 	INIT_WORK(&this->work_wq[WORK_I0P_FDONE], wq_func_i0p);
 	INIT_WORK(&this->work_wq[WORK_I1C_FDONE], wq_func_i1c);
 	INIT_WORK(&this->work_wq[WORK_I1P_FDONE], wq_func_i1p);
-	INIT_WORK(&this->work_wq[WORK_D0C_FDONE], wq_func_d0c);
-	INIT_WORK(&this->work_wq[WORK_D1C_FDONE], wq_func_d1c);
 	INIT_WORK(&this->work_wq[WORK_SCC_FDONE], wq_func_scc);
 	INIT_WORK(&this->work_wq[WORK_SCP_FDONE], wq_func_scp);
 	INIT_WORK(&this->work_wq[WORK_M0P_FDONE], wq_func_m0p);
@@ -2507,8 +1948,6 @@ int fimc_is_interface_probe(struct fimc_is_interface *this,
 	init_work_list(&this->work_list[WORK_I0P_FDONE], TRACE_WORK_ID_I0P, MAX_WORK_COUNT);
 	init_work_list(&this->work_list[WORK_I1C_FDONE], TRACE_WORK_ID_I1C, MAX_WORK_COUNT);
 	init_work_list(&this->work_list[WORK_I1P_FDONE], TRACE_WORK_ID_I1P, MAX_WORK_COUNT);
-	init_work_list(&this->work_list[WORK_D0C_FDONE], TRACE_WORK_ID_D0C, MAX_WORK_COUNT);
-	init_work_list(&this->work_list[WORK_D1C_FDONE], TRACE_WORK_ID_D1C, MAX_WORK_COUNT);
 	init_work_list(&this->work_list[WORK_SCC_FDONE], TRACE_WORK_ID_SCC, MAX_WORK_COUNT);
 	init_work_list(&this->work_list[WORK_SCP_FDONE], TRACE_WORK_ID_SCP, MAX_WORK_COUNT);
 	init_work_list(&this->work_list[WORK_M0P_FDONE], TRACE_WORK_ID_M0P, MAX_WORK_COUNT);
@@ -2538,22 +1977,14 @@ int fimc_is_interface_open(struct fimc_is_interface *this)
 	for (i = 0; i < FIMC_IS_STREAM_COUNT; i++) {
 		this->streaming[i] = IS_IF_STREAMING_INIT;
 		this->processing[i] = IS_IF_PROCESSING_INIT;
-		atomic_set(&this->shot_check[i], 0);
-		atomic_set(&this->shot_timeout[i], 0);
-		atomic_set(&this->sensor_check[i], 0);
-		atomic_set(&this->sensor_timeout[i], 0);
 	}
+
+	fimc_is_hw_set_chain_interrupt(this);
 
 	clear_bit(IS_IF_STATE_START, &this->state);
 	clear_bit(IS_IF_STATE_BUSY, &this->state);
 	clear_bit(IS_IF_STATE_READY, &this->state);
 	clear_bit(IS_IF_STATE_LOGGING, &this->state);
-
-	init_timer(&this->timer);
-	this->timer.expires = jiffies + (FIMC_IS_COMMAND_TIMEOUT/TRY_TIMEOUT_COUNT);
-	this->timer.data = (unsigned long)this;
-	this->timer.function = interface_timer;
-	add_timer(&this->timer);
 
 	set_bit(IS_IF_STATE_OPEN, &this->state);
 
@@ -2571,7 +2002,6 @@ int fimc_is_interface_close(struct fimc_is_interface *this)
 		goto exit;
 	}
 
-	del_timer_sync(&this->timer);
 	dbg_interface("%s\n", __func__);
 
 	clear_bit(IS_IF_STATE_OPEN, &this->state);

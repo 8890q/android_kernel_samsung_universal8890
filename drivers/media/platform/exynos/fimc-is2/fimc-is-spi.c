@@ -65,11 +65,11 @@ int fimc_is_spi_s_pin(struct fimc_is_spi *spi, int state)
 	}
 
 	if (ssn_pin != NULL) {
-	ret2 = pinctrl_select_state(spi->pinctrl, ssn_pin);
-	if (ret2 < 0) {
-		pr_err("pinctrl_select_state is fail(%d)\n", ret2);
-		ret |= ret2;
-	}
+		ret2 = pinctrl_select_state(spi->pinctrl, ssn_pin);
+		if (ret2 < 0) {
+			pr_err("pinctrl_select_state is fail(%d)\n", ret2);
+			ret |= ret2;
+		}
 	} else {
 		info("pinctrl_select_state(%d) is not found", state);
 		ret = 0;

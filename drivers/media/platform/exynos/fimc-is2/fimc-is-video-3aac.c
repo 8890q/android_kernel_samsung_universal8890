@@ -696,7 +696,7 @@ static void fimc_is_3xc_buffer_queue(struct vb2_buffer *vb)
 		return;
 	}
 
-	ret = fimc_is_subdev_buffer_queue(subdev, vb);
+	ret = fimc_is_subdev_buffer_queue(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
@@ -720,7 +720,7 @@ static void fimc_is_3xc_buffer_finish(struct vb2_buffer *vb)
 	device = GET_DEVICE(vctx);
 	subdev = &device->txc;
 
-	ret = fimc_is_subdev_buffer_finish(subdev, vb);
+	ret = fimc_is_subdev_buffer_finish(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_finish is fail(%d)", device, ret);
 		return;
@@ -729,7 +729,6 @@ static void fimc_is_3xc_buffer_finish(struct vb2_buffer *vb)
 
 const struct vb2_ops fimc_is_3xc_qops = {
 	.queue_setup		= fimc_is_3xc_queue_setup,
-	.buf_init		= fimc_is_buffer_init,
 	.buf_prepare		= fimc_is_3xc_buffer_prepare,
 	.buf_queue		= fimc_is_3xc_buffer_queue,
 	.buf_finish		= fimc_is_3xc_buffer_finish,

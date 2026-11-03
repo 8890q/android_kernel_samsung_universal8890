@@ -6,6 +6,3 @@ obj-$(CONFIG_USE_DIRECT_IS_CONTROL)	+= fimc-is-interface-sensor.o \
 
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2
 EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2/include
-ifeq ($(CONFIG_COMPANION_DIRECT_USE),y)
-EXTRA_CFLAGS += -Idrivers/media/platform/exynos/fimc-is2/vendor/mcd/preprocessor
-endif

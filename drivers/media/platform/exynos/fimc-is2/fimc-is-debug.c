@@ -18,22 +18,13 @@
 #include "fimc-is-device-ischain.h"
 
 struct fimc_is_debug fimc_is_debug;
-EXPORT_SYMBOL(fimc_is_debug);
-
-#ifdef ENABLE_DBG_EVENT
-struct fimc_is_debug_event fimc_is_debug_event;
-#endif
 
 #define DEBUG_FS_ROOT_NAME	"fimc-is"
 #define DEBUG_FS_LOGFILE_NAME	"isfw-msg"
-#define DEBUG_FS_EVENT_DIR_NAME	"event"
-#define DEBUG_FS_EVENT_FILTER "filter"
-#define DEBUG_FS_EVENT_LOGFILE "log"
-#define DEBUG_FS_EVENT_LOGEN "log_enable"
+#define DEBUG_FS_IMGFILE_NAME	"dump-img"
 
 static const struct file_operations debug_log_fops;
 static const struct file_operations debug_img_fops;
-static const struct file_operations debug_event_fops;
 
 #ifdef DBG_DRAW_DIGIT
 unsigned char fimc_is_digits[10][DBG_DIGIT_H][DBG_DIGIT_W] = {
@@ -424,7 +415,7 @@ void fimc_is_draw_digit(ulong addr, int width, int height, u32 pixelformat,
 		break;
 	default:
 		pixel_byte = bitwidth / 8;
-		byte_line_width = ALIGN(width * pixel_byte, 16);
+		byte_line_width = width * pixel_byte;
 		break;
 	}
 
@@ -518,8 +509,7 @@ char *fimc_is_dmsg_print(void)
 
 void fimc_is_print_buffer(char *buffer, size_t len)
 {
-	u32 sentence_i;
-	size_t read_cnt;
+	u32 read_cnt, sentence_i;
 	char sentence[250];
 	char letter;
 
@@ -552,9 +542,12 @@ int fimc_is_debug_probe(void)
 	fimc_is_debug.read_vptr = 0;
 	fimc_is_debug.minfo = NULL;
 
+	fimc_is_debug.dump_count = DBG_IMAGE_DUMP_COUNT;
+	fimc_is_debug.img_kvaddr = 0;
+	fimc_is_debug.img_cookie = 0;
+	fimc_is_debug.size = 0;
 	fimc_is_debug.dsentence_pos = 0;
 	memset(fimc_is_debug.dsentence, 0x0, DEBUG_SENTENCE_MAX);
-
 
 #ifdef ENABLE_DBG_FS
 	fimc_is_debug.root = debugfs_create_dir(DEBUG_FS_ROOT_NAME, NULL);
@@ -566,29 +559,13 @@ int fimc_is_debug_probe(void)
 	if (fimc_is_debug.logfile)
 		probe_info("%s is created\n", DEBUG_FS_LOGFILE_NAME);
 
-#ifdef ENABLE_DBG_EVENT
-	atomic_set(&fimc_is_debug_event.event_index, -1);
-	atomic_set(&fimc_is_debug_event.critical_log_tail, -1);
-	atomic_set(&fimc_is_debug_event.normal_log_tail, -1);
-
-	fimc_is_debug.event_dir = debugfs_create_dir(DEBUG_FS_EVENT_DIR_NAME, fimc_is_debug.root);
-	fimc_is_debug_event.log_print_filter = debugfs_create_u32(DEBUG_FS_EVENT_FILTER, 0644,
-		fimc_is_debug.event_dir,
-		&fimc_is_debug_event.logfilter);
-	fimc_is_debug_event.log = debugfs_create_file(DEBUG_FS_EVENT_LOGFILE, 0644,
-		fimc_is_debug.event_dir,
-		&fimc_is_debug_event,
-		&debug_event_fops);
-	fimc_is_debug_event.logenable = debugfs_create_u32(DEBUG_FS_EVENT_LOGEN, 0644,
-		fimc_is_debug.event_dir,
-		&fimc_is_debug_event.log_enable);
-
-	fimc_is_debug_event.log_enable = 1;
-	fimc_is_debug_event.logfilter = FIMC_IS_EVENT_ALL;
-	spin_lock_init(&fimc_is_debug_event.slock);
+#ifdef DBG_IMAGE_DUMP
+	fimc_is_debug.imgfile = debugfs_create_file(DEBUG_FS_IMGFILE_NAME, S_IRUSR,
+		fimc_is_debug.root, &fimc_is_debug, &debug_img_fops);
+	if (fimc_is_debug.imgfile)
+		probe_info("%s is created\n", DEBUG_FS_IMGFILE_NAME);
 #endif
 #endif
-	clear_bit(FIMC_IS_DEBUG_OPEN, &fimc_is_debug.state);
 
 	return 0;
 }
@@ -599,7 +576,7 @@ int fimc_is_debug_open(struct fimc_is_minfo *minfo)
 	 * debug control should be reset on camera entrance
 	 * because firmware doesn't update this area after reset
 	 */
-	*((int *)(minfo->kvaddr_debug_cnt)) = 0;
+	*((int *)(minfo->kvaddr + FIMC_IS_DEBUGCTL_OFFSET)) = 0;
 	fimc_is_debug.read_vptr = 0;
 	fimc_is_debug.minfo = minfo;
 
@@ -615,106 +592,6 @@ int fimc_is_debug_close(void)
 	return 0;
 }
 
-/**
-  * fimc_is_debug_dma_dump: dump buffer by fimc_is_queue.
-  *                         should be enable DBG_IMAGE_KMAPPING for kernel addr
-  * @queue: buffer info
-  * @index: buffer index
-  * @vid: video node id for filename
-  * @type: enum dbg_dma_dump_type
-  **/
-int fimc_is_debug_dma_dump(struct fimc_is_queue *queue, u32 index, u32 vid, u32 type)
-{
-	int i = 0;
-	int ret = 0;
-	u32 flags = 0;
-	int total_size = 0;
-	u32 framecount = 0;
-	char *filename = NULL;
-	struct vb2_buffer *buf;
-	struct fimc_is_binary bin;
-	buf = queue->vbq->bufs[index];
-	framecount = queue->framemgr.frames[index].fcount;
-
-#ifdef DBG_DMA_DUMP_VID_COND
-	if (!DBG_DMA_DUMP_VID_COND(vid))
-		return 0;
-#endif
-	/* manipulateed the count for dump */
-	if (((framecount - 1) % DBG_DMA_DUMP_INTEVAL) != 0)
-		return 0;
-
-	switch (type) {
-	case DBG_DMA_DUMP_IMAGE:
-		filename = __getname();
-
-		if (unlikely(!filename))
-			return -ENOMEM;
-
-		snprintf(filename, PATH_MAX, "%s/V%02d_F%08d_I%02d.raw",
-				DBG_DMA_DUMP_PATH, vid, framecount, index);
-
-		for (i = 0; i < (buf->num_planes - 1); i++) {
-			bin.data = (void *)queue->buf_kva[index][i];
-			bin.size = queue->framecfg.size[i];
-
-			if (!i) {
-				/* first plane for image */
-				flags = O_TRUNC | O_CREAT | O_WRONLY | O_APPEND;
-				total_size += bin.size;
-			} else {
-				/* after first plane for image */
-				flags = O_WRONLY | O_APPEND;
-				total_size += bin.size;
-			}
-
-			ret = put_filesystem_binary(filename, &bin, flags);
-			if (ret) {
-				err("failed to dump %s (%d)", filename, ret);
-				ret = -EINVAL;
-				goto p_err;
-			}
-		}
-
-		info("[V%d][F%d] img dumped..(%s, %d)\n", vid, framecount, filename, total_size);
-		break;
-	case DBG_DMA_DUMP_META:
-		filename = __getname();
-
-		if (unlikely(!filename))
-			return -ENOMEM;
-
-		snprintf(filename, PATH_MAX, "%s/V%02d_F%08d_I%02d.meta",
-				DBG_DMA_DUMP_PATH, vid, framecount, index);
-
-		bin.data = (void *)queue->buf_kva[index][buf->num_planes - 1];
-		bin.size = queue->framecfg.size[buf->num_planes - 1];
-
-		/* last plane for meta */
-		flags = O_TRUNC | O_CREAT | O_WRONLY;
-		total_size = bin.size;
-
-		ret = put_filesystem_binary(filename, &bin, flags);
-		if (ret) {
-			err("failed to dump %s (%d)", filename, ret);
-			ret = -EINVAL;
-			goto p_err;
-		}
-
-		info("[V%d][F%d] meta dumped..(%s, %d)\n", vid, framecount, filename, total_size);
-		break;
-	default:
-		err("invalid type(%d)", type);
-		break;
-	}
-
-p_err:
-	if (filename)
-		__putname(filename);
-
-	return ret;
-}
-
 static int isfw_debug_open(struct inode *inode, struct file *file)
 {
 	if (inode->i_private)
@@ -723,13 +600,12 @@ static int isfw_debug_open(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef ENABLE_IS_CORE
 static ssize_t isfw_debug_read(struct file *file, char __user *user_buf,
 	size_t buf_len, loff_t *ppos)
 {
 	int ret = 0;
 	void *read_ptr;
-	size_t write_vptr, read_vptr, buf_vptr;
+	ssize_t write_vptr, read_vptr, buf_vptr;
 	size_t read_cnt, read_cnt1, read_cnt2;
 	struct fimc_is_minfo *minfo;
 
@@ -739,23 +615,25 @@ static ssize_t isfw_debug_read(struct file *file, char __user *user_buf,
 	minfo = fimc_is_debug.minfo;
 
 retry:
-	CALL_BUFOP(minfo->pb_fw, sync_for_cpu, minfo->pb_fw,
-		DEBUG_REGION_OFFSET, DEBUG_REGION_SIZE + 4, DMA_FROM_DEVICE);
+	vb2_ion_sync_for_device(minfo->fw_cookie, FIMC_IS_DEBUG_OFFSET, FIMC_IS_DEBUG_SIZE, DMA_FROM_DEVICE);
 
-	write_vptr = *((int *)(minfo->kvaddr + DEBUGCTL_OFFSET)) - DEBUG_REGION_OFFSET;
+	write_vptr = *((int *)(minfo->kvaddr + FIMC_IS_DEBUGCTL_OFFSET)) - FIMC_IS_DEBUG_OFFSET;
 	read_vptr = fimc_is_debug.read_vptr;
 	buf_vptr = buf_len;
+
+	if (write_vptr < 0 || write_vptr > FIMC_IS_DEBUG_SIZE)
+		write_vptr = (read_vptr + FIMC_IS_DEBUG_SIZE) % (FIMC_IS_DEBUG_SIZE + 1);
 
 	if (write_vptr >= read_vptr) {
 		read_cnt1 = write_vptr - read_vptr;
 		read_cnt2 = 0;
 	} else {
-		read_cnt1 = DEBUG_REGION_SIZE - read_vptr;
+		read_cnt1 = FIMC_IS_DEBUG_SIZE - read_vptr;
 		read_cnt2 = write_vptr;
 	}
 
 	if (buf_vptr && read_cnt1) {
-		read_ptr = (void *)(minfo->kvaddr + DEBUG_REGION_OFFSET + fimc_is_debug.read_vptr);
+		read_ptr = (void *)(minfo->kvaddr + FIMC_IS_DEBUG_OFFSET + fimc_is_debug.read_vptr);
 
 		if (read_cnt1 > buf_vptr)
 			read_cnt1 = buf_vptr;
@@ -769,90 +647,14 @@ retry:
 		buf_vptr -= read_cnt1;
 	}
 
-	if (fimc_is_debug.read_vptr >= DEBUG_REGION_SIZE) {
-		if (fimc_is_debug.read_vptr > DEBUG_REGION_SIZE)
+	if (fimc_is_debug.read_vptr >= FIMC_IS_DEBUG_SIZE) {
+		if (fimc_is_debug.read_vptr > FIMC_IS_DEBUG_SIZE)
 			err("[DBG] read_vptr(%zd) is invalid", fimc_is_debug.read_vptr);
 		fimc_is_debug.read_vptr = 0;
 	}
 
 	if (buf_vptr && read_cnt2) {
-		read_ptr = (void *)(minfo->kvaddr + DEBUG_REGION_OFFSET + fimc_is_debug.read_vptr);
-
-		if (read_cnt2 > buf_vptr)
-			read_cnt2 = buf_vptr;
-
-		ret = copy_to_user(user_buf, read_ptr, read_cnt2);
-		if (ret) {
-			err("[DBG] failed copying %d bytes of debug log\n", ret);
-			return ret;
-		}
-		fimc_is_debug.read_vptr += read_cnt2;
-		buf_vptr -= read_cnt2;
-	}
-
-	read_cnt = buf_len - buf_vptr;
-
-	/* info("[DBG] FW_READ : read_vptr(%zd), write_vptr(%zd) - dump(%zd)\n", read_vptr, write_vptr, read_cnt); */
-
-	if (read_cnt == 0) {
-		msleep(500);
-		goto retry;
-	}
-
-	return read_cnt;
-}
-#else
-static ssize_t isfw_debug_read(struct file *file, char __user *user_buf,
-	size_t buf_len, loff_t *ppos)
-{
-	int ret = 0;
-	void *read_ptr;
-	size_t write_vptr, read_vptr, buf_vptr;
-	size_t read_cnt, read_cnt1, read_cnt2;
-	struct fimc_is_minfo *minfo;
-
-	while (!test_bit(FIMC_IS_DEBUG_OPEN, &fimc_is_debug.state))
-		msleep(500);
-
-	minfo = fimc_is_debug.minfo;
-
-retry:
-
-	write_vptr = *((int *)(minfo->kvaddr_debug_cnt));
-	read_vptr = fimc_is_debug.read_vptr;
-	buf_vptr = buf_len;
-
-	if (write_vptr >= read_vptr) {
-		read_cnt1 = write_vptr - read_vptr;
-		read_cnt2 = 0;
-	} else {
-		read_cnt1 = DEBUG_REGION_SIZE - read_vptr;
-		read_cnt2 = write_vptr;
-	}
-
-	if (buf_vptr && read_cnt1) {
-		read_ptr = (void *)(minfo->kvaddr_debug + fimc_is_debug.read_vptr);
-
-		if (read_cnt1 > buf_vptr)
-			read_cnt1 = buf_vptr;
-
-		ret = copy_to_user(user_buf, read_ptr, read_cnt1);
-		if (ret) {
-			err("[DBG] failed copying %d bytes of debug log\n", ret);
-			return ret;
-		}
-		fimc_is_debug.read_vptr += read_cnt1;
-		buf_vptr -= read_cnt1;
-	}
-
-	if (fimc_is_debug.read_vptr >= DEBUG_REGION_SIZE) {
-		if (fimc_is_debug.read_vptr > DEBUG_REGION_SIZE)
-			err("[DBG] read_vptr(%zd) is invalid", fimc_is_debug.read_vptr);
-		fimc_is_debug.read_vptr = 0;
-	}
-
-	if (buf_vptr && read_cnt2) {
-		read_ptr = (void *)(minfo->kvaddr_debug + fimc_is_debug.read_vptr);
+		read_ptr = (void *)(minfo->kvaddr + FIMC_IS_DEBUG_OFFSET + fimc_is_debug.read_vptr);
 
 		if (read_cnt2 > buf_vptr)
 			read_cnt2 = buf_vptr;
@@ -878,7 +680,58 @@ retry:
 	return read_cnt;
 }
 
-#endif
+int imgdump_request(ulong cookie, ulong kvaddr, size_t size)
+{
+	if (fimc_is_debug.dump_count && (fimc_is_debug.size == 0) && (fimc_is_debug.img_kvaddr == 0)) {
+		fimc_is_debug.dump_count--;
+		fimc_is_debug.img_cookie = cookie;
+		fimc_is_debug.img_kvaddr = kvaddr;
+		fimc_is_debug.size = size;
+	}
+
+	return 0;
+}
+
+static int imgdump_debug_open(struct inode *inode, struct file *file)
+{
+	if (inode->i_private)
+		file->private_data = inode->i_private;
+
+	return 0;
+}
+
+static ssize_t imgdump_debug_read(struct file *file, char __user *user_buf,
+	size_t buf_len, loff_t *ppos)
+{
+	size_t size = 0;
+	int ret = 0;
+
+	if (buf_len <= fimc_is_debug.size)
+		size = buf_len;
+	else
+		size = fimc_is_debug.size;
+
+	if (size) {
+		vb2_ion_sync_for_device((void *)fimc_is_debug.img_cookie, 0, size, DMA_FROM_DEVICE);
+		ret = copy_to_user(user_buf, (void *)fimc_is_debug.img_kvaddr, size);
+		if (ret) {
+			err("[DBG] failed copying %d bytes of debug log\n", ret);
+			return ret;
+		}
+		info("DUMP : %p, SIZE : %zd\n", (void *)fimc_is_debug.img_kvaddr, size);
+	}
+
+	fimc_is_debug.img_cookie += size;
+	fimc_is_debug.img_kvaddr += size;
+	fimc_is_debug.size -= size;
+
+	if (size == 0) {
+		fimc_is_debug.img_cookie = 0;
+		fimc_is_debug.img_kvaddr = 0;
+	}
+
+	return size;
+}
 
 static const struct file_operations debug_log_fops = {
 	.open	= isfw_debug_open,
@@ -886,221 +739,8 @@ static const struct file_operations debug_log_fops = {
 	.llseek	= default_llseek
 };
 
-#ifdef ENABLE_DBG_EVENT
-struct seq_file *seq_f;
-
-/* this func for print seq_msg
-in fimc_is_debug_event_add(callfunc)  */
-void fimc_is_dbg_print(char *fmt, ...)
-{
-	char buf[512] = {0, };
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsprintf(buf, fmt, ap);
-	va_end(ap);
-	seq_printf(seq_f, buf);
-}
-
-static int fimc_is_event_show(struct seq_file *s, void *unused)
-{
-	struct fimc_is_debug_event *event_log = s->private;
-
-	fimc_is_debug_info_dump(s, event_log);
-
-	return 0;
-}
-
-static int fimc_is_debug_event_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, fimc_is_event_show, inode->i_private);
-}
-
-void fimc_is_debug_event_add(fimc_is_event_store_type_t event_store_type, char *msg, void (*callfunc)(void *), void *ptrdata, u32 datasize)
-{
-	int index;
-	unsigned int len;
-	u8 *buf = NULL;
-	struct fimc_is_debug_event_log *event_log;
-	unsigned long flag;
-	unsigned int log_num;
-
-	if (fimc_is_debug_event.log_enable == 0)
-		return;
-
-	len = strlen(msg);
-	if (len >= EVENT_STR_MAX)
-		len = EVENT_STR_MAX - 2;
-
-	if (len) {
-		buf = vmalloc(len + 1);
-		if (!buf) {
-			warn("buf alloc fail..!");
-		}
-		else {
-			strncpy(buf, msg, len + 1);
-			buf[len] = '\0';
-		}
-	} else {
-		info("no debug message stored");
-	}
-
-	spin_lock_irqsave(&fimc_is_debug_event.slock, flag);
-
-	switch (event_store_type) {
-	case FIMC_IS_EVENT_CRITICAL:
-		index = atomic_read(&fimc_is_debug_event.critical_log_tail);
-		if (index >= FIMC_IS_EVENT_MAX_NUM - 1) {
-			warn("critical event log buffer full...!");
-			spin_unlock_irqrestore(&fimc_is_debug_event.slock, flag);
-			return;
-		} else {
-			index = atomic_inc_return(&fimc_is_debug_event.critical_log_tail);
-		}
-		event_log = &fimc_is_debug_event.event_log_critical[index];
-		break;
-	case FIMC_IS_EVENT_NORMAL:
-		index = atomic_inc_return(&fimc_is_debug_event.normal_log_tail);
-		if (index >= FIMC_IS_EVENT_MAX_NUM - 1) {
-			index = index % FIMC_IS_EVENT_MAX_NUM;
-			if (fimc_is_debug_event.event_log_normal[index].ptrdata != NULL)
-				vfree(fimc_is_debug_event.event_log_normal[index].ptrdata);
-			if (fimc_is_debug_event.event_log_normal[index].dbg_msg != NULL)
-				vfree(fimc_is_debug_event.event_log_normal[index].dbg_msg);
-		}
-		event_log = &fimc_is_debug_event.event_log_normal[index];
-		break;
-	default:
-		break;
-	}
-
-	log_num = atomic_inc_return(&fimc_is_debug_event.event_index);
-	spin_unlock_irqrestore(&fimc_is_debug_event.slock, flag);
-
-	event_log->dbg_msg = buf;
-	event_log->dbg_msg_size = len + 1;
-	event_log->log_num = log_num;
-	event_log->event_store_type = event_store_type;
-	event_log->callfunc = callfunc;
-	event_log->datasize = datasize;
-	if (datasize) {
-		event_log->ptrdata = vmalloc(datasize);
-		memcpy(event_log->ptrdata, ptrdata, datasize);
-	} else {
-		event_log->ptrdata = NULL;
-	}
-
-	event_log->time = ktime_get();
-
-
-	return;
-}
-
-int fimc_is_debug_info_dump(struct seq_file *s, struct fimc_is_debug_event *debug_event)
-{
-	int index = atomic_read(&fimc_is_debug_event.event_index);
-	int index_normal = 0;
-	int latest_normal = atomic_read(&fimc_is_debug_event.normal_log_tail);
-	int index_critical = 0;
-	int latest_critical = atomic_read(&fimc_is_debug_event.critical_log_tail);
-	bool normal_done = 0;
-	bool critical_done = 0;
-	struct timeval tv;
-	ktime_t prev_ktime;
-	struct fimc_is_debug_event_log *log_critical;
-	struct fimc_is_debug_event_log *log_normal;
-	struct fimc_is_debug_event_log *log_print;
-
-	unsigned int log_num_normal;
-	unsigned int log_num_critical;
-	bool log_normal_en;
-	bool log_critical_en;
-
-	seq_f = s;
-	seq_printf(s, "------------------- FIMC-IS EVENT LOGGER - START --------------\n");
-
-	if (index < 0)
-		return -1;
-
-	if (latest_normal < 0)
-		normal_done = 1; /* normal log empty */
-	else if (latest_normal > FIMC_IS_EVENT_MAX_NUM - 1)
-		index_normal = (latest_normal % FIMC_IS_EVENT_MAX_NUM) + 1;
-	else
-		index_normal = 0;
-
-	latest_normal = latest_normal % FIMC_IS_EVENT_MAX_NUM;
-
-	if (latest_critical < 0)
-		critical_done = 1; /* critical log empty */
-
-	prev_ktime = ktime_set(0, 0);
-
-	if ((fimc_is_debug_event.logfilter) & FIMC_IS_EVENT_NORMAL)
-		log_normal_en = 1;
-	else
-		log_normal_en = 0;
-
-	if ((fimc_is_debug_event.logfilter) & FIMC_IS_EVENT_CRITICAL)
-		log_critical_en = 1;
-	else
-		log_critical_en = 0;
-
-	while (!(normal_done) || !(critical_done)) {
-
-		index_normal = index_normal % FIMC_IS_EVENT_MAX_NUM;
-		log_num_normal = fimc_is_debug_event.event_log_normal[index_normal].log_num;
-		log_num_critical = fimc_is_debug_event.event_log_critical[index_critical].log_num;
-
-		if (normal_done)
-			log_num_normal = 0xffffffff;
-		if (critical_done)
-			log_num_critical = 0xffffffff;
-
-		log_normal = &fimc_is_debug_event.event_log_normal[index_normal];
-		log_critical = &fimc_is_debug_event.event_log_critical[index_critical];
-
-		if (!normal_done) {
-			if (latest_normal == index_normal)
-				normal_done = 1;
-		}
-
-		if (!critical_done) {
-			if (latest_critical == index_critical)
-				critical_done = 1;
-		}
-
-		if (log_num_normal < log_num_critical) {
-			log_print = log_normal;
-			if (!normal_done)
-				index_normal++;
-			if (!log_normal_en)
-				continue;
-		} else {
-			log_print = log_critical;
-			if (!critical_done)
-				index_critical++;
-			if (!log_critical_en)
-				continue;
-		}
-
-		tv = ktime_to_timeval(log_print->time);
-		seq_printf(s, "[%6ld.%06ld] num(%d) ", tv.tv_sec, tv.tv_usec, log_print->log_num);
-		seq_printf(s, "%s\n", log_print->dbg_msg);
-
-		if (log_print->callfunc != NULL)
-			log_print->callfunc(log_print->ptrdata);
-
-	}
-
-	seq_printf(s, "------------------- FIMC-IS EVENT LOGGER - END ----------------\n");
-	return 0;
-}
-
-static const struct file_operations debug_event_fops = {
-	.open = fimc_is_debug_event_open,
-	.read = seq_read,
-	.llseek = seq_lseek,
-	.release = seq_release,
+static const struct file_operations debug_img_fops = {
+	.open	= imgdump_debug_open,
+	.read	= imgdump_debug_read,
+	.llseek	= default_llseek
 };
-#endif

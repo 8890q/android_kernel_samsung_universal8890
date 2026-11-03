@@ -102,8 +102,8 @@ int fimc_is_itf_open_wrap(struct fimc_is_device_ischain *device, u32 module_id,
 	ret = fimc_is_hw_open(device->interface,
 		device->instance,
 		module_id,
-		device->dvaddr_shared,
-		device->dvaddr_shared + (offset_path * 4),
+		device->imemory.dvaddr_shared,
+		device->imemory.dvaddr_shared + (offset_path * 4),
 		flag,
 		&device->margin_width,
 		&device->margin_height);
@@ -129,13 +129,13 @@ int fimc_is_itf_close_wrap(struct fimc_is_device_ischain *device)
 }
 
 int fimc_is_itf_setaddr_wrap(struct fimc_is_interface *itf,
-	struct fimc_is_device_ischain *device, ulong *setfile_addr)
+	struct fimc_is_device_ischain *device, u32 *setfile_addr)
 {
 	int ret = 0;
 
 	mdbgd_ischain("%s\n", device, __func__);
 
-	ret = fimc_is_hw_saddr(itf, device->instance, (u32 *)setfile_addr);
+	ret = fimc_is_hw_saddr(itf, device->instance, setfile_addr);
 	if (ret)
 		merr("fimc_is_hw_saddr is fail(%d)", device, ret);
 
@@ -241,11 +241,6 @@ int fimc_is_itf_process_off_wrap(struct fimc_is_device_ischain *device, u32 grou
 					group, fstop);
 
 	return ret;
-}
-
-void fimc_is_itf_sudden_stop_wrap(struct fimc_is_device_ischain *device, u32 instance)
-{
-	return;
 }
 
 int fimc_is_itf_power_down_wrap(struct fimc_is_interface *interface, u32 instance)

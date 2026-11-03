@@ -234,17 +234,17 @@ int set_position(struct fimc_is_sensor_interface *itf, u32 position)
 	 *	10 pre_frame_cnt, pre_position possible
 	 */
 	if (itf->otf_flag_3aa == false) {
-		sensor_peri->actuator->actuator_index ++;
-		index = sensor_peri->actuator->actuator_index;
+		sensor_peri->actuator.actuator_index ++;
+		index = sensor_peri->actuator.actuator_index;
 
 		if (index > 9) {
 			warn("not setting M2M AF, check M2M mode or M2M AF timer setting\n");
-			index = sensor_peri->actuator->actuator_index = 9;
+			index = sensor_peri->actuator.actuator_index = 9;
 		}
 
 		cur_frame_cnt = get_frame_count(itf);
-		sensor_peri->actuator->pre_position[index] = position;
-		sensor_peri->actuator->pre_frame_cnt[index] = cur_frame_cnt;
+		sensor_peri->actuator.pre_position[index] = position;
+		sensor_peri->actuator.pre_frame_cnt[index] = cur_frame_cnt;
 
 		dbg_sensor("%s: cur_frame_cnt(%d), position(%d), index(%d)\n", __func__,
 			cur_frame_cnt, position, index);
@@ -391,10 +391,10 @@ int set_af_window_position(struct fimc_is_sensor_interface *itf, u32 left_x, u32
 	sensor_peri = container_of(itf, struct fimc_is_device_sensor_peri, sensor_interface);
 	BUG_ON(!sensor_peri);
 
-	sensor_peri->actuator->left_x = left_x;
-	sensor_peri->actuator->left_y = left_y;
-	sensor_peri->actuator->right_x = right_x;
-	sensor_peri->actuator->right_y = right_y;
+	sensor_peri->actuator.left_x = left_x;
+	sensor_peri->actuator.left_y = left_y;
+	sensor_peri->actuator.right_x = right_x;
+	sensor_peri->actuator.right_y = right_y;
 
 	dbg_sensor("%s: leftX(%d), leftY(%d), rightX(%d), rightY(%d)\n", __func__, left_x, left_y, right_x, right_y);
 	return ret;

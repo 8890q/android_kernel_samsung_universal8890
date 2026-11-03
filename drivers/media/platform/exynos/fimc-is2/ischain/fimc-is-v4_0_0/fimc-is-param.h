@@ -1246,6 +1246,20 @@ struct srational_t {
 #define FLASH_RED_EYE_DISABLED		0
 #define FLASH_RED_EYE_SUPPORTED		1
 
+enum apex_aperture_value {
+	F1_0		= 0,
+	F1_4		= 1,
+	F2_0		= 2,
+	F2_8		= 3,
+	F4_0		= 4,
+	F5_6		= 5,
+	F8_9		= 6,
+	F11_0		= 7,
+	F16_0		= 8,
+	F22_0		= 9,
+	F32_0		= 10,
+};
+
 struct exif_attribute {
 	struct rational_t exposure_time;
 	struct srational_t shutter_speed;

@@ -13,7 +13,7 @@
 #include "fimc-is-config.h"
 #include "fimc-is-hw-api-common.h"
 
-u32 fimc_is_hw_get_reg(void __iomem *base_addr, const struct fimc_is_reg *reg)
+u32 fimc_is_hw_get_reg(void __iomem *base_addr, struct fimc_is_reg *reg)
 {
 	u32 reg_value;
 
@@ -25,7 +25,7 @@ u32 fimc_is_hw_get_reg(void __iomem *base_addr, const struct fimc_is_reg *reg)
 	return reg_value;
 }
 
-void fimc_is_hw_set_reg(void __iomem *base_addr, const struct fimc_is_reg *reg, u32 val)
+void fimc_is_hw_set_reg(void __iomem *base_addr, struct fimc_is_reg *reg, u32 val)
 {
 #ifdef DEBUG_HW_SFR
 	sfrinfo("[SET_REG] reg:[%s][0x%04X], reg_value(W):[0x%08X]\n",
@@ -34,8 +34,8 @@ void fimc_is_hw_set_reg(void __iomem *base_addr, const struct fimc_is_reg *reg, 
 	writel(val, base_addr + reg->sfr_offset);
 }
 
-u32 fimc_is_hw_get_field(void __iomem *base_addr, const struct fimc_is_reg *reg,
-	const struct fimc_is_field *field)
+u32 fimc_is_hw_get_field(void __iomem *base_addr, struct fimc_is_reg *reg,
+	struct fimc_is_field *field)
 {
 	u32 reg_value;
 	u32 field_value;
@@ -49,8 +49,8 @@ u32 fimc_is_hw_get_field(void __iomem *base_addr, const struct fimc_is_reg *reg,
 	return field_value;
 }
 
-void fimc_is_hw_set_field(void __iomem *base_addr, const struct fimc_is_reg *reg,
-	const struct fimc_is_field *field, u32 val)
+void fimc_is_hw_set_field(void __iomem *base_addr, struct fimc_is_reg *reg,
+	struct fimc_is_field *field, u32 val)
 {
 	u32 reg_value;
 
@@ -67,22 +67,15 @@ void fimc_is_hw_set_field(void __iomem *base_addr, const struct fimc_is_reg *reg
 	writel(reg_value, base_addr + (reg->sfr_offset));
 }
 
-u32 fimc_is_hw_get_field_value(u32 reg_value, const struct fimc_is_field *field)
+u32 fimc_is_hw_get_field_value(u32 reg_value, struct fimc_is_field *field)
 {
-	u32 field_mask = 0;
-	u32 field_value = 0;
-
-	field_mask = (field->bit_width >= 32) ? 0xFFFFFFFF : ((1 << field->bit_width) - 1);
-	field_value = (reg_value >> (field->bit_start)) & (field_mask);
-
+	u32 field_value = (reg_value >> (field->bit_start)) & ((1 << (field->bit_width)) - 1);
 	return field_value;
 }
 
-u32 fimc_is_hw_set_field_value(u32 reg_value, const struct fimc_is_field *field, u32 val)
+u32 fimc_is_hw_set_field_value(u32 reg_value, struct fimc_is_field *field, u32 val)
 {
-	u32 field_mask = 0;
-
-	field_mask = (field->bit_width >= 32) ? 0xFFFFFFFF : ((1 << field->bit_width) - 1);
+	u32 field_mask = (1 << field->bit_width) - 1;
 
 	/* bit clear */
 	reg_value &= ~(field_mask << field->bit_start);
@@ -93,7 +86,7 @@ u32 fimc_is_hw_set_field_value(u32 reg_value, const struct fimc_is_field *field,
 	return reg_value;
 }
 
-void fimc_is_hw_dump_regs(void __iomem *base_addr, const struct fimc_is_reg *regs, u32 total_cnt)
+void fimc_is_hw_dump_regs(void __iomem *base_addr, struct fimc_is_reg *regs, u32 total_cnt)
 {
 	u32 i = 0;
 	u32 reg_value = 0;

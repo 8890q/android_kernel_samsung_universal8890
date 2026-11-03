@@ -138,7 +138,6 @@ static const struct of_device_id exynos_fimc_is_sensor_eeprom_match[] = {
 static const struct i2c_device_id sensor_eeprom_idt[] = {
 	{ DRIVER_NAME_REAR, REAR_DATA },
 	{ DRIVER_NAME_FRONT, FRONT_DATA },
-	{},
 };
 
 static struct i2c_driver sensor_eeprom_driver = {

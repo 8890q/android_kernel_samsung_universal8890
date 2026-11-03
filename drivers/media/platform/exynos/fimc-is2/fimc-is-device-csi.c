@@ -485,9 +485,7 @@ static int csi_s_param(struct v4l2_subdev *subdev, struct v4l2_streamparm *param
 	return ret;
 }
 
-static int csi_s_format(struct v4l2_subdev *subdev,
-	struct v4l2_subdev_pad_config *cfg,
-	struct v4l2_subdev_format *fmt)
+static int csi_s_format(struct v4l2_subdev *subdev, struct v4l2_mbus_framefmt *fmt)
 {
 	int ret = 0;
 	struct fimc_is_device_csi *csi;
@@ -503,14 +501,14 @@ static int csi_s_format(struct v4l2_subdev *subdev,
 
 	csi->image.window.offs_h = 0;
 	csi->image.window.offs_v = 0;
-	csi->image.window.width = fmt->format.width;
-	csi->image.window.height = fmt->format.height;
-	csi->image.window.o_width = fmt->format.width;
-	csi->image.window.o_height = fmt->format.height;
-	csi->image.format.pixelformat = fmt->format.code;
-	csi->image.format.field = fmt->format.field;
+	csi->image.window.width = fmt->width;
+	csi->image.window.height = fmt->height;
+	csi->image.window.o_width = fmt->width;
+	csi->image.window.o_height = fmt->height;
+	csi->image.format.pixelformat = fmt->code;
+	csi->image.format.field = fmt->field;
 
-	mdbgd_front("%s(%dx%d, %X)\n", csi, __func__, fmt->format.width, fmt->format.height, fmt->format.code);
+	mdbgd_front("%s(%dx%d, %X)\n", csi, __func__, fmt->width, fmt->height, fmt->code);
 	return ret;
 }
 
@@ -522,17 +520,24 @@ static int csi_s_buffer(struct v4l2_subdev *subdev, void *buf, unsigned int *siz
 static const struct v4l2_subdev_video_ops video_ops = {
 	.s_stream = csi_s_stream,
 	.s_parm = csi_s_param,
+
 	.s_rx_buffer = csi_s_buffer
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return csi_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = csi_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 int fimc_is_csi_probe(void *parent, u32 instance)
@@ -570,8 +575,6 @@ int fimc_is_csi_probe(void *parent, u32 instance)
 		goto err_get_resource;
 	}
 
-	csi->regs_start = mem_res->start;
-	csi->regs_end = mem_res->end;
 	csi->base_reg =  devm_ioremap_nocache(&pdev->dev, mem_res->start, resource_size(mem_res));
 	if (!csi->base_reg) {
 		probe_err("Failed to remap io region(%p)", csi->base_reg);

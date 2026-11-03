@@ -12,8 +12,6 @@
 #ifndef FIMC_IS_DEBUG_H
 #define FIMC_IS_DEBUG_H
 
-#include "fimc-is-video.h"
-
 #define DEBUG_SENTENCE_MAX		300
 
 #ifdef DBG_DRAW_DIGIT
@@ -24,54 +22,46 @@
 #define DBG_DIGIT_MARGIN_H_INIT	64
 #define DBG_DIGIT_MARGIN_W	8
 #define DBG_DIGIT_MARGIN_H	2
-#define DBG_DIGIT_TAG(row, col, queue, frame, digit, i)	\
+#define DBG_DIGIT_TAG(row, col, queue, frame, digit)	\
 	do {		\
 		ulong addr;	\
 		u32 width, height, pixelformat, bitwidth;		\
-		addr = queue->buf_kva[frame->index][i];			\
-		width = (frame->width) ? frame->width : queue->framecfg.width;	\
-		height = (frame->height) ? frame->height : queue->framecfg.height;	\
+		addr = queue->buf_kva[frame->index][0];			\
+		width = queue->framecfg.width;				\
+		height = queue->framecfg.height;			\
 		pixelformat = queue->framecfg.format->pixelformat;	\
 		bitwidth = queue->framecfg.format->bitwidth;		\
 		fimc_is_draw_digit(addr, width, height, pixelformat, bitwidth,	\
 				row, col, digit);			\
 	} while(0)
 #else
-#define DBG_DIGIT_TAG(row, col, queue, frame, digit, i)
-#endif
-
-#ifdef ENABLE_DBG_EVENT
-#define FIMC_IS_EVENT_MAX_NUM SZ_4K
-#define EVENT_STR_MAX 256
+#define DBG_DIGIT_TAG(row, col, queue, frame, digit)
 #endif
 
 enum fimc_is_debug_state {
 	FIMC_IS_DEBUG_OPEN
 };
 
-enum dbg_dma_dump_type {
-	DBG_DMA_DUMP_IMAGE,
-	DBG_DMA_DUMP_META,
-};
-
 struct fimc_is_debug {
 	struct dentry		*root;
-	struct dentry		*imgfile;
-#ifdef ENABLE_DBG_EVENT
-	struct dentry		*event_dir;
-#endif
 	struct dentry		*logfile;
+	struct dentry		*imgfile;
 
 	/* log dump */
 	size_t			read_vptr;
 	struct fimc_is_minfo	*minfo;
+
+	/* image dump */
+	u32			dump_count;
+	ulong			img_cookie;
+	ulong			img_kvaddr;
+	size_t			size;
 
 	/* debug message */
 	size_t			dsentence_pos;
 	char			dsentence[DEBUG_SENTENCE_MAX];
 
 	unsigned long		state;
-
 };
 
 extern struct fimc_is_debug fimc_is_debug;
@@ -84,7 +74,6 @@ void fimc_is_dmsg_init(void);
 void fimc_is_dmsg_concate(const char *fmt, ...);
 char *fimc_is_dmsg_print(void);
 void fimc_is_print_buffer(char *buffer, size_t len);
-int fimc_is_debug_dma_dump(struct fimc_is_queue *queue, u32 index, u32 vid, u32 type);
 #ifdef DBG_DRAW_DIGIT
 void fimc_is_draw_digit(ulong addr, int width, int height, u32 pixelformat,
 		u32 bitwidth, int row_index, int col_index, u64 digit);
@@ -92,48 +81,4 @@ void fimc_is_draw_digit(ulong addr, int width, int height, u32 pixelformat,
 
 int imgdump_request(ulong cookie, ulong kvaddr, size_t size);
 
-#ifdef ENABLE_DBG_EVENT
-extern struct fimc_is_debug_event fimc_is_debug_event;
-
-typedef enum fimc_is_event_store_type {
-	/* normal log - full then replace first normal log buffer */
-	FIMC_IS_EVENT_NORMAL = 0x1,
-	/* critical log - full then stop to add log to critical log buffer*/
-	FIMC_IS_EVENT_CRITICAL = 0x2,
-	FIMC_IS_EVENT_ALL = 0x3,
-
-	_FIMC_IS_event_store_type_DUMMY = 0xFFFFFFFF
-} fimc_is_event_store_type_t;
-
-struct fimc_is_debug_event_log {
-	unsigned int log_num;
-	ktime_t time;
-	fimc_is_event_store_type_t event_store_type;
-	char *dbg_msg;
-	u32 dbg_msg_size;
-	void (*callfunc)(void *);
-	void *ptrdata;
-	u32 datasize;
-};
-
-struct fimc_is_debug_event {
-	struct dentry		*log_print_filter;
-	struct dentry		*log;
-	struct dentry		*logenable;
-
-	spinlock_t		slock;
-	atomic_t event_index;
-	atomic_t critical_log_tail;
-	atomic_t normal_log_tail;
-	u32 log_enable;
-	u32 logfilter;
-
-	struct fimc_is_debug_event_log event_log_critical[FIMC_IS_EVENT_MAX_NUM];
-	struct fimc_is_debug_event_log event_log_normal[FIMC_IS_EVENT_MAX_NUM];
-};
-
-void fimc_is_debug_event_add(u32 event_type, char *msg, void (*callfunc)(void *), void *ptrdata, u32 datasize);
-void fimcis_dbg_print(char *fmt, ...);
-int fimc_is_debug_info_dump(struct seq_file *s, struct fimc_is_debug_event *debug_event);
-#endif
 #endif

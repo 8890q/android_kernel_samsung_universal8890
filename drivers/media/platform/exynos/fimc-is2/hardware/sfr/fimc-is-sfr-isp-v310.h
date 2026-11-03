@@ -13,30 +13,30 @@
 
 #include "fimc-is-hw-api-common.h"
 
+#define ISP_REG_CNT 4
 enum fimc_is_isp_reg_name {
 	ISP_R_BCROP1_START_X,
 	ISP_R_BCROP1_START_Y,
 	ISP_R_BCROP1_SIZE_X,
 	ISP_R_BCROP1_SIZE_Y,
-	ISP_REG_CNT
 };
 
-static const struct fimc_is_reg isp_regs[ISP_REG_CNT] = {
+static struct fimc_is_reg isp_regs[ISP_REG_CNT] = {
 	{0x4104, "BCROP1_START_X"},
 	{0x4108, "BCROP1_START_Y"},
 	{0x410c, "BCROP1_SIZE_X"},
 	{0x4110, "BCROP1_SIZE_Y"},
 };
 
+#define ISP_REG_FIELD_CNT 4
 enum fimc_is_isp_reg_field {
 	ISP_F_BCROP1_START_X,
 	ISP_F_BCROP1_START_Y,
 	ISP_F_BCROP1_SIZE_X,
 	ISP_F_BCROP1_SIZE_Y,
-	ISP_REG_FIELD_CNT
 };
 
-static const struct fimc_is_field isp_fields[ISP_REG_FIELD_CNT] = {
+static struct fimc_is_field isp_fields[ISP_REG_FIELD_CNT] = {
 	/* 1. sfr addr 2. register name 3. bit start 4. bit width 5. access type 6. reset */
 	{"BCROP1_START_X",		0,	14,	RWS,	0},		/* BCROP1_START_X */
 	{"BCROP1_START_Y",		0,	14,	RWS,	0},		/* BCROP1_START_Y */

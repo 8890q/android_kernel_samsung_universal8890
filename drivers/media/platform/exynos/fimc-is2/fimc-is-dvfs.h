@@ -34,12 +34,10 @@
 #define GET_DVFS_CHK_FUNC(__SCENARIO) check_ ## __SCENARIO
 #define DECLARE_DVFS_CHK_FUNC(__SCENARIO) \
 	int check_ ## __SCENARIO \
-		(struct fimc_is_device_ischain *device, struct fimc_is_group *group, int position, int resol, \
-			int fps, int stream_cnt, unsigned long sensor_map, struct fimc_is_dual_info *dual_info, ...)
+		(struct fimc_is_device_ischain *device, struct fimc_is_group *group, int position, int resol, int fps, int stream_cnt, ...)
 #define DECLARE_EXT_DVFS_CHK_FUNC(__SCENARIO) \
 	int check_ ## __SCENARIO \
-		(struct fimc_is_device_sensor *device, int position, int resol, int fps, \
-			int stream_cnt, unsigned long sensor_map, struct fimc_is_dual_info *dual_info, ...)
+		(struct fimc_is_device_sensor *device, int position, int resol, int fps, int stream_cnt, ...)
 #define GET_KEY_FOR_DVFS_TBL_IDX(__HAL_VER) \
 	(#__HAL_VER "_TBL_IDX")
 
@@ -64,10 +62,9 @@ struct fimc_is_dvfs_scenario {
 	int keep_frame_tick;	/* keep qos lock during specific frames when dynamic scenario */
 
 	/* function pointer to check a scenario */
-	int (*check_func)(struct fimc_is_device_ischain *device, struct fimc_is_group *group, int position, int resol,
-			int fps, int stream_cnt, unsigned long sensor_map, struct fimc_is_dual_info *dual_info, ...);
-	int (*ext_check_func)(struct fimc_is_device_sensor *device, int position, int resol,
-			int fps, int stream_cnt, unsigned long sensor_map, struct fimc_is_dual_info *dual_info, ...);
+	int (*check_func)(struct fimc_is_device_ischain *device, struct fimc_is_group *group,
+			int position, int resol, int fps, int stream_cnt, ...);
+	int (*ext_check_func)(struct fimc_is_device_sensor *device, int position, int resol, int fps, int stream_cnt, ...);
 };
 
 struct fimc_is_dvfs_scenario_ctrl {
@@ -77,9 +74,6 @@ struct fimc_is_dvfs_scenario_ctrl {
 	int cur_scenario_idx;	/* selected scenario idx for scenarios */
 	struct fimc_is_dvfs_scenario *scenarios;
 };
-
-int fimc_is_get_start_sensor_cnt(struct fimc_is_core *core);
-int fimc_is_get_target_resol(struct fimc_is_device_ischain *device);
 
 int fimc_is_dvfs_init(struct fimc_is_resourcemgr *resourcemgr);
 int fimc_is_dvfs_sel_table(struct fimc_is_resourcemgr *resourcemgr);

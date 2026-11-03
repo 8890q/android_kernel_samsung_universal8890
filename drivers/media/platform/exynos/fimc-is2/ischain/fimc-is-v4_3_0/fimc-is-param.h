@@ -607,16 +607,6 @@ enum scaler_output_yuv_range {
 	SCALER_OUTPUT_YUV_RANGE_NARROW = 1,
 };
 
-/* --------------------------  MCSCALER  ----------------------------------- */
-enum mcsc_output_index {
-	MCSC_OUTPUT0				= 0,
-	MCSC_OUTPUT1				= 1,
-	MCSC_OUTPUT2				= 2,
-	MCSC_OUTPUT3				= 3,
-	MCSC_OUTPUT4				= 4,
-	MCSC_OUTPUT_MAX
-};
-
 /* --------------------------  3DNR  ----------------------------------- */
 enum tdnr_1st_frame_command {
 	TDNR_1ST_FRAME_COMMAND_NOPROCESSING	= 0,
@@ -1087,19 +1077,11 @@ struct param_mcs_input {
 	u32	plane;
 	u32	width;
 	u32	height;
-#if !defined(ENABLE_IS_CORE)
-	u32	dma_stride_y;
-	u32	dma_stride_c;
-#endif
 	u32	dma_crop_offset_x;
 	u32	dma_crop_offset_y;
 	u32	dma_crop_width;
 	u32	dma_crop_height;
-#if !defined(ENABLE_IS_CORE)
-	u32	reserved[PARAMETER_MAX_MEMBER-18];
-#else
 	u32	reserved[PARAMETER_MAX_MEMBER-16];
-#endif
 	u32	err;
 };
 
@@ -1131,7 +1113,11 @@ struct param_mcs_output {
 struct mcs_param {
 	struct param_control			control;
 	struct param_mcs_input			input;
-	struct param_mcs_output			output[MCSC_OUTPUT_MAX];
+	struct param_mcs_output			output0;
+	struct param_mcs_output			output1;
+	struct param_mcs_output			output2;
+	struct param_mcs_output			output3;
+	struct param_mcs_output			output4;
 };
 
 struct scp_param {
@@ -1244,6 +1230,20 @@ struct srational_t {
 #define FLASH_RED_EYE_SHIFT		6
 #define FLASH_RED_EYE_DISABLED		0
 #define FLASH_RED_EYE_SUPPORTED		1
+
+enum apex_aperture_value {
+	F1_0		= 0,
+	F1_4		= 1,
+	F2_0		= 2,
+	F2_8		= 3,
+	F4_0		= 4,
+	F5_6		= 5,
+	F8_9		= 6,
+	F11_0		= 7,
+	F16_0		= 8,
+	F22_0		= 9,
+	F32_0		= 10,
+};
 
 struct exif_attribute {
 	struct rational_t exposure_time;

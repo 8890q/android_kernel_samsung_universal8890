@@ -27,8 +27,8 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
-
 #include <exynos-fimc-is-sensor.h>
+
 #include "fimc-is-hw.h"
 #include "fimc-is-core.h"
 #include "fimc-is-device-sensor.h"
@@ -47,15 +47,7 @@ static struct fimc_is_sensor_cfg config_module_5e2[] = {
 	FIMC_IS_SENSOR_CFG(2560, 1920, 30, 19, 2, CSI_DATA_LANES_2),
 	/* 2560x1440@30fps */
 	FIMC_IS_SENSOR_CFG(2560, 1440, 30, 19, 3, CSI_DATA_LANES_2),
-
-	/* 2576x1936@30fps */
-	FIMC_IS_SENSOR_CFG(2576, 1936, 30, 19, 4, CSI_DATA_LANES_2),
-	/* 2576x1456@30fps */
-	FIMC_IS_SENSOR_CFG(2576, 1456, 30, 19, 5, CSI_DATA_LANES_2),
-	/* 1944x1936@30fps */
-	FIMC_IS_SENSOR_CFG(1944, 1936, 30, 19, 6, CSI_DATA_LANES_2),
 };
-
 
 static struct fimc_is_vci vci_module_5e2[] = {
 	{
@@ -80,17 +72,24 @@ static const struct v4l2_subdev_core_ops core_ops = {
 };
 
 static const struct v4l2_subdev_video_ops video_ops = {
-	.s_stream = sensor_module_s_stream
+	.s_stream = sensor_module_s_stream,
+
 };
 
+static int pad_set_fmt(struct v4l2_subdev *subdev,
+	struct v4l2_subdev_pad_config *cfg, struct v4l2_subdev_format *fmt)
+{
+	return sensor_module_s_format(subdev, &fmt->format);
+}
+
 static const struct v4l2_subdev_pad_ops pad_ops = {
-	.set_fmt = sensor_module_s_format
+	.set_fmt = pad_set_fmt,
 };
 
 static const struct v4l2_subdev_ops subdev_ops = {
 	.core = &core_ops,
 	.video = &video_ops,
-	.pad = &pad_ops
+	.pad = &pad_ops,
 };
 
 static int sensor_module_5e2_power_setpin(struct platform_device *pdev,
@@ -122,24 +121,6 @@ static int sensor_module_5e2_power_setpin(struct platform_device *pdev,
 	SET_PIN_INIT(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_ON);
 	SET_PIN_INIT(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_OFF);
 
-#ifdef CONFIG_SOC_EXYNOS7570
-	/* Normal On */
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "sen_rst low", PIN_OUTPUT, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "AVDD28_CAM", PIN_REGULATOR, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDD18_CAM_SENSOR_IO", PIN_REGULATOR, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "VDD12_CAM_CORE", PIN_REGULATOR, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "sen_rst high", PIN_OUTPUT, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "pin", PIN_FUNCTION, 2, 0);
-
-	/* Normal Off */
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "AVDD28_CAM", PIN_REGULATOR, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDD18_CAM_SENSOR_IO", PIN_REGULATOR, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "VDD12_CAM_CORE", PIN_REGULATOR, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 0, 0);
-	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_OFF, gpio_reset, "sen_rst", PIN_OUTPUT, 0, 0);
-#else
 	/* Normal On */
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_reset, "sen_rst low", PIN_OUTPUT, 0, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_NORMAL, GPIO_SCENARIO_ON, gpio_none, "cam_vddd", PIN_REGULATOR, 1, 0);
@@ -169,7 +150,6 @@ static int sensor_module_5e2_power_setpin(struct platform_device *pdev,
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_OFF, gpio_none, "cam_vddd", PIN_REGULATOR, 0, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_OFF, gpio_none, "pin", PIN_FUNCTION, 1, 0);
 	SET_PIN(pdata, SENSOR_SCENARIO_VISION, GPIO_SCENARIO_OFF, gpio_reset, "sen_rst", PIN_OUTPUT, 0, 0);
-#endif
 
 	dev_info(dev, "%s X v4\n", __func__);
 
@@ -191,7 +171,7 @@ int sensor_module_5e2_probe(struct platform_device *pdev)
 
 	core = (struct fimc_is_core *)dev_get_drvdata(fimc_is_dev);
 	if (!core) {
-		probe_info("core device is not yet probed");
+		probe_err("core device is not yet probed");
 		return -EPROBE_DEFER;
 	}
 
@@ -220,10 +200,6 @@ int sensor_module_5e2_probe(struct platform_device *pdev)
 	module->client = NULL;
 	module->active_width = 2560 + 16;
 	module->active_height = 1920 + 10;
-	module->margin_left = 0;
-	module->margin_right = 0;
-	module->margin_top = 0;
-	module->margin_bottom = 0;
 	module->pixel_width = module->active_width;
 	module->pixel_height = module->active_height;
 	module->max_framerate = 30;

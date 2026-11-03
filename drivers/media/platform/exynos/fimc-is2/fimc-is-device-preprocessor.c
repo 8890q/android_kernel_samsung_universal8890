@@ -389,7 +389,7 @@ static int fimc_is_preproc_gpio_on(struct fimc_is_device_preproc *device)
 			goto p_err;
 		}
 
-		ret = pdata->gpio_cfg(module, scenario, gpio_scenario);
+		ret = pdata->gpio_cfg(module->dev, scenario, gpio_scenario);
 		if (ret) {
 			clear_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
 			merr("gpio_cfg is fail(%d)", device, ret);
@@ -455,20 +455,6 @@ static int fimc_is_preproc_gpio_off(struct fimc_is_device_preproc *device)
 			goto p_err;
 		}
 
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-		/* Run FW/Data CRC on Close */
-		fimc_is_comp_i2c_config(core->client0, true);
-		ret = fimc_is_comp_run_CRC_on_Close(core);
-		if (!fimc_is_comp_check_CRC_Valid(core)) {
-			merr("crc is not valid", device); 
-		}
-		fimc_is_comp_i2c_config(core->client0, false);
-		if (ret) {
-			merr("fimc_is_comp_run_CRC_on_Close fail(%d)",
-				device, ret);
-		}
-#endif
-
 		pdata = module->pdata;
 		if (!pdata) {
 			set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
@@ -484,7 +470,7 @@ static int fimc_is_preproc_gpio_off(struct fimc_is_device_preproc *device)
 			goto p_err;
 		}
 
-		ret = pdata->gpio_cfg(module, scenario, gpio_scenario);
+		ret = pdata->gpio_cfg(module->dev, scenario, gpio_scenario);
 		if (ret) {
 			set_bit(FIMC_IS_MODULE_GPIO_ON, &module->state);
 			merr("gpio_cfg is fail(%d)", device, ret);
@@ -568,7 +554,6 @@ int fimc_is_preproc_close(struct fimc_is_device_preproc *device)
 		goto p_err;
 	}
 
-#ifndef CONFIG_USE_DIRECT_IS_CONTROL
 	/* gpio uninit */
 	ret = fimc_is_preproc_gpio_off(device);
 	if (ret) {
@@ -582,7 +567,6 @@ int fimc_is_preproc_close(struct fimc_is_device_preproc *device)
 		err("fimc_is_preproc_mclk_off is fail(%d)", ret);
 		goto p_err;
 	}
-#endif
 
 	ret = fimc_is_resource_put(device->resourcemgr, RESOURCE_TYPE_PREPROC);
 	if (ret)
@@ -668,7 +652,7 @@ static int fimc_is_preproc_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-#if defined(CONFIG_PM)
+#if defined(CONFIG_PM_RUNTIME)
 	pm_runtime_enable(&pdev->dev);
 #endif
 
@@ -717,30 +701,12 @@ int fimc_is_preproc_runtime_suspend(struct device *dev)
 		goto p_err;
 	}
 
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	/* gpio uninit */
-	ret = fimc_is_preproc_gpio_off(device);
-	if (ret) {
-		err("fimc_is_preproc_gpio_off is fail(%d)", ret);
-		goto p_err;
-	}
-#endif
-
 	/* periperal internal clock off */
 	ret = fimc_is_preproc_iclk_off(device);
 	if (ret) {
 		err("fimc_is_preproc_iclk_off is fail(%d)", ret);
 		goto p_err;
 	}
-
-#ifdef CONFIG_USE_DIRECT_IS_CONTROL
-	/* master clock off */
-	ret = fimc_is_preproc_mclk_off(device);
-	if (ret) {
-		err("fimc_is_preproc_mclk_off is fail(%d)", ret);
-		goto p_err;
-	}
-#endif
 
 	device->module = NULL;
 
@@ -812,7 +778,6 @@ int fimc_is_preproc_s_input(struct fimc_is_device_preproc *device,
 		goto p_err;
 	}
 
-retry:
 	/* gpio init */
 	ret = fimc_is_preproc_gpio_on(device);
 	if (ret) {
@@ -830,17 +795,6 @@ retry:
 	if (ret) {
 		err("fimc_is_vender_preproc_fw_load is fail(%d)", ret);
 		goto p_err;
-	}
-
-	if (vender->companion_crc_error == COMPANION_CRC_ERROR_OCCUR_ON_BOOT) {
-		err("companion_crc_error occurred retry -- off->on. (%d)", ret);
-		vender->companion_crc_error = COMPANION_CRC_ERROR_RESET_ON_BOOT;
-		ret = fimc_is_preproc_gpio_off(device);
-		if (ret) {
-			err("fimc_is_preproc_gpio_off is fail(%d)", ret);
-			goto p_err;
-		}
-		goto retry;
 	}
 
 	set_bit(FIMC_IS_PREPROC_S_INPUT, &device->state);
@@ -899,14 +853,14 @@ int fimc_is_preproc_fac_valid_check(struct fimc_is_device_preproc *device,
 		fimc_is_preproc_mclk_off(device);
 		goto p_err;
 	}
-
+    
 	ret = fimc_is_preproc_gpio_off(device);
 	if (ret) {
 		err("fimc_is_preproc_gpio_off is fail(%d)", ret);
 		fimc_is_preproc_mclk_off(device);
 		goto p_err;
 	}
-
+    
 	ret = fimc_is_preproc_mclk_off(device);
 	if (ret) {
 		err("fimc_is_preproc_mclk_off is fail(%d)", ret);

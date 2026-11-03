@@ -56,5 +56,4 @@ u32 fimc_is_vra_chain1_get_all_intr(void __iomem *base_addr);
 u32 fimc_is_vra_chain1_get_status_intr(void __iomem *base_addr);
 u32 fimc_is_vra_chain1_get_enable_intr(void __iomem *base_addr);
 void fimc_is_vra_chain1_set_clear_intr(void __iomem *base_addr, u32 value);
-u32 fimc_is_vra_chain1_get_image_mode(void __iomem *base_addr);
 #endif

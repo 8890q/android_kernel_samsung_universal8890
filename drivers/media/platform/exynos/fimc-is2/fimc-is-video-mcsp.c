@@ -138,6 +138,7 @@ p_err:
 	return ret;
 }
 
+void __iomem *hwfc_rst;
 int fimc_is_m3p_video_probe(void *data)
 {
 	int ret = 0;
@@ -166,6 +167,8 @@ int fimc_is_m3p_video_probe(void *data)
 		&fimc_is_mxp_video_ioctl_ops);
 	if (ret)
 		dev_err(&core->pdev->dev, "%s is fail(%d)\n", __func__, ret);
+
+	hwfc_rst = ioremap(0x14120850, SZ_4);
 
 p_err:
 	return ret;
@@ -494,8 +497,8 @@ static int fimc_is_mxp_video_dqbuf(struct file *file, void *priv,
 	if (ret)
 		merr("dqbuf is fail(%d)", vctx, ret);
 
-	/* hwfc reset during dqbuf timing */
-	fimc_is_hw_s_ctrl(vctx, vctx->video->id, HW_S_CTRL_HWFC_IDX_RESET, (void *)1);
+	if (vctx->video->id == FIMC_IS_VIDEO_M3P_NUM)
+		writel(0x1, hwfc_rst);
 
 	return ret;
 }
@@ -600,27 +603,13 @@ static int fimc_is_mxp_video_s_ctrl(struct file *file, void *priv,
 {
 	int ret = 0;
 	struct fimc_is_video_ctx *vctx = file->private_data;
-	struct fimc_is_device_ischain *device;
-	struct fimc_is_video *video;
 
 	BUG_ON(!vctx);
 	BUG_ON(!ctrl);
-	BUG_ON(!GET_DEVICE(vctx));
 
 	mdbgv_mxp("%s\n", vctx, __func__);
 
-	device = GET_DEVICE(vctx);
-	video = GET_VIDEO(vctx);
-
 	switch (ctrl->id) {
-	case V4L2_CID_IS_S_VRA_CONNECTION:
-		minfo("[M%dP:V] %s(%d->vra): %d\n", device, GET_MXP_ID(video), __func__,
-			GET_MXP_ID(video), ctrl->value);
-
-		if (ctrl->value == 1)
-			device->vid_to_vra = video->id;
-
-		break;
 	default:
 		ret = fimc_is_video_s_ctrl(file, vctx, ctrl);
 		if (ret) {
@@ -779,7 +768,7 @@ static void fimc_is_mxp_buffer_queue(struct vb2_buffer *vb)
 		return;
 	}
 
-	ret = fimc_is_subdev_buffer_queue(subdev, vb);
+	ret = fimc_is_subdev_buffer_queue(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_queue is fail(%d)", device, ret);
 		return;
@@ -803,7 +792,7 @@ static void fimc_is_mxp_buffer_finish(struct vb2_buffer *vb)
 	device = GET_DEVICE(vctx);
 	subdev = vctx->subdev;
 
-	ret = fimc_is_subdev_buffer_finish(subdev, vb);
+	ret = fimc_is_subdev_buffer_finish(subdev, vb->index);
 	if (ret) {
 		merr("fimc_is_subdev_buffer_finish is fail(%d)", device, ret);
 		return;
@@ -812,7 +801,6 @@ static void fimc_is_mxp_buffer_finish(struct vb2_buffer *vb)
 
 const struct vb2_ops fimc_is_mxp_qops = {
 	.queue_setup		= fimc_is_mxp_queue_setup,
-	.buf_init		= fimc_is_buffer_init,
 	.buf_prepare		= fimc_is_mxp_buffer_prepare,
 	.buf_queue		= fimc_is_mxp_buffer_queue,
 	.buf_finish		= fimc_is_mxp_buffer_finish,

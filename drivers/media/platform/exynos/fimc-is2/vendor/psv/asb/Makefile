@@ -1,1 +1,0 @@
-obj-$(CONFIG_SOC_EXYNOS7880) += 7880/

@@ -51,7 +51,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -70,7 +69,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = &device->ixp;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -86,7 +84,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -102,7 +99,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -123,7 +119,6 @@ int fimc_is_hw_group_cfg(void *group_data)
 		group->subdev[ENTRY_IXP] = NULL;
 		group->subdev[ENTRY_DRC] = NULL;
 		group->subdev[ENTRY_DIS] = NULL;
-		group->subdev[ENTRY_DXC] = NULL;
 		group->subdev[ENTRY_ODC] = NULL;
 		group->subdev[ENTRY_DNR] = NULL;
 		group->subdev[ENTRY_SCC] = NULL;
@@ -193,16 +188,4 @@ int fimc_is_hw_camif_open(void *sensor_data)
 int fimc_is_hw_ischain_cfg(void *ischain_data)
 {
 	return 0;
-}
-
-void __iomem *fimc_is_hw_get_sysreg(ulong core_regs)
-{
-	void *sysregs;
-
-	if (core_reg)
-		sysregs = (void *)core_regs;
-	else
-		sysregs = NULL;
-
-	return sysregs;
 }

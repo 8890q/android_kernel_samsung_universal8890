@@ -101,7 +101,6 @@ MODULE_DEVICE_TABLE(of, exynos_fimc_is_fpga_dphy_match);
 
 static const struct i2c_device_id fpga_dphy_idt[] = {
 	{ DPHY_NAME, 0 },
-	{},
 };
 
 static struct i2c_driver fpga_dphy_driver = {

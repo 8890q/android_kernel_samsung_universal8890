@@ -26,8 +26,6 @@ fimc-is-module-objs := fimc-is-module-6b2.o \
 		fimc-is-module-3m2.o \
 		fimc-is-module-5e2.o \
 		fimc-is-module-virtual-zebu.o \
-		fimc-is-module-dsim.o \
-		fimc-is-module-virtual.o \
 		fimc-is-module-3p3.o \
 		fimc-is-module-5e6.o
 
@@ -56,13 +54,12 @@ obj-$(CONFIG_CAMERA_SENSOR_IMX240_OBJ) += fimc-is-module-imx240.o
 obj-$(CONFIG_CAMERA_SENSOR_IMX219_OBJ) += fimc-is-module-imx219.o
 obj-$(CONFIG_CAMERA_SENSOR_IMX260_OBJ) += fimc-is-module-imx260.o
 obj-$(CONFIG_CAMERA_SENSOR_4H5_OBJ) += fimc-is-module-4h5.o
+obj-$(CONFIG_CAMERA_SENSOR_4H5YC_OBJ) += fimc-is-module-4h5yc.o
 obj-$(CONFIG_CAMERA_SENSOR_4E6_OBJ) += fimc-is-module-4e6.o
 obj-$(CONFIG_CAMERA_SENSOR_4E6_C2_OBJ) += fimc-is-module-4e6-c2.o
 obj-$(CONFIG_CAMERA_SENSOR_3M2_OBJ) += fimc-is-module-3m2.o
 obj-$(CONFIG_CAMERA_SENSOR_5E2_OBJ) += fimc-is-module-5e2.o
 obj-$(CONFIG_CAMERA_SENSOR_VIRTUAL_ZEBU_OBJ) += fimc-is-module-virtual-zebu.o
-obj-$(CONFIG_CAMERA_SENSOR_DSIM_OBJ) += fimc-is-module-dsim.o
-obj-$(CONFIG_CAMERA_SENSOR_VIRTUAL_OBJ) += fimc-is-module-virtual.o
 obj-$(CONFIG_CAMERA_SENSOR_3P3_OBJ) += fimc-is-module-3p3.o
 obj-$(CONFIG_CAMERA_SENSOR_5E6_OBJ) += fimc-is-module-5e6.o
 

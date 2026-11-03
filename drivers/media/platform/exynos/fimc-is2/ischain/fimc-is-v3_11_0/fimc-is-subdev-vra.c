@@ -27,6 +27,7 @@ static int fimc_is_ischain_vra_cfg(struct fimc_is_subdev *leader,
 	u32 *indexes)
 {
 	int ret = 0;
+	struct fimc_is_group *group;
 	struct param_otf_input *otf_input;
 	struct param_dma_input *dma_input;
 #ifdef ENABLE_FD_SW
@@ -46,6 +47,12 @@ static int fimc_is_ischain_vra_cfg(struct fimc_is_subdev *leader,
 
 	width = incrop->w;
 	height = incrop->h;
+	group = &device->group_vra;
+
+	if (!test_bit(FIMC_IS_GROUP_INIT, &group->state)) {
+		mswarn("group is NOT initialized", leader, leader);
+		goto p_err;
+	}
 
 #ifdef ENABLE_FD_SW
 	fd_config = fimc_is_itf_g_param(device, frame, PARAM_FD_CONFIG);
@@ -59,7 +66,10 @@ static int fimc_is_ischain_vra_cfg(struct fimc_is_subdev *leader,
 #endif
 
 	otf_input = fimc_is_itf_g_param(device, frame, PARAM_FD_OTF_INPUT);
-	otf_input->cmd = OTF_INPUT_COMMAND_ENABLE;
+	if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state))
+		otf_input->cmd = OTF_INPUT_COMMAND_ENABLE;
+	else
+		otf_input->cmd = OTF_INPUT_COMMAND_DISABLE;
 	otf_input->format = OTF_YUV_FORMAT;
 	otf_input->bitwidth = OTF_INPUT_BIT_WIDTH_8BIT;
 	otf_input->order = OTF_INPUT_ORDER_BAYER_GR_BG;
@@ -70,7 +80,10 @@ static int fimc_is_ischain_vra_cfg(struct fimc_is_subdev *leader,
 	(*indexes)++;
 
 	dma_input = fimc_is_itf_g_param(device, frame, PARAM_FD_DMA_INPUT);
-	dma_input->cmd = DMA_INPUT_COMMAND_DISABLE;
+	if (test_bit(FIMC_IS_GROUP_OTF_INPUT, &group->state))
+		dma_input->cmd = OTF_INPUT_COMMAND_DISABLE;
+	else
+		dma_input->cmd = OTF_INPUT_COMMAND_ENABLE;
 	dma_input->format = DMA_INPUT_FORMAT_YUV420;
 	dma_input->bitwidth = DMA_INPUT_BIT_WIDTH_8BIT;
 	dma_input->order = DMA_INPUT_ORDER_CrCb;
@@ -83,6 +96,7 @@ static int fimc_is_ischain_vra_cfg(struct fimc_is_subdev *leader,
 
 	leader->input.crop = *incrop;
 
+p_err:
 	return ret;
 }
 
@@ -172,8 +186,8 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_subdev *subdev,
 		return ret;
 
 	ret = fimc_is_lib_fd_map_init(device->fd_lib,
-		device->minfo->kvaddr_lhfd, device->minfo->dvaddr_lhfd,
-		device->minfo->kvaddr_fshared, vra_param);
+		device->imemory.kvaddr_fd, device->imemory.dvaddr_fd,
+		device->imemory.kvaddr_fshared, vra_param);
 	if (ret) {
 		merr("[FD] fimc_is_lib_fd_map_init fail\n", device);
 		return ret;
@@ -193,7 +207,7 @@ static int fimc_is_ischain_vra_tag(struct fimc_is_subdev *subdev,
 	}
 
 	ret = fimc_is_lib_fd_select_buf(lib_data, &uctl->fdUd,
-		device->minfo->kvaddr_fshared, device->minfo->dvaddr_fshared);
+		device->imemory.kvaddr_fshared, device->imemory.dvaddr_fshared);
 #endif
 
 p_err:

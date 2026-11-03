@@ -13,7 +13,6 @@
 #define FIMC_IS_RESOURCE_MGR_H
 
 #include <linux/notifier.h>
-#include <linux/reboot.h>
 #include "fimc-is-groupmgr.h"
 #include "fimc-is-interface.h"
 
@@ -26,6 +25,20 @@
 #define RESOURCE_TYPE_ISCHAIN	6
 #define RESOURCE_TYPE_PREPROC	7
 #define RESOURCE_TYPE_MAX	8
+
+#if defined(CONFIG_SECURE_CAMERA_USE)
+#define MC_SECURE_CAMERA_INIT           ((uint32_t)(0x83000041))
+#define MC_SECURE_CAMERA_CFW_ENABLE     ((uint32_t)(0x83000042))
+#define MC_SECURE_CAMERA_PREPARE        ((uint32_t)(0x83000043))
+#define MC_SECURE_CAMERA_UNPREPARE      ((uint32_t)(0x83000044))
+
+enum fimc_is_sensor_smc_state {
+        FIMC_IS_SENSOR_SMC_INIT = 0,
+        FIMC_IS_SENSOR_SMC_CFW_ENABLE,
+        FIMC_IS_SENSOR_SMC_PREPARE,
+        FIMC_IS_SENSOR_SMC_UNPREPARE,
+};
+#endif
 
 enum fimc_is_resourcemgr_state {
 	FIMC_IS_RM_COM_POWER_ON,
@@ -43,15 +56,8 @@ enum fimc_is_dvfs_state {
 	FIMC_IS_DVFS_SEL_TABLE
 };
 
-enum fimc_is_binary_state {
-	FIMC_IS_BINARY_LOADED
-};
-
 struct fimc_is_dvfs_ctrl {
 	struct mutex lock;
-#if CONFIG_SOC_EXYNOS8895
-	int cur_int_cam_qos;
-#endif
 	int cur_int_qos;
 	int cur_mif_qos;
 	int cur_cam_qos;
@@ -83,6 +89,12 @@ struct fimc_is_clk_gate_ctrl {
 	unsigned long chk_on_off_cnt[GROUP_ID_MAX];
 };
 
+struct fimc_is_static_mem {
+	u32 paddr;
+	ulong vaddr;
+	ulong size;
+};
+
 struct fimc_is_resource {
         struct platform_device                  *pdev;
         void __iomem                            *regs;
@@ -111,6 +123,7 @@ struct fimc_is_resourcemgr {
 	u32					cluster0;
 	u32					cluster1;
 	u32					hal_version;
+	u32					vdis_mode;
 #ifdef ENABLE_FW_SHARE_DUMP
 	ulong					fw_share_dump_buf;
 #endif
@@ -121,30 +134,15 @@ struct fimc_is_resourcemgr {
 	u32					limited_fps;
 
 	/* bus monitor */
-	struct notifier_block			bm_notifier;
+	struct notifier_block			bmu_notifier;
 
 	void					*private_data;
-	/* binary loading */
-#ifndef ENABLE_IS_CORE
-	unsigned long				binary_state;
-#endif
-
-#ifdef ENABLE_SHARED_METADATA
-	/* shared meta data */
-	spinlock_t			shared_meta_lock;
-	struct camera2_shot			shared_shot;
-#endif
-#ifdef ENABLE_KERNEL_LOG_DUMP
-	unsigned long long			kernel_log_time;
-	void					*kernel_log_buf;
-#endif
 };
 
 int fimc_is_resourcemgr_probe(struct fimc_is_resourcemgr *resourcemgr, void *private_data);
 int fimc_is_resource_open(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type, void **device);
 int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type);
 int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type);
-int fimc_is_resource_count(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type);
 int fimc_is_resource_ioctl(struct fimc_is_resourcemgr *resourcemgr, struct v4l2_control *ctrl);
 int fimc_is_logsync(struct fimc_is_interface *itf, u32 sync_id, u32 msg_test_id);
 int fimc_is_resource_dump(void);

@@ -30,7 +30,6 @@ enum taaisp_chain_id {
 	ID_3AA_1 = 1,
 	ID_ISP_0 = 2,
 	ID_ISP_1 = 3,
-	ID_TPU   = 4,
 	ID_3AAISP_MAX
 };
 

@@ -36,91 +36,7 @@ struct platform_device; /* don't need the contents */
 #define PRINT_CLK(c, n) printk(KERN_DEBUG "[@] %s : 0x%08X\n", n, readl(c));
 #define REGISTER_CLK(name) {name, NULL}
 
-#if defined(CONFIG_SOC_EXYNOS8895)
-struct fimc_is_clk fimc_is_clk_list[] = {
-	REGISTER_CLK("GATE_ISP_EWGEN_ISPHQ"),
-	REGISTER_CLK("GATE_IS_ISPHQ_3AA"),
-	REGISTER_CLK("GATE_IS_ISPHQ_ISPHQ"),
-	REGISTER_CLK("GATE_IS_ISPHQ_QE_3AA"),
-	REGISTER_CLK("GATE_IS_ISPHQ_QE_ISPHQ"),
-	REGISTER_CLK("GATE_ISPHQ_CMU_ISPHQ"),
-	REGISTER_CLK("GATE_PMU_ISPHQ"),
-	REGISTER_CLK("GATE_SYSREG_ISPHQ"),
-	REGISTER_CLK("UMUX_CLKCMU_ISPHQ_BUS"),
-
-	REGISTER_CLK("GATE_ISP_EWGEN_ISPLP"),
-	REGISTER_CLK("GATE_IS_ISPLP_3AAW"),
-	REGISTER_CLK("GATE_IS_ISPLP_ISPLP"),
-	REGISTER_CLK("GATE_IS_ISPLP_QE_3AAW"),
-	REGISTER_CLK("GATE_IS_ISPLP_QE_ISPLP"),
-	REGISTER_CLK("GATE_IS_ISPLP_SMMU_ISPLP"),
-	REGISTER_CLK("GATE_IS_ISPLP_BCM_ISPLP"),
-	REGISTER_CLK("GATE_BTM_ISPLP"),
-	REGISTER_CLK("GATE_ISPLP_CMU_ISPLP"),
-	REGISTER_CLK("GATE_PMU_ISPLP"),
-	REGISTER_CLK("GATE_SYSREG_ISPLP"),
-	REGISTER_CLK("UMUX_CLKCMU_ISPLP_BUS"),
-
-	REGISTER_CLK("GATE_ISP_EWGEN_CAM"),
-	REGISTER_CLK("GATE_IS_CAM_CSIS0"),
-	REGISTER_CLK("GATE_IS_CAM_CSIS1"),
-	REGISTER_CLK("GATE_IS_CAM_CSIS2"),
-	REGISTER_CLK("GATE_IS_CAM_CSIS3"),
-	REGISTER_CLK("GATE_IS_CAM_MC_SCALER"),
-	REGISTER_CLK("GATE_IS_CAM_CSISX4_DMA"),
-	REGISTER_CLK("GATE_IS_CAM_SYSMMU_CAM0"),
-	REGISTER_CLK("GATE_IS_CAM_SYSMMU_CAM1"),
-	REGISTER_CLK("GATE_IS_CAM_BCM_CAM0"),
-	REGISTER_CLK("GATE_IS_CAM_BCM_CAM1"),
-	REGISTER_CLK("GATE_IS_CAM_TPU0"),
-	REGISTER_CLK("GATE_IS_CAM_VRA"),
-	REGISTER_CLK("GATE_IS_CAM_QE_TPU0"),
-	REGISTER_CLK("GATE_IS_CAM_QE_VRA"),
-	REGISTER_CLK("GATE_IS_CAM_BNS"),
-	REGISTER_CLK("GATE_IS_CAM_QE_CSISX4"),
-	REGISTER_CLK("GATE_IS_CAM_QE_TPU1"),
-	REGISTER_CLK("GATE_IS_CAM_TPU1"),
-	REGISTER_CLK("GATE_BTM_CAMD0"),
-	REGISTER_CLK("GATE_BTM_CAMD1"),
-	REGISTER_CLK("GATE_CAM_CMU_CAM"),
-	REGISTER_CLK("GATE_PMU_CAM"),
-	REGISTER_CLK("GATE_SYSREG_CAM"),
-	REGISTER_CLK("UMUX_CLKCMU_CAM_BUS"),
-	REGISTER_CLK("UMUX_CLKCMU_CAM_TPU0"),
-	REGISTER_CLK("UMUX_CLKCMU_CAM_VRA"),
-	REGISTER_CLK("UMUX_CLKCMU_CAM_TPU1"),
-
-	REGISTER_CLK("GATE_DCP"),
-	REGISTER_CLK("GATE_BTM_DCAM"),
-	REGISTER_CLK("GATE_DCAM_CMU_DCAM"),
-	REGISTER_CLK("GATE_PMU_DCAM"),
-	REGISTER_CLK("GATE_BCM_DCAM"),
-	REGISTER_CLK("GATE_SYSREG_DCAM"),
-	REGISTER_CLK("UMUX_CLKCMU_DCAM_BUS"),
-	REGISTER_CLK("UMUX_CLKCMU_DCAM_IMGD"),
-
-	REGISTER_CLK("GATE_SRDZ"),
-	REGISTER_CLK("GATE_BTM_SRDZ"),
-	REGISTER_CLK("GATE_PMU_SRDZ"),
-	REGISTER_CLK("GATE_BCM_SRDZ"),
-	REGISTER_CLK("GATE_SMMU_SRDZ"),
-	REGISTER_CLK("GATE_SRDZ_CMU_SRDZ"),
-	REGISTER_CLK("GATE_SYSREG_SRDZ"),
-	REGISTER_CLK("UMUX_CLKCMU_SRDZ_BUS"),
-	REGISTER_CLK("UMUX_CLKCMU_SRDZ_IMGD"),
-
-	REGISTER_CLK("MUX_CIS_CLK0"),
-	REGISTER_CLK("MUX_CIS_CLK1"),
-	REGISTER_CLK("MUX_CIS_CLK2"),
-	REGISTER_CLK("MUX_CIS_CLK3"),
-
-	REGISTER_CLK("CIS_CLK0"),
-	REGISTER_CLK("CIS_CLK1"),
-	REGISTER_CLK("CIS_CLK2"),
-	REGISTER_CLK("CIS_CLK3"),
-};
-
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 struct fimc_is_clk fimc_is_clk_list[] = {
 	REGISTER_CLK("oscclk"),
 	REGISTER_CLK("gate_fimc_isp0"),
@@ -191,18 +107,6 @@ struct fimc_is_clk fimc_is_clk_list[] = {
 	REGISTER_CLK("mipi_dphy_m4s4"),
 };
 
-#elif defined(CONFIG_SOC_EXYNOS7570)
-struct fimc_is_clk fimc_is_clk_list[] = {
-	REGISTER_CLK("oscclk"),
-	REGISTER_CLK("isp_ppmu"),
-	REGISTER_CLK("isp_bts"),
-	REGISTER_CLK("isp_cam"),
-	REGISTER_CLK("isp_vra"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs0_s4_user"),
-	REGISTER_CLK("gate_mscl"),
-	REGISTER_CLK("mif_isp_sensor0"),
-};
-
 #elif defined(CONFIG_SOC_EXYNOS7870)
 struct fimc_is_clk fimc_is_clk_list[] = {
 	REGISTER_CLK("oscclk"),
@@ -221,41 +125,6 @@ struct fimc_is_clk fimc_is_clk_list[] = {
 	REGISTER_CLK("isp_sensor1_sclk"),
 	REGISTER_CLK("isp_sensor2_sclk"),
 };
-
-#elif defined(CONFIG_SOC_EXYNOS7880)
-struct fimc_is_clk fimc_is_clk_list[] = {
-	REGISTER_CLK("oscclk"),
-	REGISTER_CLK("gate_isp_sysmmu"),
-	REGISTER_CLK("gate_isp_ppmu"),
-	REGISTER_CLK("gate_isp_bts"),
-	REGISTER_CLK("gate_isp_cam"),
-	REGISTER_CLK("gate_isp_isp"),
-	REGISTER_CLK("gate_isp_vra"),
-	REGISTER_CLK("pxmxdx_isp_isp"),
-	REGISTER_CLK("pxmxdx_isp_cam"),
-	REGISTER_CLK("pxmxdx_isp_vra"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs0_s4_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs1_s4_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs2_s4_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs3_s4_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs0_s4s_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs1_s4s_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs2_s4s_user"),
-	REGISTER_CLK("umux_isp_clkphy_isp_s_rxbyteclkhs3_s4s_user"),
-	REGISTER_CLK("isp_sensor0_sclk"),
-	REGISTER_CLK("isp_sensor1_sclk"),
-	REGISTER_CLK("isp_sensor2_sclk"),
-	REGISTER_CLK("hsi2c_frontcam"),
-	REGISTER_CLK("hsi2c_maincam"),
-	REGISTER_CLK("hsi2c_depthcam"),
-	REGISTER_CLK("hsi2c_frontsensor"),
-	REGISTER_CLK("hsi2c_rearaf"),
-	REGISTER_CLK("hsi2c_rearsensor"),
-	REGISTER_CLK("spi_rearfrom"),
-	REGISTER_CLK("spi_frontfrom"),
-	REGISTER_CLK("sclk_spi_frontfrom"),
-	REGISTER_CLK("sclk_spi_rearfrom"),
-};
 #else
 struct fimc_is_clk fimc_is_clk_list[] = {
 	REGISTER_CLK("null")
@@ -266,7 +135,7 @@ int fimc_is_set_rate(struct device *dev,
 	const char *name, ulong frequency)
 {
 	int ret = 0;
-	size_t index;
+	u32 index;
 	struct clk *clk = NULL;
 
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); index++) {
@@ -295,7 +164,7 @@ ulong fimc_is_get_rate(struct device *dev,
 	const char *name)
 {
 	ulong frequency;
-	size_t index;
+	u32 index;
 	struct clk *clk = NULL;
 
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); index++) {
@@ -309,10 +178,7 @@ ulong fimc_is_get_rate(struct device *dev,
 	}
 
 	frequency = clk_get_rate(clk);
-
-#ifdef DBG_DUMPCMU
 	pr_info("[@] %s : %ldMhz (enable_count : %d)\n", name, frequency/1000000, __clk_get_enable_count(clk));
-#endif
 
 	return frequency;
 }
@@ -322,7 +188,7 @@ int  fimc_is_enable(struct device *dev,
 	const char *name)
 {
 	int ret = 0;
-	size_t index;
+	u32 index;
 	struct clk *clk = NULL;
 
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); index++) {
@@ -352,7 +218,7 @@ int  fimc_is_enable(struct device *dev,
 int fimc_is_disable(struct device *dev,
 	const char *name)
 {
-	size_t index;
+	u32 index;
 	struct clk *clk = NULL;
 
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); index++) {
@@ -447,7 +313,7 @@ ulong fimc_is_get_rate_dt(struct device *dev,
 }
 
 /* utility function to eable with DT */
-int fimc_is_enable_dt(struct device *dev,
+int  fimc_is_enable_dt(struct device *dev,
 	const char *conid)
 {
 	int ret;
@@ -492,340 +358,7 @@ int fimc_is_disable_dt(struct device *dev,
 	return 0;
 }
 
-#if defined(CONFIG_SOC_EXYNOS8895)
-int exynos8895_fimc_is_print_clk(struct device *dev);
-static void exynos8895_fimc_is_print_clk_reg(void)
-{
-
-}
-
-int exynos8895_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
-{
-	return 0;
-}
-
-int exynos8895_fimc_is_uart_gate(struct device *dev, bool mask)
-{
-	return 0;
-}
-
-int exynos8895_fimc_is_get_clk(struct device *dev)
-{
-	struct clk *clk;
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(fimc_is_clk_list); i++) {
-		clk = devm_clk_get(dev, fimc_is_clk_list[i].name);
-		if (IS_ERR_OR_NULL(clk)) {
-			pr_err("[@][ERR] %s: could not lookup clock : %s\n",
-				__func__, fimc_is_clk_list[i].name);
-			return -EINVAL;
-		}
-
-		fimc_is_clk_list[i].clk = clk;
-	}
-
-	return 0;
-}
-
-int exynos8895_fimc_is_cfg_clk(struct device *dev)
-{
-	return 0;
-}
-
-int exynos8895_fimc_is_clk_on(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (pdata->clock_on) {
-		ret = pdata->clk_off(dev);
-		if (ret) {
-			pr_err("clk_off is fail(%d)\n", ret);
-			goto p_err;
-		}
-	}
-
-	fimc_is_enable(dev, "GATE_ISP_EWGEN_ISPHQ");
-	fimc_is_enable(dev, "GATE_IS_ISPHQ_3AA");
-	fimc_is_enable(dev, "GATE_IS_ISPHQ_ISPHQ");
-	fimc_is_enable(dev, "GATE_IS_ISPHQ_QE_3AA");
-	fimc_is_enable(dev, "GATE_IS_ISPHQ_QE_ISPHQ");
-	fimc_is_enable(dev, "GATE_ISPHQ_CMU_ISPHQ");
-	fimc_is_enable(dev, "GATE_PMU_ISPHQ");
-	fimc_is_enable(dev, "GATE_SYSREG_ISPHQ");
-	fimc_is_enable(dev, "UMUX_CLKCMU_ISPHQ_BUS");
-
-	fimc_is_enable(dev, "GATE_ISP_EWGEN_ISPLP");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_3AAW");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_ISPLP");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_QE_3AAW");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_QE_ISPLP");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_SMMU_ISPLP");
-	fimc_is_enable(dev, "GATE_IS_ISPLP_BCM_ISPLP");
-	fimc_is_enable(dev, "GATE_BTM_ISPLP");
-	fimc_is_enable(dev, "GATE_ISPLP_CMU_ISPLP");
-	fimc_is_enable(dev, "GATE_PMU_ISPLP");
-	fimc_is_enable(dev, "GATE_SYSREG_ISPLP");
-	fimc_is_enable(dev, "UMUX_CLKCMU_ISPLP_BUS");
-
-	fimc_is_enable(dev, "GATE_ISP_EWGEN_CAM");
-	fimc_is_enable(dev, "GATE_IS_CAM_CSIS0");
-	fimc_is_enable(dev, "GATE_IS_CAM_CSIS1");
-	fimc_is_enable(dev, "GATE_IS_CAM_CSIS2");
-	fimc_is_enable(dev, "GATE_IS_CAM_CSIS3");
-	fimc_is_enable(dev, "GATE_IS_CAM_MC_SCALER");
-	fimc_is_enable(dev, "GATE_IS_CAM_CSISX4_DMA");
-	fimc_is_enable(dev, "GATE_IS_CAM_SYSMMU_CAM0");
-	fimc_is_enable(dev, "GATE_IS_CAM_SYSMMU_CAM1");
-	fimc_is_enable(dev, "GATE_IS_CAM_BCM_CAM0");
-	fimc_is_enable(dev, "GATE_IS_CAM_BCM_CAM1");
-	fimc_is_enable(dev, "GATE_IS_CAM_TPU0");
-	fimc_is_enable(dev, "GATE_IS_CAM_VRA");
-	fimc_is_enable(dev, "GATE_IS_CAM_QE_TPU0");
-	fimc_is_enable(dev, "GATE_IS_CAM_QE_VRA");
-	fimc_is_enable(dev, "GATE_IS_CAM_BNS");
-	fimc_is_enable(dev, "GATE_IS_CAM_QE_CSISX4");
-	fimc_is_enable(dev, "GATE_IS_CAM_QE_TPU1");
-	fimc_is_enable(dev, "GATE_IS_CAM_TPU1");
-	fimc_is_enable(dev, "GATE_BTM_CAMD0");
-	fimc_is_enable(dev, "GATE_BTM_CAMD1");
-	fimc_is_enable(dev, "GATE_CAM_CMU_CAM");
-	fimc_is_enable(dev, "GATE_PMU_CAM");
-	fimc_is_enable(dev, "GATE_SYSREG_CAM");
-	fimc_is_enable(dev, "UMUX_CLKCMU_CAM_BUS");
-	fimc_is_enable(dev, "UMUX_CLKCMU_CAM_TPU0");
-	fimc_is_enable(dev, "UMUX_CLKCMU_CAM_VRA");
-	fimc_is_enable(dev, "UMUX_CLKCMU_CAM_TPU1");
-
-	fimc_is_enable(dev, "GATE_DCP");
-	fimc_is_enable(dev, "GATE_BTM_DCAM");
-	fimc_is_enable(dev, "GATE_DCAM_CMU_DCAM");
-	fimc_is_enable(dev, "GATE_PMU_DCAM");
-	fimc_is_enable(dev, "GATE_BCM_DCAM");
-	fimc_is_enable(dev, "GATE_SYSREG_DCAM");
-	fimc_is_enable(dev, "UMUX_CLKCMU_DCAM_BUS");
-	fimc_is_enable(dev, "UMUX_CLKCMU_DCAM_IMGD");
-
-	fimc_is_enable(dev, "GATE_SRDZ");
-	fimc_is_enable(dev, "GATE_BTM_SRDZ");
-	fimc_is_enable(dev, "GATE_PMU_SRDZ");
-	fimc_is_enable(dev, "GATE_BCM_SRDZ");
-	fimc_is_enable(dev, "GATE_SMMU_SRDZ");
-	fimc_is_enable(dev, "GATE_SRDZ_CMU_SRDZ");
-	fimc_is_enable(dev, "GATE_SYSREG_SRDZ");
-	fimc_is_enable(dev, "UMUX_CLKCMU_SRDZ_BUS");
-	fimc_is_enable(dev, "UMUX_CLKCMU_SRDZ_IMGD");
-
-	fimc_is_enable(dev, "MUX_CIS_CLK0");
-	fimc_is_enable(dev, "MUX_CIS_CLK1");
-	fimc_is_enable(dev, "MUX_CIS_CLK2");
-	fimc_is_enable(dev, "MUX_CIS_CLK3");
-
-	fimc_is_enable(dev, "CIS_CLK0");
-	fimc_is_enable(dev, "CIS_CLK1");
-	fimc_is_enable(dev, "CIS_CLK2");
-	fimc_is_enable(dev, "CIS_CLK3");
-
-#ifdef DBG_DUMPCMU
-	exynos8895_fimc_is_print_clk(dev);
-#endif
-
-	pdata->clock_on = true;
-
-p_err:
-	return 0;
-}
-
-int exynos8895_fimc_is_clk_off(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (!pdata->clock_on) {
-		pr_err("clk_off is fail(already off)\n");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	fimc_is_disable(dev, "GATE_ISP_EWGEN_ISPHQ");
-	fimc_is_disable(dev, "GATE_IS_ISPHQ_3AA");
-	fimc_is_disable(dev, "GATE_IS_ISPHQ_ISPHQ");
-	fimc_is_disable(dev, "GATE_IS_ISPHQ_QE_3AA");
-	fimc_is_disable(dev, "GATE_IS_ISPHQ_QE_ISPHQ");
-	fimc_is_disable(dev, "GATE_ISPHQ_CMU_ISPHQ");
-	fimc_is_disable(dev, "GATE_PMU_ISPHQ");
-	fimc_is_disable(dev, "GATE_SYSREG_ISPHQ");
-	fimc_is_disable(dev, "UMUX_CLKCMU_ISPHQ_BUS");
-
-	fimc_is_disable(dev, "GATE_ISP_EWGEN_ISPLP");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_3AAW");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_ISPLP");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_QE_3AAW");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_QE_ISPLP");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_SMMU_ISPLP");
-	fimc_is_disable(dev, "GATE_IS_ISPLP_BCM_ISPLP");
-	fimc_is_disable(dev, "GATE_BTM_ISPLP");
-	fimc_is_disable(dev, "GATE_ISPLP_CMU_ISPLP");
-	fimc_is_disable(dev, "GATE_PMU_ISPLP");
-	fimc_is_disable(dev, "GATE_SYSREG_ISPLP");
-	fimc_is_disable(dev, "UMUX_CLKCMU_ISPLP_BUS");
-
-	fimc_is_disable(dev, "GATE_ISP_EWGEN_CAM");
-	fimc_is_disable(dev, "GATE_IS_CAM_CSIS0");
-	fimc_is_disable(dev, "GATE_IS_CAM_CSIS1");
-	fimc_is_disable(dev, "GATE_IS_CAM_CSIS2");
-	fimc_is_disable(dev, "GATE_IS_CAM_CSIS3");
-	fimc_is_disable(dev, "GATE_IS_CAM_MC_SCALER");
-	fimc_is_disable(dev, "GATE_IS_CAM_CSISX4_DMA");
-	fimc_is_disable(dev, "GATE_IS_CAM_SYSMMU_CAM0");
-	fimc_is_disable(dev, "GATE_IS_CAM_SYSMMU_CAM1");
-	fimc_is_disable(dev, "GATE_IS_CAM_BCM_CAM0");
-	fimc_is_disable(dev, "GATE_IS_CAM_BCM_CAM1");
-	fimc_is_disable(dev, "GATE_IS_CAM_TPU0");
-	fimc_is_disable(dev, "GATE_IS_CAM_VRA");
-	fimc_is_disable(dev, "GATE_IS_CAM_QE_TPU0");
-	fimc_is_disable(dev, "GATE_IS_CAM_QE_VRA");
-	fimc_is_disable(dev, "GATE_IS_CAM_BNS");
-	fimc_is_disable(dev, "GATE_IS_CAM_QE_CSISX4");
-	fimc_is_disable(dev, "GATE_IS_CAM_QE_TPU1");
-	fimc_is_disable(dev, "GATE_IS_CAM_TPU1");
-	fimc_is_disable(dev, "GATE_BTM_CAMD0");
-	fimc_is_disable(dev, "GATE_BTM_CAMD1");
-	fimc_is_disable(dev, "GATE_CAM_CMU_CAM");
-	fimc_is_disable(dev, "GATE_PMU_CAM");
-	fimc_is_disable(dev, "GATE_SYSREG_CAM");
-	fimc_is_disable(dev, "UMUX_CLKCMU_CAM_BUS");
-	fimc_is_disable(dev, "UMUX_CLKCMU_CAM_TPU0");
-	fimc_is_disable(dev, "UMUX_CLKCMU_CAM_VRA");
-	fimc_is_disable(dev, "UMUX_CLKCMU_CAM_TPU1");
-
-	fimc_is_disable(dev, "GATE_DCP");
-	fimc_is_disable(dev, "GATE_BTM_DCAM");
-	fimc_is_disable(dev, "GATE_DCAM_CMU_DCAM");
-	fimc_is_disable(dev, "GATE_PMU_DCAM");
-	fimc_is_disable(dev, "GATE_BCM_DCAM");
-	fimc_is_disable(dev, "GATE_SYSREG_DCAM");
-	fimc_is_disable(dev, "UMUX_CLKCMU_DCAM_BUS");
-	fimc_is_disable(dev, "UMUX_CLKCMU_DCAM_IMGD");
-
-	fimc_is_disable(dev, "GATE_SRDZ");
-	fimc_is_disable(dev, "GATE_BTM_SRDZ");
-	fimc_is_disable(dev, "GATE_PMU_SRDZ");
-	fimc_is_disable(dev, "GATE_BCM_SRDZ");
-	fimc_is_disable(dev, "GATE_SMMU_SRDZ");
-	fimc_is_disable(dev, "GATE_SRDZ_CMU_SRDZ");
-	fimc_is_disable(dev, "GATE_SYSREG_SRDZ");
-	fimc_is_disable(dev, "UMUX_CLKCMU_SRDZ_BUS");
-	fimc_is_disable(dev, "UMUX_CLKCMU_SRDZ_IMGD");
-
-	fimc_is_disable(dev, "MUX_CIS_CLK0");
-	fimc_is_disable(dev, "MUX_CIS_CLK1");
-	fimc_is_disable(dev, "MUX_CIS_CLK2");
-	fimc_is_disable(dev, "MUX_CIS_CLK3");
-
-	fimc_is_disable(dev, "CIS_CLK0");
-	fimc_is_disable(dev, "CIS_CLK1");
-	fimc_is_disable(dev, "CIS_CLK2");
-	fimc_is_disable(dev, "CIS_CLK3");
-
-	pdata->clock_on = false;
-
-p_err:
-	return 0;
-}
-
-int exynos8895_fimc_is_print_clk(struct device *dev)
-{
-	fimc_is_get_rate_dt(dev, "GATE_ISP_EWGEN_ISPHQ");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPHQ_3AA");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPHQ_ISPHQ");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPHQ_QE_3AA");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPHQ_QE_ISPHQ");
-	fimc_is_get_rate_dt(dev, "GATE_ISPHQ_CMU_ISPHQ");
-	fimc_is_get_rate_dt(dev, "GATE_PMU_ISPHQ");
-	fimc_is_get_rate_dt(dev, "GATE_SYSREG_ISPHQ");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_ISPHQ_BUS");
-
-	fimc_is_get_rate_dt(dev, "GATE_ISP_EWGEN_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_3AAW");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_QE_3AAW");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_QE_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_SMMU_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_IS_ISPLP_BCM_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_BTM_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_ISPLP_CMU_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_PMU_ISPLP");
-	fimc_is_get_rate_dt(dev, "GATE_SYSREG_ISPLP");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_ISPLP_BUS");
-
-	fimc_is_get_rate_dt(dev, "GATE_ISP_EWGEN_CAM");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_CSIS0");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_CSIS1");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_CSIS2");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_CSIS3");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_MC_SCALER");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_CSISX4_DMA");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_SYSMMU_CAM0");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_SYSMMU_CAM1");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_BCM_CAM0");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_BCM_CAM1");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_TPU0");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_VRA");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_QE_TPU0");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_QE_VRA");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_BNS");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_QE_CSISX4");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_QE_TPU1");
-	fimc_is_get_rate_dt(dev, "GATE_IS_CAM_TPU1");
-	fimc_is_get_rate_dt(dev, "GATE_BTM_CAMD0");
-	fimc_is_get_rate_dt(dev, "GATE_BTM_CAMD1");
-	fimc_is_get_rate_dt(dev, "GATE_CAM_CMU_CAM");
-	fimc_is_get_rate_dt(dev, "GATE_PMU_CAM");
-	fimc_is_get_rate_dt(dev, "GATE_SYSREG_CAM");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_CAM_BUS");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_CAM_TPU0");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_CAM_VRA");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_CAM_TPU1");
-
-	fimc_is_get_rate_dt(dev, "GATE_DCP");
-	fimc_is_get_rate_dt(dev, "GATE_BTM_DCAM");
-	fimc_is_get_rate_dt(dev, "GATE_DCAM_CMU_DCAM");
-	fimc_is_get_rate_dt(dev, "GATE_PMU_DCAM");
-	fimc_is_get_rate_dt(dev, "GATE_BCM_DCAM");
-	fimc_is_get_rate_dt(dev, "GATE_SYSREG_DCAM");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_DCAM_BUS");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_DCAM_IMGD");
-
-	fimc_is_get_rate_dt(dev, "GATE_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_BTM_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_PMU_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_BCM_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_SMMU_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_SRDZ_CMU_SRDZ");
-	fimc_is_get_rate_dt(dev, "GATE_SYSREG_SRDZ");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_SRDZ_BUS");
-	fimc_is_get_rate_dt(dev, "UMUX_CLKCMU_SRDZ_IMGD");
-
-	fimc_is_get_rate_dt(dev, "MUX_CIS_CLK0");
-	fimc_is_get_rate_dt(dev, "MUX_CIS_CLK1");
-	fimc_is_get_rate_dt(dev, "MUX_CIS_CLK2");
-	fimc_is_get_rate_dt(dev, "MUX_CIS_CLK3");
-
-	fimc_is_get_rate_dt(dev, "CIS_CLK0");
-	fimc_is_get_rate_dt(dev, "CIS_CLK1");
-	fimc_is_get_rate_dt(dev, "CIS_CLK2");
-	fimc_is_get_rate_dt(dev, "CIS_CLK3");
-
-	exynos8895_fimc_is_print_clk_reg();
-
-	return 0;
-}
-
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 /* for debug */
 void __iomem *cmu_top;
 void __iomem *cmu_cam0;
@@ -1070,7 +603,7 @@ int exynos8890_fimc_is_get_clk(struct device *dev)
 			return -EINVAL;
 		}
 
-		clk = devm_clk_get(dev, name);
+		clk = clk_get(dev, name);
 		if (IS_ERR_OR_NULL(clk)) {
 			pr_err("[@][ERR] %s: could not lookup clock : %s\n", __func__, name);
 			return -EINVAL;
@@ -1355,187 +888,16 @@ int exynos8890_fimc_is_print_clk(struct device *dev)
 
 	return 0;
 }
-
-#elif defined(CONFIG_SOC_EXYNOS7570)
-void __iomem *cmu_mif;
-void __iomem *cmu_isp;
-void __iomem *cmu_mcsl;
-
-int exynos7570_fimc_is_print_clk(struct device *dev);
-static void exynos7570_fimc_is_print_clk_reg(void)
-{
-	printk(KERN_DEBUG "[@] MIF\n");
-	PRINT_CLK((cmu_mif + 0x0600), "CLK_STAT_MUX_SHARED0_PLL");
-	PRINT_CLK((cmu_mif + 0x0604), "CLK_STAT_MUX_SHARED1_PLL");
-	PRINT_CLK((cmu_mif + 0x0608), "CLK_STAT_MUX_SHARED2_PLL");
-	PRINT_CLK((cmu_mif + 0x022C), "CLK_CON_MUX_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_mif + 0x0230), "CLK_CON_MUX_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_mif + 0x0244), "CLK_CON_MUX_CLKCMU_MFCMSCL_MFC");
-	PRINT_CLK((cmu_mif + 0x0280), "CLK_CON_MUX_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_mif + 0x0428), "CLK_CON_DIV_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_mif + 0x042C), "CLK_CON_DIV_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_mif + 0x0440), "CLK_CON_DIV_CLKCMU_MFCMSCL_MFC");
-	PRINT_CLK((cmu_mif + 0x04C4), "CLK_CON_DIV_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_mif + 0x062C), "CLK_STAT_MUX_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_mif + 0x0630), "CLK_STAT_MUX_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_mif + 0x0644), "CLK_STAT_MUX_CLKCMU_MFCMSCL_MFC");
-	PRINT_CLK((cmu_mif + 0x0680), "CLK_STAT_MUX_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_mif + 0x0834), "CLK_ENABLE_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_mif + 0x0838), "CLK_ENABLE_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_mif + 0x0848), "CLK_ENABLE_CLKCMU_MFCMSCL_MFC");
-	PRINT_CLK((cmu_mif + 0x0888), "CLK_ENABLE_CLKCMU_ISP_SENSOR0");
-
-	printk(KERN_DEBUG "[@] MCSL\n");
-	PRINT_CLK((cmu_mcsl + 0x0204), "CLK_CON_MUX_CLKCMU_MFCMSCL_MFC_USER");
-	PRINT_CLK((cmu_mcsl + 0x0400), "CLK_CON_DIV_CLK_MFCMSCL_APB");
-	PRINT_CLK((cmu_mcsl + 0x0604), "CLK_STAT_MUX_CLKCMU_MFCMSCL_MFC_USER");
-	PRINT_CLK((cmu_mcsl + 0x0808), "CLK_ENABLE_CLK_MFCMSCL_MFCBUS_PLL_CON0");
-
-	printk(KERN_DEBUG "[@] ISP\n");
-	PRINT_CLK((cmu_isp + 0x0210), "CLK_CON_MUX_CLKCMU_ISP_VRA_USER");
-	PRINT_CLK((cmu_isp + 0x0214), "CLK_CON_MUX_CLKCMU_ISP_CAM_USER");
-	PRINT_CLK((cmu_isp + 0x0230), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS0_S4_USER");
-	PRINT_CLK((cmu_isp + 0x0404), "CLK_CON_DIV_CLK_ISP_CAM_HALF");
-	PRINT_CLK((cmu_isp + 0x0610), "CLK_STAT_MUX_CLKCMU_ISP_VRA_USER");
-	PRINT_CLK((cmu_isp + 0x0614), "CLK_STAT_MUX_CLKCMU_ISP_CAM_USER");
-	PRINT_CLK((cmu_isp + 0x0630), "CLK_STAT_MUX_CLKPHY_ISP_S_RXBYTECLKHS0_S4_USER");
-	PRINT_CLK((cmu_isp + 0x0810), "CLK_ENABLE_CLK_ISP_VRA");
-	PRINT_CLK((cmu_isp + 0x081C), "CLK_ENABLE_CLK_ISP_CAM");
-	PRINT_CLK((cmu_isp + 0x0828), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4");
-}
-
-int exynos7570_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
-{
-	return 0;
-}
-
-int exynos7570_fimc_is_uart_gate(struct device *dev, bool mask)
-{
-	return 0;
-}
-
-int exynos7570_fimc_is_get_clk(struct device *dev)
-{
-	const char *name;
-	struct clk *clk;
-	u32 index;
-
-	/* for debug */
-	cmu_mif = ioremap(0x10460000, SZ_4K);
-	cmu_isp = ioremap(0x144D0000, SZ_4K);
-	cmu_mcsl = ioremap(0x12CB0000, SZ_4K);
-
-	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); ++index) {
-		name = fimc_is_clk_list[index].name;
-		if (!name) {
-			pr_err("[@][ERR] %s: name is NULL\n", __func__);
-			return -EINVAL;
-		}
-
-		clk = devm_clk_get(dev, name);
-		if (IS_ERR_OR_NULL(clk)) {
-			pr_err("[@][ERR] %s: could not lookup clock : %s\n", __func__, name);
-			return -EINVAL;
-		}
-
-		fimc_is_clk_list[index].clk = clk;
-	}
-
-	return 0;
-}
-
-int exynos7570_fimc_is_cfg_clk(struct device *dev)
-{
-	pr_debug("%s\n", __func__);
-
-	/* Clock Gating */
-	exynos7570_fimc_is_uart_gate(dev, false);
-
-	return 0;
-}
-
-int exynos7570_fimc_is_clk_on(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (pdata->clock_on) {
-		ret = pdata->clk_off(dev);
-		if (ret) {
-			pr_err("clk_off is fail(%d)\n", ret);
-			goto p_err;
-		}
-	}
-
-	/* ISP */
-	fimc_is_enable(dev, "isp_ppmu");
-	fimc_is_enable(dev, "isp_bts");
-	fimc_is_enable(dev, "isp_cam");
-	fimc_is_enable(dev, "isp_vra");
-	fimc_is_enable(dev, "gate_mscl");
-
-#ifdef DBG_DUMPCMU
-	exynos7570_fimc_is_print_clk(dev);
-#endif
-
-	pdata->clock_on = true;
-
-p_err:
-	return 0;
-}
-
-int exynos7570_fimc_is_clk_off(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (!pdata->clock_on) {
-		pr_err("clk_off is fail(already off)\n");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	/* ISP */
-	fimc_is_disable(dev, "isp_ppmu");
-	fimc_is_disable(dev, "isp_bts");
-	fimc_is_disable(dev, "isp_cam");
-	fimc_is_disable(dev, "isp_vra");
-	fimc_is_disable(dev, "gate_mscl");
-
-	pdata->clock_on = false;
-
-p_err:
-	return 0;
-}
-
-int exynos7570_fimc_is_print_clk(struct device *dev)
-{
-	printk(KERN_DEBUG "#################### SENSOR clock ####################\n");
-	fimc_is_get_rate(dev, "mif_isp_sensor0");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs0_s4_user");
-
-	printk(KERN_DEBUG "#################### ISP clock ####################\n");
-	fimc_is_get_rate(dev, "isp_ppmu");
-	fimc_is_get_rate(dev, "isp_bts");
-	fimc_is_get_rate(dev, "isp_cam");
-	fimc_is_get_rate(dev, "isp_vra");
-	fimc_is_get_rate(dev, "gate_mscl");
-
-	exynos7570_fimc_is_print_clk_reg();
-
-	return 0;
-}
-
 #elif defined(CONFIG_SOC_EXYNOS7870)
-/* for debug */
-void __iomem *cmu_mif;
-void __iomem *cmu_isp;
-
 int exynos7870_fimc_is_print_clk(struct device *dev);
 static void exynos7870_fimc_is_print_clk_reg(void)
 {
+	void __iomem *cmu_mif;
+	void __iomem *cmu_isp;
+
+	cmu_mif = ioremap(0x10460000, SZ_4K);
+	cmu_isp = ioremap(0x144D0000, SZ_4K);
+
 	printk(KERN_DEBUG "[@] MIF\n");
 	PRINT_CLK((cmu_mif + 0x0140), "BUS_PLL_CON0");
 	PRINT_CLK((cmu_mif + 0x0144), "BUS_PLL_CON1");
@@ -1582,6 +944,9 @@ static void exynos7870_fimc_is_print_clk_reg(void)
 	PRINT_CLK((cmu_isp +  0x0824), "CLK_ENABLE_CLK_ISP_ISP");
 	PRINT_CLK((cmu_isp +  0x0828), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4");
 	PRINT_CLK((cmu_isp +  0x082C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4S");
+
+	iounmap(cmu_mif);
+	iounmap(cmu_isp);
 }
 
 int exynos7870_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
@@ -1600,10 +965,6 @@ int exynos7870_fimc_is_get_clk(struct device *dev)
 	struct clk *clk;
 	u32 index;
 
-	/* for debug */
-	cmu_mif = ioremap(0x10460000, SZ_4K);
-	cmu_isp = ioremap(0x144D0000, SZ_4K);
-
 	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); ++index) {
 		name = fimc_is_clk_list[index].name;
 		if (!name) {
@@ -1611,7 +972,7 @@ int exynos7870_fimc_is_get_clk(struct device *dev)
 			return -EINVAL;
 		}
 
-		clk = devm_clk_get(dev, name);
+		clk = clk_get(dev, name);
 		if (IS_ERR_OR_NULL(clk)) {
 			pr_err("[@][ERR] %s: could not lookup clock : %s\n", __func__, name);
 			return -EINVAL;
@@ -1721,236 +1082,15 @@ int exynos7870_fimc_is_print_clk(struct device *dev)
 
 	return 0;
 }
-
-#elif defined(CONFIG_SOC_EXYNOS7880)
-/* for debug */
-void __iomem *cmu_ccore;
-void __iomem *cmu_isp;
-
-int exynos7880_fimc_is_print_clk(struct device *dev);
-static void exynos7880_fimc_is_print_clk_reg(void)
-{
-	printk(KERN_DEBUG "[@] CCORE\n");
-	PRINT_CLK((cmu_ccore + 0x0120), "MEDIA_PLL_CON0");
-	PRINT_CLK((cmu_ccore + 0x0124), "MEDIA_PLL_CON1");
-	PRINT_CLK((cmu_ccore + 0x0140), "BUS_PLL_CON0");
-	PRINT_CLK((cmu_ccore + 0x0144), "BUS_PLL_CON1");
-	PRINT_CLK((cmu_ccore + 0x0220), "CLK_CON_MUX_MEDIA_PLL");
-	PRINT_CLK((cmu_ccore + 0x0224), "CLK_CON_MUX_BUS_PLL");
-	PRINT_CLK((cmu_ccore + 0x0264), "CLK_CON_MUX_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_ccore + 0x0268), "CLK_CON_MUX_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_ccore + 0x026C), "CLK_CON_MUX_CLKCMU_ISP_ISP");
-	PRINT_CLK((cmu_ccore + 0x02C4), "CLK_CON_MUX_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_ccore + 0x02C8), "CLK_CON_MUX_CLKCMU_ISP_SENSOR1");
-	PRINT_CLK((cmu_ccore + 0x02CC), "CLK_CON_MUX_CLKCMU_ISP_SENSOR2");
-	PRINT_CLK((cmu_ccore + 0x0464), "CLK_CON_DIV_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_ccore + 0x0468), "CLK_CON_DIV_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_ccore + 0x046C), "CLK_CON_DIV_CLKCMU_ISP_ISP");
-	PRINT_CLK((cmu_ccore + 0x04C4), "CLK_CON_DIV_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_ccore + 0x04C8), "CLK_CON_DIV_CLKCMU_ISP_SENSOR1");
-	PRINT_CLK((cmu_ccore + 0x04CC), "CLK_CON_DIV_CLKCMU_ISP_SENSOR2");
-	PRINT_CLK((cmu_ccore + 0x0864), "CLK_ENABLE_CLKCMU_ISP_VRA");
-	PRINT_CLK((cmu_ccore + 0x0868), "CLK_ENABLE_CLKCMU_ISP_CAM");
-	PRINT_CLK((cmu_ccore + 0x086C), "CLK_ENABLE_CLKCMU_ISP_ISP");
-	PRINT_CLK((cmu_ccore + 0x08C4), "CLK_ENABLE_CLKCMU_ISP_SENSOR0");
-	PRINT_CLK((cmu_ccore + 0x08C8), "CLK_ENABLE_CLKCMU_ISP_SENSOR1");
-	PRINT_CLK((cmu_ccore + 0x08CC), "CLK_ENABLE_CLKCMU_ISP_SENSOR2");
-
-	printk(KERN_DEBUG "[@] ISP\n");
-	PRINT_CLK((cmu_isp +  0x0100), "ISP_PLL_CON0");
-	PRINT_CLK((cmu_isp +  0x0104), "ISP_PLL_CON1");
-	PRINT_CLK((cmu_isp +  0x0200), "CLK_CON_MUX_ISP_PLL");
-	PRINT_CLK((cmu_isp +  0x0210), "CLK_CON_MUX_CLKCMU_ISP_VRA_USER");
-	PRINT_CLK((cmu_isp +  0x0214), "CLK_CON_MUX_CLKCMU_ISP_CAM_USER");
-	PRINT_CLK((cmu_isp +  0x0218), "CLK_CON_MUX_CLKCMU_ISP_ISP_USER");
-	PRINT_CLK((cmu_isp +  0x0220), "CLK_CON_MUX_CLK_ISP_VRA");
-	PRINT_CLK((cmu_isp +  0x0224), "CLK_CON_MUX_CLK_ISP_CAM");
-	PRINT_CLK((cmu_isp +  0x0228), "CLK_CON_MUX_CLK_ISP_ISP");
-	PRINT_CLK((cmu_isp +  0x022C), "CLK_CON_MUX_CLK_ISP_ISPD");
-	PRINT_CLK((cmu_isp +  0x0230), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS0_S4_USER");
-	PRINT_CLK((cmu_isp +  0x0234), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS1_S4_USER");
-	PRINT_CLK((cmu_isp +  0x0238), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS2_S4_USER");
-	PRINT_CLK((cmu_isp +  0x023C), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS3_S4_USER");
-	PRINT_CLK((cmu_isp +  0x0240), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS0_S4S_USER");
-	PRINT_CLK((cmu_isp +  0x0244), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS1_S4S_USER");
-	PRINT_CLK((cmu_isp +  0x0248), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS2_S4S_USER");
-	PRINT_CLK((cmu_isp +  0x024C), "CLK_CON_MUX_CLKPHY_ISP_S_RXBYTECLKHS3_S4S_USER");
-	PRINT_CLK((cmu_isp +  0x0400), "CLK_CON_DIV_CLK_ISP_APB");
-	PRINT_CLK((cmu_isp +  0x0404), "CLK_CON_DIV_CLK_CAM_HALF");
-	PRINT_CLK((cmu_isp +  0x0810), "CLK_ENABLE_CLK_ISP_VRA");
-	PRINT_CLK((cmu_isp +  0x0814), "CLK_ENABLE_CLK_ISP_APB");
-	PRINT_CLK((cmu_isp +  0x0818), "CLK_ENABLE_CLK_ISP_ISPD");
-	PRINT_CLK((cmu_isp +  0x081C), "CLK_ENABLE_CLK_ISP_CAM");
-	PRINT_CLK((cmu_isp +  0x0820), "CLK_ENABLE_CLK_ISP_CAM_HALF");
-	PRINT_CLK((cmu_isp +  0x0824), "CLK_ENABLE_CLK_ISP_ISP");
-	PRINT_CLK((cmu_isp +  0x0828), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4");
-	PRINT_CLK((cmu_isp +  0x082C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS1_S4");
-	PRINT_CLK((cmu_isp +  0x0830), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS2_S4");
-	PRINT_CLK((cmu_isp +  0x0834), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS3_S4");
-	PRINT_CLK((cmu_isp +  0x0838), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS0_S4S");
-	PRINT_CLK((cmu_isp +  0x083C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS1_S4S");
-	PRINT_CLK((cmu_isp +  0x0840), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS2_S4S");
-	PRINT_CLK((cmu_isp +  0x084C), "CLK_ENABLE_CLKPHY_ISP_S_RXBYTECLKHS3_S4S");
-}
-
-int exynos7880_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
-{
-	return 0;
-}
-
-int exynos7880_fimc_is_uart_gate(struct device *dev, bool mask)
-{
-	return 0;
-}
-
-int exynos7880_fimc_is_get_clk(struct device *dev)
-{
-	const char *name;
-	struct clk *clk;
-	size_t index;
-
-	/* for debug */
-	cmu_ccore = ioremap(0x10680000, SZ_4K);
-	cmu_isp = ioremap(0x144D0000, SZ_4K);
-
-	for (index = 0; index < ARRAY_SIZE(fimc_is_clk_list); ++index) {
-		name = fimc_is_clk_list[index].name;
-		if (!name) {
-			pr_err("[@][ERR] %s: name is NULL\n", __func__);
-			return -EINVAL;
-		}
-
-		clk = devm_clk_get(dev, name);
-		if (IS_ERR_OR_NULL(clk)) {
-			pr_err("[@][ERR] %s: could not lookup clock : %s\n", __func__, name);
-			return -EINVAL;
-		}
-
-		fimc_is_clk_list[index].clk = clk;
-	}
-
-	return 0;
-}
-
-int exynos7880_fimc_is_cfg_clk(struct device *dev)
-{
-	pr_debug("%s\n", __func__);
-
-	/* Clock Gating */
-	exynos7880_fimc_is_uart_gate(dev, false);
-
-	return 0;
-}
-
-int exynos7880_fimc_is_clk_on(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (pdata->clock_on) {
-		ret = pdata->clk_off(dev);
-		if (ret) {
-			pr_err("clk_off is fail(%d)\n", ret);
-			goto p_err;
-		}
-	}
-
-#ifdef DBG_DUMPCMU
-	exynos7880_fimc_is_print_clk(dev);
-#endif
-
-	/* ISP */
-	fimc_is_enable(dev, "gate_isp_sysmmu");
-	fimc_is_enable(dev, "gate_isp_ppmu");
-	fimc_is_enable(dev, "gate_isp_bts");
-	fimc_is_enable(dev, "gate_isp_cam");
-	fimc_is_enable(dev, "gate_isp_isp");
-	fimc_is_enable(dev, "gate_isp_vra");
-	fimc_is_enable(dev, "pxmxdx_isp_isp");
-	fimc_is_enable(dev, "pxmxdx_isp_cam");
-	fimc_is_enable(dev, "pxmxdx_isp_vra");
-
-	pdata->clock_on = true;
-
-p_err:
-	return 0;
-}
-
-int exynos7880_fimc_is_clk_off(struct device *dev)
-{
-	int ret = 0;
-	struct exynos_platform_fimc_is *pdata;
-
-	pdata = dev_get_platdata(dev);
-	if (!pdata->clock_on) {
-		pr_err("clk_off is fail(already off)\n");
-		ret = -EINVAL;
-		goto p_err;
-	}
-
-	/* ISP */
-	fimc_is_disable(dev, "gate_isp_sysmmu");
-	fimc_is_disable(dev, "gate_isp_ppmu");
-	fimc_is_disable(dev, "gate_isp_bts");
-	fimc_is_disable(dev, "gate_isp_cam");
-	fimc_is_disable(dev, "gate_isp_isp");
-	fimc_is_disable(dev, "gate_isp_vra");
-	fimc_is_disable(dev, "pxmxdx_isp_isp");
-	fimc_is_disable(dev, "pxmxdx_isp_cam");
-	fimc_is_disable(dev, "pxmxdx_isp_vra");
-
-	pdata->clock_on = false;
-
-p_err:
-	return 0;
-}
-
-int exynos7880_fimc_is_print_clk(struct device *dev)
-{
-	printk(KERN_DEBUG "#################### SENSOR clock ####################\n");
-	fimc_is_get_rate(dev, "isp_sensor0_sclk");
-	fimc_is_get_rate(dev, "isp_sensor1_sclk");
-	fimc_is_get_rate(dev, "isp_sensor2_sclk");
-
-	printk(KERN_DEBUG "#################### ISP clock ####################\n");
-	fimc_is_get_rate(dev, "gate_isp_sysmmu");
-	fimc_is_get_rate(dev, "gate_isp_ppmu");
-	fimc_is_get_rate(dev, "gate_isp_bts");
-	fimc_is_get_rate(dev, "gate_isp_cam");
-	fimc_is_get_rate(dev, "gate_isp_isp");
-	fimc_is_get_rate(dev, "gate_isp_vra");
-	fimc_is_get_rate(dev, "pxmxdx_isp_isp");
-	fimc_is_get_rate(dev, "pxmxdx_isp_cam");
-	fimc_is_get_rate(dev, "pxmxdx_isp_vra");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs0_s4_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs1_s4_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs2_s4_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs3_s4_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs0_s4s_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs1_s4s_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs2_s4s_user");
-	fimc_is_get_rate(dev, "umux_isp_clkphy_isp_s_rxbyteclkhs3_s4s_user");
-
-	exynos7880_fimc_is_print_clk_reg();
-
-	return 0;
-}
 #endif
 
 /* Wrapper functions */
 int exynos_fimc_is_clk_get(struct device *dev)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-       exynos8895_fimc_is_get_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
        exynos8890_fimc_is_get_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-       exynos7570_fimc_is_get_clk(dev);
 #elif defined(CONFIG_SOC_EXYNOS7870)
        exynos7870_fimc_is_get_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-       exynos7880_fimc_is_get_clk(dev);
 #else
 #error exynos_fimc_is_clk_get is not implemented
 #endif
@@ -1959,16 +1099,10 @@ int exynos_fimc_is_clk_get(struct device *dev)
 
 int exynos_fimc_is_clk_cfg(struct device *dev)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-	exynos8895_fimc_is_cfg_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 	exynos8890_fimc_is_cfg_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-	exynos7570_fimc_is_cfg_clk(dev);
 #elif defined(CONFIG_SOC_EXYNOS7870)
 	exynos7870_fimc_is_cfg_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-	exynos7880_fimc_is_cfg_clk(dev);
 #else
 #error exynos_fimc_is_clk_cfg is not implemented
 #endif
@@ -1977,16 +1111,10 @@ int exynos_fimc_is_clk_cfg(struct device *dev)
 
 int exynos_fimc_is_clk_on(struct device *dev)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-	exynos8895_fimc_is_clk_on(dev);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 	exynos8890_fimc_is_clk_on(dev);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-	exynos7570_fimc_is_clk_on(dev);
 #elif defined(CONFIG_SOC_EXYNOS7870)
 	exynos7870_fimc_is_clk_on(dev);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-	exynos7880_fimc_is_clk_on(dev);
 #else
 #error exynos_fimc_is_clk_on is not implemented
 #endif
@@ -1995,16 +1123,10 @@ int exynos_fimc_is_clk_on(struct device *dev)
 
 int exynos_fimc_is_clk_off(struct device *dev)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-	exynos8895_fimc_is_clk_off(dev);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 	exynos8890_fimc_is_clk_off(dev);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-	exynos7570_fimc_is_clk_off(dev);
 #elif defined(CONFIG_SOC_EXYNOS7870)
 	exynos7870_fimc_is_clk_off(dev);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-	exynos7880_fimc_is_clk_off(dev);
 #else
 #error exynos_fimc_is_clk_off is not implemented
 #endif
@@ -2013,16 +1135,10 @@ int exynos_fimc_is_clk_off(struct device *dev)
 
 int exynos_fimc_is_print_clk(struct device *dev)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-	exynos8895_fimc_is_print_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 	exynos8890_fimc_is_print_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-	exynos7570_fimc_is_print_clk(dev);
 #elif defined(CONFIG_SOC_EXYNOS7870)
 	exynos7870_fimc_is_print_clk(dev);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-	exynos7880_fimc_is_print_clk(dev);
 #else
 #error exynos_fimc_is_print_clk is not implemented
 #endif
@@ -2039,16 +1155,10 @@ int exynos_fimc_is_set_user_clk_gate(u32 group_id, bool is_on,
 
 int exynos_fimc_is_clk_gate(u32 clk_gate_id, bool is_on)
 {
-#if defined(CONFIG_SOC_EXYNOS8895)
-	exynos8895_fimc_is_clk_gate(clk_gate_id, is_on);
-#elif defined(CONFIG_SOC_EXYNOS8890)
+#if defined(CONFIG_SOC_EXYNOS8890)
 	exynos8890_fimc_is_clk_gate(clk_gate_id, is_on);
-#elif defined(CONFIG_SOC_EXYNOS7570)
-	exynos7570_fimc_is_clk_gate(clk_gate_id, is_on);
 #elif defined(CONFIG_SOC_EXYNOS7870)
 	exynos7870_fimc_is_clk_gate(clk_gate_id, is_on);
-#elif defined(CONFIG_SOC_EXYNOS7880)
-	exynos7880_fimc_is_clk_gate(clk_gate_id, is_on);
 #endif
 	return 0;
 }

@@ -42,8 +42,6 @@ DECLARE_DVFS_DT(FIMC_IS_SN_END,
 		{"video_high_speed_60fps_"   , FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS},
 		{"video_high_speed_120fps_"  , FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS},
 		{"video_high_speed_240fps_"  , FIMC_IS_SN_VIDEO_HIGH_SPEED_240FPS},
-		{"ext_rear_"		     , FIMC_IS_SN_EXT_REAR},
-		{"ext_front_"		     , FIMC_IS_SN_EXT_FRONT},
 		{"max_"                      , FIMC_IS_SN_MAX});
 
 /* dvfs scenario check logic data */
@@ -76,10 +74,6 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_PREVIEW_HIGH_SPEED_FPS);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS);
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_240FPS);
-
-/* external isp's dvfs */
-DECLARE_EXT_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_REAR);
-DECLARE_EXT_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_FRONT);
 
 #if defined(ENABLE_DVFS)
 /*
@@ -213,23 +207,6 @@ static struct fimc_is_dvfs_scenario dynamic_scenarios[] = {
 		.check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_FRONT_CAPTURE),
 	},
 };
-
-/*
- * External Sensor/Vision Scenario Set
- * You should describe external scenario by priorities of scenario.
- * And you should name array 'external_scenarios'
- */
-struct fimc_is_dvfs_scenario external_scenarios[] = {
-	{
-		.scenario_id		= FIMC_IS_SN_EXT_REAR,
-		.scenario_nm		= DVFS_SN_STR(FIMC_IS_SN_EXT_REAR),
-		.ext_check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_REAR),
-	}, {
-		.scenario_id		= FIMC_IS_SN_EXT_FRONT,
-		.scenario_nm		= DVFS_SN_STR(FIMC_IS_SN_EXT_FRONT),
-		.ext_check_func		= GET_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_FRONT),
-	},
-};
 #else
 /*
  * Default Scenario can not be seleted, this declaration is for static variable.
@@ -249,15 +226,6 @@ static struct fimc_is_dvfs_scenario dynamic_scenarios[] = {
 		.scenario_nm		= NULL,
 		.keep_frame_tick	= 0,
 		.check_func		= NULL,
-	},
-};
-
-static struct fimc_is_dvfs_scenario external_scenarios[] = {
-	{
-		.scenario_id		= FIMC_IS_SN_DEFAULT,
-		.scenario_nm		= NULL,
-		.keep_frame_tick	= 0,
-		.ext_check_func		= NULL,
 	},
 };
 #endif
@@ -312,7 +280,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_PREVIEW_HIGH_SPEED_FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_FHD_60FPS);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_FHD_60FPS);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 60) &&
@@ -326,7 +294,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_60FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_VIDEO_HIGH_SPEED);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 120 &&
@@ -340,7 +308,7 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_120FPS)
 DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_VIDEO_HIGH_SPEED_240FPS)
 {
 	u32 mask = (device->setfile & FIMC_IS_SETFILE_MASK);
-	bool setfile_flag = (mask == ISS_SUB_SCENARIO_FHD_240FPS);
+	bool setfile_flag = (mask & ISS_SUB_SCENARIO_FHD_240FPS);
 
 	if ((position == SENSOR_POSITION_REAR) &&
 			(fps >= 240) &&  setfile_flag)
@@ -610,22 +578,6 @@ DECLARE_DVFS_CHK_FUNC(FIMC_IS_SN_REAR_CAMCORDING_UHD_CAPTURE)
 		return 0;
 }
 
-DECLARE_EXT_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_REAR)
-{
-	if (position == SENSOR_POSITION_REAR)
-		return 1;
-	else
-		return 0;
-}
-
-DECLARE_EXT_DVFS_CHK_FUNC(FIMC_IS_SN_EXT_FRONT)
-{
-	if (position == SENSOR_POSITION_FRONT)
-		return 1;
-	else
-		return 0;
-}
-
 int fimc_is_hw_dvfs_init(void *dvfs_data)
 {
 	int ret = 0;
@@ -641,8 +593,6 @@ int fimc_is_hw_dvfs_init(void *dvfs_data)
 		static_scenarios[i].priority = i;
 	for (i = 0; i < ARRAY_SIZE(dynamic_scenarios); i++)
 		dynamic_scenarios[i].priority = i;
-	for (i = 0; i < ARRAY_SIZE(external_scenarios); i++)
-		external_scenarios[i].priority = i;
 
 	dvfs_ctrl->static_ctrl->cur_scenario_id	= -1;
 	dvfs_ctrl->static_ctrl->cur_scenario_idx	= -1;
@@ -660,14 +610,6 @@ int fimc_is_hw_dvfs_init(void *dvfs_data)
 		dvfs_ctrl->dynamic_ctrl->scenario_cnt	= 0;
 	else
 		dvfs_ctrl->dynamic_ctrl->scenario_cnt	= ARRAY_SIZE(dynamic_scenarios);
-
-	dvfs_ctrl->external_ctrl->cur_scenario_id	= -1;
-	dvfs_ctrl->external_ctrl->cur_scenario_idx	= -1;
-	dvfs_ctrl->external_ctrl->scenarios		= external_scenarios;
-	if (external_scenarios[0].scenario_id == FIMC_IS_SN_DEFAULT)
-		dvfs_ctrl->external_ctrl->scenario_cnt	= 0;
-	else
-		dvfs_ctrl->external_ctrl->scenario_cnt	= ARRAY_SIZE(external_scenarios);
 
 	return ret;
 }
