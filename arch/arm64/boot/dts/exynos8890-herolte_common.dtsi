@@ -1084,14 +1084,18 @@
 		post-calib-of-hs-rate-a =
 			<0x049 0x02 (PMD_HS_G2_L1 | PMD_HS_G3_L1) PHY_PMA_TRSV>,
 			<0x04a 0x37 (PMD_HS_G2_L1 | PMD_HS_G3_L1) PHY_PMA_TRSV>,
+			<0x01e BIT_5 PMD_HS PHY_PLL_WAIT>,
+			<0x06e BIT_4 PMD_HS PHY_CDR_WAIT>,
 			<0 0 0 0>;
 
 		post-calib-of-hs-rate-b =
 			<0x049 0x02 (PMD_HS_G2_L1 | PMD_HS_G3_L1) PHY_PMA_TRSV>,
 			<0x04a 0x37 (PMD_HS_G2_L1 | PMD_HS_G3_L1) PHY_PMA_TRSV>,
+			<0x01e BIT_5 PMD_HS PHY_PLL_WAIT>,
+			<0x06e BIT_4 PMD_HS PHY_CDR_WAIT>,
 			<0 0 0 0>;
 
-		pma-restore =
+		lpa-restore =
 			<0x00f 0xfa PMD_ALL PHY_PMA_COMN>,
 			<0x010 0x82 PMD_ALL PHY_PMA_COMN>,
 			<0x011 0x1e PMD_ALL PHY_PMA_COMN>,

@@ -366,8 +366,12 @@ static int exynos_ufs_populate_dt_phy_cfg(struct device *dev,
 	dev_dbg(dev, "=== PHY config allocation complete ===\n");
 	for (i=0 ; i<NUM_OF_PHY_CONFIGS ; i++) {
 		/* Check if each config table exits */
-		if(!of_get_property(dev->of_node, configs[i], &num_of_configs[i]))
-			goto out;
+		if (!of_get_property(dev->of_node, configs[i], &num_of_configs[i])) {
+			/* Older boards provide only the tables their PHY needs. */
+			if (i == 0)
+				goto out;
+			continue;
+		}
 		num_of_configs[i] /= sizeof(int);
 		dev_dbg(dev, "%s: %d\n", configs[i], num_of_configs[i]);
 
