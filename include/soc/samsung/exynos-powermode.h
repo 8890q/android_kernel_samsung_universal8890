@@ -12,6 +12,7 @@
 #ifndef __EXYNOS_POWERMODE_H
 #define __EXYNOS_POWERMODE_H __FILE__
 #include <soc/samsung/cal-if.h>
+#include <soc/samsung/exynos-powerdown.h>
 
 extern int exynos_prepare_sys_powerdown(enum sys_powerdown mode);
 extern void exynos_wakeup_sys_powerdown(enum sys_powerdown mode, bool early_wakeup);
@@ -19,6 +20,19 @@ extern void exynos_prepare_cp_call(void);
 extern void exynos_wakeup_cp_call(bool early_wakeup);
 extern int exynos_rtc_wakeup(void);
 
+#if defined(CONFIG_SOC_EXYNOS8890)
+static char *sys_powerdown_str[NUM_SYS_POWERDOWN] = {
+	"SICD",
+	"SICD_CPD",
+	"SICD_AUD",
+	"AFTR",
+	"STOP",
+	"DSTOP",
+	"LPD",
+	"ALPA",
+	"SLEEP",
+};
+#else
 static char *sys_powerdown_str[NUM_SYS_POWERDOWN] = {
 	"SICD",
 	"SICD_CPD",
@@ -33,6 +47,7 @@ static char *sys_powerdown_str[NUM_SYS_POWERDOWN] = {
 	"SLEEP_AUD_ON",
 	"FAPO",
 };
+#endif
 
 static inline char* get_sys_powerdown_str(int mode)
 {

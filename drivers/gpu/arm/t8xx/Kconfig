@@ -1,0 +1,14 @@
+config MALI_T8XX
+	bool "Mali T8xx support"
+	depends on SOC_EXYNOS8890
+	default y
+
+config MALI_R28P0
+	bool "Mali R28P0 driver"
+	depends on MALI_T8XX
+	select MALI_MIDGARD
+	default y
+
+if MALI_R28P0
+source "drivers/gpu/arm/t8xx/r28p0/Kconfig"
+endif

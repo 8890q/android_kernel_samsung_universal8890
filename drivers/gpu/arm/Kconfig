@@ -11,6 +11,10 @@
 
 
 menu "ARM GPU Configuration"
+if (SOC_EXYNOS8890)
+source "drivers/gpu/arm/t8xx/Kconfig"
+endif
+
 if (SOC_EXYNOS8895)
 source "drivers/gpu/arm/tMIx/Kconfig"
 endif

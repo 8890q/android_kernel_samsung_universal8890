@@ -1,0 +1,35 @@
+#ifndef __EXYNOS_POWERDOWN_H
+#define __EXYNOS_POWERDOWN_H
+
+#if defined(CONFIG_SOC_EXYNOS8890)
+enum sys_powerdown {
+	SYS_SICD,
+	SYS_SICD_CPD,
+	SYS_SICD_AUD,
+	SYS_AFTR,
+	SYS_STOP,
+	SYS_DSTOP,
+	SYS_LPD,
+	SYS_ALPA,
+	SYS_SLEEP,
+	NUM_SYS_POWERDOWN,
+};
+#else
+enum sys_powerdown {
+	SYS_SICD,
+	SYS_SICD_CPD,
+	SYS_AFTR,
+	SYS_STOP,
+	SYS_LPD,
+	SYS_LPA,
+	SYS_ALPA,
+	SYS_DSTOP,
+	SYS_SLEEP,
+	SYS_SLEEP_VTS_ON,
+	SYS_SLEEP_AUD_ON,
+	SYS_FAPO,
+	NUM_SYS_POWERDOWN,
+};
+#endif
+
+#endif
