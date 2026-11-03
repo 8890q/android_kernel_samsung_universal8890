@@ -53,9 +53,6 @@
 #include <asm/smp_plat.h>
 #include <soc/samsung/exynos-pmu.h>
 #include <soc/samsung/acpm_ipc_ctrl.h>
-#if defined(CONFIG_SEC_SIPC_MODEM_IF)
-#include <soc/samsung/exynos-modem-ctrl.h>
-#endif
 #include <linux/i2c.h>
 #include <linux/spi/spi.h>
 
@@ -887,9 +884,6 @@ int exynos_ss_prepare_panic(void)
 			exynos_ss_core_power_stat(ESS_SIGN_DEAD, core);
 	}
 
-#if defined(CONFIG_SEC_SIPC_MODEM_IF)
-	ss310ap_send_panic_noti_ext();
-#endif
 	acpm_stop_log();
 
 	return 0;
