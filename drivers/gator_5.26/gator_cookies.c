@@ -10,11 +10,7 @@
 #include <linux/mount.h>
 
 
-/* Kernel version 4.6.0 removes get_user_pages macro. We should use get_user_pages_remote anyway.
-(See https://git.kernel.org/cgit/linux/kernel/git/torvalds/linux.git/commit/include/linux/mm.h?id=c12d2da56d0e07d230968ee2305aaa86b93a6832) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-#   define get_user_pages_remote(a,b,c,d,e,f,g,h)  get_user_pages(a,b,c,d,e,f,g,h)
-#endif
+/* This 4.4 tree uses the backported GUP flags interface. */
 
 struct mount {
     struct mount *mnt_parent;
@@ -254,7 +250,7 @@ static int translate_app_process(const char **text, int cpu, struct task_struct 
 
     down_read(&mm->mmap_sem);
     while (len) {
-        if (get_user_pages_remote(task, mm, addr, 1, 0, 1, &page, &page_vma) <= 0)
+        if (get_user_pages(task, mm, addr, 1, FOLL_FORCE, &page, &page_vma) <= 0)
             goto outsem;
 
         maddr = kmap(page);

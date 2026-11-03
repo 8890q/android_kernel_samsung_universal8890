@@ -6,7 +6,8 @@
 
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM mali-systrace
-#define TRACE_SYSTEM_STRING __stringify(TRACE_SYSTEM)
+#undef TRACE_SYSTEM_VAR
+#define TRACE_SYSTEM_VAR mali_systrace
 #undef TRACE_INCLUDE_FILE
 #define TRACE_INCLUDE_FILE mali_linux_systrace
 
