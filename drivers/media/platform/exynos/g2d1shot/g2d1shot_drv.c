@@ -238,11 +238,13 @@ static void g2d1shot_request_bts_performance(struct g2d1shot_dev *g2d_dev,
 	}
 
 	if ((rbw != cur_rbw) || (wbw != cur_wbw)) {
+#if defined(CONFIG_EXYNOS8895_BTS)
 		struct bts_bw bw;
 		bw.peak = ((rbw + wbw) / 1000) * BTS_PEAK_FPS_RATIO / 2;
 		bw.write = wbw;
 		bw.read = rbw;
 		bts_update_bw(BTS_BW_G2D, bw);
+#endif
 	}
 
 	mutex_unlock(&g2d_dev->lock_qos);
