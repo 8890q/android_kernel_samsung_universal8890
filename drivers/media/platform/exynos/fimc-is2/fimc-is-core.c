@@ -1007,7 +1007,7 @@ static int fimc_is_probe(struct platform_device *pdev)
 
 	EXYNOS_MIF_ADD_NOTIFIER(&exynos_fimc_is_mif_throttling_nb);
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_enable(&pdev->dev);
 #endif
 

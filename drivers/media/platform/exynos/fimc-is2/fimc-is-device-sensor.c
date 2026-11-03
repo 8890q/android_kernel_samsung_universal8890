@@ -1278,7 +1278,7 @@ static int fimc_is_sensor_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_enable(&pdev->dev);
 #endif
 #if defined(SUPPORTED_EARLYBUF_DONE_SW)

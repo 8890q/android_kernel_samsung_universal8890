@@ -805,7 +805,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 	if (atomic_read(&resource->rsccount) == 0) {
 		switch (rsc_type) {
 		case RESOURCE_TYPE_PREPROC:
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_preproc_runtime_resume(&resource->pdev->dev);
@@ -813,7 +813,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_COM_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR0:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -821,7 +821,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_SS0_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR1:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -829,7 +829,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_SS1_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR2:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -837,7 +837,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_SS2_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR3:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -845,7 +845,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_SS3_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR4:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -853,7 +853,7 @@ int fimc_is_resource_get(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			set_bit(FIMC_IS_RM_SS4_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR5:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_get_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_resume(&resource->pdev->dev);
@@ -979,7 +979,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 
 		switch (rsc_type) {
 		case RESOURCE_TYPE_PREPROC:
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_preproc_runtime_suspend(&resource->pdev->dev);
@@ -987,7 +987,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_COM_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR0:
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);
@@ -995,7 +995,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_SS0_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR1:
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);
@@ -1003,7 +1003,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_SS1_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR2:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);
@@ -1011,7 +1011,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_SS2_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR3:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);
@@ -1019,7 +1019,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_SS3_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR4:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);
@@ -1027,7 +1027,7 @@ int fimc_is_resource_put(struct fimc_is_resourcemgr *resourcemgr, u32 rsc_type)
 			clear_bit(FIMC_IS_RM_SS4_POWER_ON, &resourcemgr->state);
 			break;
 		case RESOURCE_TYPE_SENSOR5:
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 			pm_runtime_put_sync(&resource->pdev->dev);
 #else
 			fimc_is_sensor_runtime_suspend(&resource->pdev->dev);

@@ -652,7 +652,7 @@ static int fimc_is_preproc_probe(struct platform_device *pdev)
 		goto p_err;
 	}
 
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	pm_runtime_enable(&pdev->dev);
 #endif
 

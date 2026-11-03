@@ -2382,7 +2382,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 {
 	int ret = 0;
 	int retry = 4;
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	int rpm_ret;
 #endif
 	u32 val;
@@ -2418,7 +2418,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 		}
 
 		/* 2. FIMC-IS local power enable */
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 		mdbgd_ischain("pm_runtime_suspended = %d\n", device, pm_runtime_suspended(dev));
 		rpm_ret = pm_runtime_get_sync(dev);
 		if (rpm_ret < 0)
@@ -2522,7 +2522,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 		info("A5 state(0x%x)\n", readl(itf->regs + ISSR6));
 
 		/* FIMC-IS local power down */
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 		ret = pm_runtime_put_sync(dev);
 		if (ret)
 			err("pm_runtime_put_sync is fail(%d)", ret);
@@ -2548,7 +2548,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 {
 	int ret = 0;
 	int retry = 4;
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 	int rpm_ret;
 #endif
 	struct device *dev;
@@ -2575,7 +2575,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 		}
 
 		/* 2. FIMC-IS local power enable */
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 		mdbgd_ischain("pm_runtime_suspended = %d\n", device, pm_runtime_suspended(dev));
 		rpm_ret = pm_runtime_get_sync(dev);
 		if (rpm_ret < 0)
@@ -2607,7 +2607,7 @@ int fimc_is_ischain_power(struct fimc_is_device_ischain *device, int on)
 		set_bit(FIMC_IS_ISCHAIN_POWER_ON, &device->state);
 	} else {
 		/* FIMC-IS local power down */
-#if defined(CONFIG_PM_RUNTIME)
+#if defined(CONFIG_PM)
 		ret = pm_runtime_put_sync(dev);
 		if (ret)
 			err("pm_runtime_put_sync is fail(%d)", ret);
