@@ -401,6 +401,7 @@ out:
 
 static void exynos_ufs_select_refclk(struct exynos_ufs *ufs, bool en)
 {
+#if !defined(CONFIG_SOC_EXYNOS7420) && !defined(CONFIG_SOC_EXYNOS8890)
 	u32 reg;
 
 	if (ufs->hw_rev != UFS_VER_0004)
@@ -414,10 +415,12 @@ static void exynos_ufs_select_refclk(struct exynos_ufs *ufs, bool en)
 		hci_writel(ufs, reg | MPHY_REFCLK_SEL, HCI_MPHY_REFCLK_SEL);
 	else
 		hci_writel(ufs, reg & ~MPHY_REFCLK_SEL, HCI_MPHY_REFCLK_SEL);
+#endif
 }
 
 inline void exynos_ufs_set_hwacg_control(struct exynos_ufs *ufs, bool en)
 {
+#if !defined(CONFIG_SOC_EXYNOS7420) && !defined(CONFIG_SOC_EXYNOS8890)
 	u32 reg;
 
 	if (ufs->hw_rev < UFS_VER_0004)
@@ -433,6 +436,7 @@ inline void exynos_ufs_set_hwacg_control(struct exynos_ufs *ufs, bool en)
 	else
 		hci_writel(ufs, reg | HCI_UFS_ACG_DISABLE_EN, HCI_UFS_ACG_DISABLE);
 
+#endif
 }
 
 inline void exynos_ufs_ctrl_auto_hci_clk(struct exynos_ufs *ufs, bool en)
@@ -1349,6 +1353,7 @@ static void exynos_ufs_init_host(struct exynos_ufs *ufs)
 					HCI_AXIDMA_RWDATA_BURST_LEN);
 	}
 
+#if !defined(CONFIG_SOC_EXYNOS7420) && !defined(CONFIG_SOC_EXYNOS8890)
 	/*
 	 * Enable HWAGC control by IOP
 	 *
@@ -1357,6 +1362,7 @@ static void exynos_ufs_init_host(struct exynos_ufs *ufs)
 	 */
 	reg = hci_readl(ufs, HCI_IOP_ACG_DISABLE);
 	hci_writel(ufs, reg & (~HCI_IOP_ACG_DISABLE_EN), HCI_IOP_ACG_DISABLE);
+#endif
 }
 
 static void exynos_ufs_pre_hibern8(struct ufs_hba *hba, u8 enter)
