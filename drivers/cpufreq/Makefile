@@ -110,3 +110,5 @@ obj-$(CONFIG_SPARC_US3_CPUFREQ)		+= sparc-us3-cpufreq.o
 obj-$(CONFIG_UNICORE32)			+= unicore2-cpufreq.o
 
 obj-$(CONFIG_ARM_EXYNOS_MP_CPUFREQ) += exynos-mp-cpufreq.o exynos-mp-cpufreq-cal.o
+
+obj-$(CONFIG_CPU_THERMAL_IPA) += cpu_load_metric.o

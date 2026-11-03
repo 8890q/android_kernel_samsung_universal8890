@@ -260,7 +260,11 @@ int gpu_ipa_dvfs_max_unlock(void)
 int get_ipa_dvfs_max_freq(void)
 {
 	struct kbase_device *kbdev = pkbdev;
-	struct exynos_context *platform = (struct exynos_context *)kbdev->platform_context;
+	struct exynos_context *platform;
+
+	if (!kbdev || !kbdev->platform_context)
+		return -EPROBE_DEFER;
+	platform = kbdev->platform_context;
 
 	if (!platform) {
 		GPU_LOG(DVFS_ERROR, DUMMY, 0u, 0u, "%s: platform context (0x%p) is not initialized\n", __func__, platform);

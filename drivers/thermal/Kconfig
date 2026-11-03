@@ -410,3 +410,27 @@ config QCOM_SPMI_TEMP_ALARM
 	  temperature based upon the over temperature stage value.
 
 endif
+
+config CPU_THERMAL_IPA
+	bool "Enable Intelligent Power Arbiter"
+	depends on THERMAL && ARM_EXYNOS_MP_CPUFREQ && EXYNOS_THERMAL && SOC_EXYNOS8890
+	help
+	  This implements the Intelligent Power Arbiter (IPA)
+
+config CPU_THERMAL_IPA_CONTROL
+	bool "Enable control"
+	depends on CPU_THERMAL_IPA
+	help
+	  This implements the intelligent power arbiter (IPA) control algorithms.
+	  If you want this support, you should say Y here.
+
+config CPU_THERMAL_IPA_DEBUG
+	bool "Enable debugging"
+	depends on CPU_THERMAL_IPA
+	select FUNCTION_TRACER
+	select DYNAMIC_FTRACE
+	help
+	  This enables *trace* routines in IPA, used to collect logs
+	  of temperature, CPU and GPU utilisations and power
+	  estimates.  If you want to analyze IPA behaviour, you should
+	  say Y here.

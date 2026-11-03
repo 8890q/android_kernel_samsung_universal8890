@@ -15,6 +15,9 @@
 
 #include <linux/notifier.h>
 
+struct cpufreq_frequency_table;
+struct cpufreq_frequency_table *cpufreq_get_info_table(unsigned int cpu);
+
 /*
  * Common definitions and structures
  */
