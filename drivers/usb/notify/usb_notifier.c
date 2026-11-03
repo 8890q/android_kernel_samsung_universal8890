@@ -668,7 +668,11 @@ static struct otg_notify dwc_lsi_notify = {
 	.set_peripheral	= exynos_set_peripheral,
 	.vbus_detect_gpio = -1,
 	.is_wakelock = 1,
+#if defined(CONFIG_SOC_EXYNOS8890)
+	.booting_delay_sec = 0,
+#else
 	.booting_delay_sec = 10,
+#endif
 #if !defined(CONFIG_CCIC_NOTIFIER)
 	.auto_drive_vbus = NOTIFY_OP_POST,
 #endif
