@@ -62,7 +62,7 @@ void print_req_ack(struct mem_link_device *mld, struct mem_snapshot *mst,
 #ifdef DEBUG_MODEM_IF_FLOW_CTRL
 	struct link_device *ld = &mld->link_dev;
 	struct modem_ctl *mc = ld->mc;
-	enum legacy_ipc_map id = dev->id;
+	enum dev_format id = dev->id;
 	unsigned int qsize = get_size(cq(dev, dir));
 	unsigned int in = mst->head[id][dir];
 	unsigned int out = mst->tail[id][dir];
@@ -81,7 +81,7 @@ void print_res_ack(struct mem_link_device *mld, struct mem_snapshot *mst,
 #ifdef DEBUG_MODEM_IF_FLOW_CTRL
 	struct link_device *ld = &mld->link_dev;
 	struct modem_ctl *mc = ld->mc;
-	enum legacy_ipc_map id = dev->id;
+	enum dev_format id = dev->id;
 	enum direction opp_dir = opposite(dir);	/* opposite direction */
 	unsigned int qsize = get_size(cq(dev, opp_dir));
 	unsigned int in = mst->head[id][opp_dir];
@@ -116,7 +116,7 @@ void print_dev_snapshot(struct mem_link_device *mld, struct mem_snapshot *mst,
 {
 #ifdef DEBUG_MODEM_IF
 	struct link_device *ld = &mld->link_dev;
-	enum legacy_ipc_map id = dev->id;
+	enum dev_format id = dev->id;
 
 	if (id > IPC_RAW)
 		return;
@@ -127,6 +127,47 @@ void print_dev_snapshot(struct mem_link_device *mld, struct mem_snapshot *mst,
 		mst->head[id][TX], mst->tail[id][TX],
 		mst->head[id][RX], mst->tail[id][RX],
 		(mst->dir == RX) ? mst->int2ap : mst->int2cp);
+#endif
+}
+
+void save_mem_dump(struct mem_link_device *mld)
+{
+#ifdef DEBUG_MODEM_IF
+	struct link_device *ld = &mld->link_dev;
+	char *path = mld->dump_path;
+	struct file *fp;
+	struct utc_time t;
+
+	get_utc_time(&t);
+	snprintf(path, MIF_MAX_PATH_LEN, "%s/%s_%d%02d%02d_%02d%02d%02d.dump",
+		MIF_LOG_DIR, ld->name, t.year, t.mon, t.day, t.hour, t.min,
+		t.sec);
+
+	fp = mif_open_file(path);
+	if (!fp) {
+		mif_err("%s: ERR! %s open fail\n", ld->name, path);
+		return;
+	}
+	mif_err("%s: %s opened\n", ld->name, path);
+
+	mif_save_file(fp, mld->base, mld->size);
+
+	mif_close_file(fp);
+#endif
+}
+
+void mem_dump_work(struct work_struct *ws)
+{
+#ifdef DEBUG_MODEM_IF
+	struct mem_link_device *mld;
+
+	mld = container_of(ws, struct mem_link_device, dump_work);
+	if (!mld) {
+		mif_err("ERR! no mld\n");
+		return;
+	}
+
+	save_mem_dump(mld);
 #endif
 }
 

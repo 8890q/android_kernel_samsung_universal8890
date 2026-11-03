@@ -40,12 +40,7 @@
 #include <linux/delay.h>
 #include <linux/wakelock.h>
 #include <linux/exynos-ss.h>
-#include <linux/bitops.h>
-#include <linux/smc.h>
-#include <soc/samsung/pmu-cp.h>
-#include <soc/samsung/exynos-modem-ctrl.h>
 
-#include <soc/samsung/acpm_ipc_ctrl.h>
 #include "modem_prj.h"
 #include "modem_utils.h"
 
@@ -84,8 +79,6 @@ static const char *hex = "0123456789abcdef";
 
 static struct raw_notifier_head cp_crash_notifier;
 
-struct mif_buff_mng *g_mif_buff_mng = NULL;
-
 static inline void ts2utc(struct timespec *ts, struct utc_time *utc)
 {
 	struct tm tm;
@@ -97,7 +90,7 @@ static inline void ts2utc(struct timespec *ts, struct utc_time *utc)
 	utc->hour = tm.tm_hour;
 	utc->min = tm.tm_min;
 	utc->sec = tm.tm_sec;
-	utc->us = (u32)ns2us(ts->tv_nsec);
+	utc->us = ns2us(ts->tv_nsec);
 }
 
 void get_utc_time(struct utc_time *utc)
@@ -522,7 +515,7 @@ void stop_net_ifaces(struct link_device *ld)
 	unsigned long flags;
 	spin_lock_irqsave(&ld->netif_lock, flags);
 
-	if (!(atomic_read(&ld->netif_stopped) > 0)) {
+	if (!atomic_read(&ld->netif_stopped) > 0) {
 		if (ld->msd)
 			netif_tx_flowctl(ld->msd, true);
 
@@ -586,7 +579,7 @@ __be32 ipv4str_to_be32(const char *ipv4str, size_t count)
 		char *p;
 
 		p = strsep(&next, ".");
-		if (kstrtou8(p, 10, &ip[i]) < 0)
+		if (p && kstrtou8(p, 10, &ip[i]) < 0)
 			return 0; /* == 0.0.0.0 */
 	}
 
@@ -1196,252 +1189,5 @@ void __ref modemctl_notify_event(enum modemctl_event evt)
 
 void mif_set_snapshot(bool enable)
 {
-	if (!enable)
-		acpm_stop_log();
 	exynos_ss_set_enable("log_kevents", enable);
-}
-
-struct mif_buff_mng *init_mif_buff_mng(unsigned char *buffer_start,
-	unsigned int buffer_size, unsigned int cell_size)
-{
-	struct mif_buff_mng *bm;
-
-	if (buffer_start == NULL || buffer_size == 0 || cell_size == 0) {
-		mif_err("init_mif_buff_mng parameter ERR!\n");
-		return NULL;
-	}
-
-	mif_info("Init mif_buffer management - buffer:%pK, size:%u, cell_size:%u\n",
-		buffer_start, buffer_size, cell_size);
-
-	bm = kzalloc(sizeof(struct mif_buff_mng), GFP_KERNEL);
-	if (bm == NULL)
-		return NULL;
-
-	bm->buffer_start = buffer_start;
-	bm->buffer_end = buffer_start + buffer_size;
-	bm->buffer_size = buffer_size;
-	bm->cell_size = cell_size;
-	bm->cell_count = buffer_size / cell_size;
-	bm->free_cell_count = bm->cell_count;
-	bm->used_cell_count = 0;
-
-	bm->current_map_index = 0;
-	bm->buffer_map_size = (unsigned int)(bm->cell_count /
-			MIF_BITS_FOR_MAP_CELL) + 1;
-	bm->buffer_map = kzalloc((MIF_BUFF_MAP_CELL_SIZE * bm->buffer_map_size),
-		GFP_KERNEL);
-	if (bm->buffer_map == NULL) {
-		kfree(bm);
-		return NULL;
-	}
-
-	mif_info("cell_count:%u, map_size:%u, map_size_byte:%lu  buff_map:%pK\n"
-		, bm->cell_count, bm->buffer_map_size,
-		(sizeof(unsigned int) * bm->buffer_map_size), bm->buffer_map);
-
-#ifdef MIF_BUFF_DEBUG
-	mif_info("MIF_BUFF_MAP_CELL_SIZE:%lu\n", MIF_BUFF_MAP_CELL_SIZE);
-	mif_info("MIF_BITS_FOR_BYTE:%u\n", MIF_BITS_FOR_BYTE);
-	mif_info("MIF_BITS_FOR_MAP_CELL:%lu\n", MIF_BITS_FOR_MAP_CELL);
-#endif
-
-	spin_lock_init(&bm->lock);
-
-	return bm;
-}
-
-void exit_mif_buff_mng(struct mif_buff_mng *bm)
-{
-	if (bm) {
-		kfree(bm->buffer_map);
-		kfree(bm);
-	}
-}
-
-void *alloc_mif_buff(struct mif_buff_mng *bm)
-{
-	unsigned char *buff_allocated;
-	unsigned int i, j, location;
-	int find_flag = false;
-	unsigned long flags;
-	uint64_t test_map;
-	int last_bit_set;
-
-	if (bm == NULL || bm->buffer_map == NULL)
-		return NULL;
-
-	if (bm->free_cell_count == 0) {
-#ifdef MIF_BUFF_DEBUG
-		mif_info("ERR allocation fail\n");
-#endif
-		return NULL;
-	}
-
-	spin_lock_irqsave(&bm->lock, flags);
-
-	for (i = bm->current_map_index ; i < bm->buffer_map_size; i++) {
-		test_map = (uint64_t) bm->buffer_map[i];
-		test_map = ~test_map;
-		last_bit_set = fls64(test_map);
-
-		if (last_bit_set == 0)
-			continue;
-		else
-			j = MIF_BITS_FOR_MAP_CELL - last_bit_set;
-
-		location = (i * MIF_BITS_FOR_MAP_CELL) + j;
-
-		if (location >= bm->cell_count)
-			break;
-
-		find_flag = true;
-		bm->buffer_map[i] |= (uint64_t)(MIF_64BIT_FIRST_BIT >> j);
-		bm->current_map_index = i;
-
-#ifdef MIF_BUFF_DEBUG
-		mif_info("map: %016llx\n", bm->buffer_map[i]);
-		mif_info("i:%d j:%d location:%d\n", i, j, location);
-#endif
-		break;
-	}
-
-	if (find_flag == false) {
-		for (i = 0 ; i < bm->current_map_index; i++) {
-			test_map = (uint64_t) bm->buffer_map[i];
-			test_map = ~test_map;
-			last_bit_set = fls64(test_map);
-
-			if (last_bit_set == 0)
-				continue;
-			else
-				j = MIF_BITS_FOR_MAP_CELL - last_bit_set;
-
-			location = (i * MIF_BITS_FOR_MAP_CELL) + j;
-
-			if (location >= bm->cell_count)
-				break;
-
-			find_flag = true;
-			bm->buffer_map[i] |= (uint64_t)(MIF_64BIT_FIRST_BIT >> j);
-			bm->current_map_index = i;
-
-#ifdef MIF_BUFF_DEBUG
-			mif_info("map: %016llx\n", bm->buffer_map[i]);
-			mif_info("i:%d j:%d location:%d\n", i, j, location);
-#endif
-			break;
-		}
-
-	}
-
-	if (find_flag == false) {
-#ifdef MIF_BUFF_DEBUG
-		mif_info("ERR allocation fail\n");
-#endif
-		spin_unlock_irqrestore(&bm->lock, flags);
-		return NULL;
-	}
-
-	buff_allocated = bm->buffer_start;
-	buff_allocated += (location * bm->cell_size);
-
-	bm->free_cell_count--;
-	bm->used_cell_count++;
-
-	spin_unlock_irqrestore(&bm->lock, flags);
-
-#ifdef MIF_BUFF_DEBUG
-	mif_info("location:%d cell_size:%u\n", location, bm->cell_size);
-	mif_info("buffer_allocated:%pK\n", buff_allocated);
-	mif_info("used/free: %u/%u\n", get_mif_buff_used_count(bm),
-			get_mif_buff_free_count(bm));
-#endif
-
-	return (void *)buff_allocated;
-}
-
-int free_mif_buff(struct mif_buff_mng *bm, void *buffer)
-{
-	unsigned char *uc_buffer = (unsigned char *)buffer;
-	unsigned int addr_diff;
-	int i, j, location;
-	unsigned long flags;
-
-	if (bm == NULL)
-		return -1;
-
-	if (buffer == NULL)
-		return 0;
-
-	addr_diff = (unsigned int)(uc_buffer - bm->buffer_start);
-
-	if (addr_diff > bm->buffer_size) {
-		mif_err("ERR Buffer:%pK is not my pool one.\n", uc_buffer);
-		return -1;
-	}
-
-	location = addr_diff / bm->cell_size;
-	i = location / MIF_BITS_FOR_MAP_CELL;
-	j = location % MIF_BITS_FOR_MAP_CELL;
-
-#ifdef MIF_BUFF_DEBUG
-	mif_info("uc_buff:%pK diff:%u\n", uc_buffer, addr_diff);
-	mif_info("location:%d i:%d j:%d\n", location, i, j);
-#endif
-
-	if ((bm->buffer_map[i] & (MIF_64BIT_FIRST_BIT >> j)) == 0) {
-		mif_err("ERR Buffer:%pK is allready freed\n", uc_buffer);
-		return -1;
-	}
-
-	spin_lock_irqsave(&bm->lock, flags);
-
-	bm->buffer_map[i] &= ~(MIF_64BIT_FIRST_BIT >> j);
-	bm->free_cell_count++;
-	bm->used_cell_count--;
-
-	spin_unlock_irqrestore(&bm->lock, flags);
-
-#ifdef MIF_BUFF_DEBUG
-	mif_info("used/free: %u/%u\n", get_mif_buff_used_count(bm),
-			get_mif_buff_free_count(bm));
-#endif
-	return 0;
-}
-
-static inline bool is_zerocopy_buffer(struct sk_buff *skb)
-{
-	if (g_mif_buff_mng == NULL)
-		return false;
-
-	if (((g_mif_buff_mng->buffer_start <= skb->head) &&
-			(skb->head < g_mif_buff_mng->buffer_end)))
-		return true;
-	else
-		return false;
-}
-
-bool __skb_free_head_cp_zerocopy(struct sk_buff *skb)
-{
-	if (!is_zerocopy_buffer(skb))
-		return false;
-
-	free_mif_buff(g_mif_buff_mng, skb->head);
-	return true;
-}
-
-int security_request_cp_ram_logging(void)
-{
-	int err;
-
-	mif_err("SMC: CP_BOOT_REQ_CP_RAM_LOGGING\n");
-
-	exynos_smc(SMC_ID_CLK, SSS_CLK_ENABLE, 0, 0);
-	err = exynos_smc(SMC_ID, CP_BOOT_REQ_CP_RAM_LOGGING, 0, 0);
-	exynos_smc(SMC_ID_CLK, SSS_CLK_DISABLE, 0, 0);
-
-	mif_err("SMC: return_value=%d\n", err);
-
-	return err;
 }

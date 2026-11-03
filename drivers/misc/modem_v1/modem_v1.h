@@ -28,10 +28,6 @@
 #define MAX_NAME_LEN		64
 #define MAX_DUMP_LEN		20
 
-#define SMC_ID_CLK      0x82001011
-#define SSS_CLK_ENABLE  0
-#define SSS_CLK_DISABLE 1
-
 enum modem_t {
 	IMC_XMM6260,
 	IMC_XMM6262,
@@ -270,7 +266,6 @@ enum iodev_attr_bit {
 	ATTR_NO_CHECK_MAXQ,     /* no need to check rxq overflow condition */
 	ATTR_DUALSIM,		/* support Dual SIM */
 	ATTR_OPTION_REGION,	/* region & operator info */
-	ATTR_ZEROCOPY,		/* suppoert Zerocopy : 0x1 << 12*/
 };
 #define IODEV_ATTR(b)	(0x1 << b)
 
@@ -303,9 +298,6 @@ struct modem_io_t {
 	u32 attrs;
 	char *app;
 	char *option_region;
-#ifdef CONFIG_LINK_DEVICE_NAPI
-	int napi_weight;
-#endif /* CONFIG_LINK_DEVICE_NAPI */
 #if 1/*defined(CONFIG_LINK_DEVICE_MEMORY_SBD)*/
 	unsigned int ul_num_buffers;
 	unsigned int ul_buffer_size;
@@ -355,26 +347,28 @@ enum shmem_type {
 struct modem_mbox {
 	unsigned int mbx_ap2cp_msg;
 	unsigned int mbx_cp2ap_msg;
+	unsigned int mbx_ap2cp_active;	/* PDA_ACTIVE	*/
+	unsigned int mbx_cp2ap_active;	/* PHONE_ACTIVE	*/
 	unsigned int mbx_ap2cp_wakeup;	/* CP_WAKEUP	*/
 	unsigned int mbx_cp2ap_wakeup;	/* AP_WAKEUP	*/
 	unsigned int mbx_ap2cp_status;	/* AP_STATUS	*/
 	unsigned int mbx_cp2ap_status;	/* CP_STATUS	*/
+	unsigned int mbx_ap2cp_sec;	/* AP Time(sec)	*/
+	unsigned int mbx_ap2cp_usec;	/* AP_Time(usec) */
 	unsigned int mbx_cp2ap_wakelock; /* Wakelock for VoLTE */
-	unsigned int mbx_cp2ap_ratmode; /* Wakelock for pcie */
-	unsigned int mbx_ap2cp_kerneltime; /* Kernel time */
+	unsigned int mbx_cp2ap_pcie_l1ss_disable; /* Wakelock for pcie */
 
 	unsigned int int_ap2cp_msg;
 	unsigned int int_ap2cp_active;
 	unsigned int int_ap2cp_wakeup;
 	unsigned int int_ap2cp_status;
-	unsigned int int_ap2cp_uart_noti;
 
 	unsigned int irq_cp2ap_msg;
 	unsigned int irq_cp2ap_active;
 	unsigned int irq_cp2ap_wakeup;
 	unsigned int irq_cp2ap_status;
 	unsigned int irq_cp2ap_wakelock;
-	unsigned int irq_cp2ap_rat_mode;
+	unsigned int irq_cp2ap_pcie_l1ss_disable;
 
 	/* Performance request */
 	unsigned int mbx_ap2cp_perf_req;
@@ -389,35 +383,9 @@ struct modem_mbox {
 	unsigned int irq_cp2ap_perf_req_mif;
 	unsigned int irq_cp2ap_perf_req_int;
 
+	unsigned int mbx_ap2cp_et_dac_cal;
 	unsigned int mbx_ap2cp_lock_value;
 
-	/* Status Bit Info */
-	unsigned int sbi_lte_active_mask;
-	unsigned int sbi_lte_active_pos;
-	unsigned int sbi_cp_status_mask;
-	unsigned int sbi_cp_status_pos;
-	unsigned int sbi_cp2ap_wakelock_mask;
-	unsigned int sbi_cp2ap_wakelock_pos;
-	unsigned int sbi_cp2ap_rat_mode_mask;
-	unsigned int sbi_cp2ap_rat_mode_pos;
-
-	unsigned int sbi_pda_active_mask;
-	unsigned int sbi_pda_active_pos;
-	unsigned int sbi_ap_status_mask;
-	unsigned int sbi_ap_status_pos;
-
-	unsigned int sbi_ap2cp_kerneltime_sec_mask;
-	unsigned int sbi_ap2cp_kerneltime_sec_pos;
-	unsigned int sbi_ap2cp_kerneltime_usec_mask;
-	unsigned int sbi_ap2cp_kerneltime_usec_pos;
-
-	unsigned int sbi_uart_noti_mask;
-	unsigned int sbi_uart_noti_pos;
-
-	unsigned int sbi_crash_type_mask;
-	unsigned int sbi_crash_type_pos;
-
-	/* Clk table Info */
 	unsigned int *ap_clk_table;
 	unsigned int ap_clk_cnt;
 
@@ -475,15 +443,6 @@ struct modem_data {
 
 #ifdef CONFIG_LINK_DEVICE_SHMEM
 	struct modem_mbox *mbx;
-	struct mem_link_device *mld;
-
-	/* MIF buffer information */
-	unsigned int buff_offset;
-	unsigned int buff_size;
-
-	/* buff pool 2nd information */
-	unsigned long int bufpool_2nd_base;
-	unsigned int bufpool_2nd_size;
 #endif
 
 	/* Switch with 2 links in a modem */
@@ -574,13 +533,6 @@ struct modem_boot_spi {
 		if (of_property_read_u32(np, prop, &val)) \
 			return -EINVAL; \
 		dest = val; \
-	} while (0)
-
-#define mif_dt_read_u32_noerr(np, prop, dest) \
-	do { \
-		u32 val; \
-		if (!of_property_read_u32(np, prop, &val)) \
-			dest = val; \
 	} while (0)
 #endif
 

@@ -19,13 +19,10 @@
  *
  */
 
-#include <soc/samsung/exynos-modem-ctrl.h>
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "link_device_memory.h"
 #include "include/sbd.h"
-
-static int setup_zerocopy_adaptor(struct sbd_ipc_device *ipc_dev);
 
 #ifdef GROUP_MEM_LINK_SBD
 /**
@@ -136,7 +133,6 @@ static int setup_sbd_rb(struct sbd_link_device *sl, struct sbd_ring_buffer *rb,
 	rb->sl = sl;
 
 	rb->lnk_hdr = link_attr->lnk_hdr;
-	rb->zerocopy = link_attr->zerocopy;
 
 	rb->more = false;
 	rb->total = 0;
@@ -165,7 +161,7 @@ static int setup_sbd_rb(struct sbd_link_device *sl, struct sbd_ring_buffer *rb,
 	(1) Allocate an array of data buffers in SHMEM.
 	(2) Register the address of each data buffer.
 	*/
-	alloc_size = ((u32)rb->len * (u32)rb->buff_size);
+	alloc_size = (rb->len * rb->buff_size);
 	rb->buff_rgn = (u8 *)buff_alloc(sl, alloc_size);
 	if (!rb->buff_rgn)
 		return -ENOMEM;
@@ -280,259 +276,6 @@ static void setup_link_attr(struct sbd_link_attr *link_attr, u16 id, u16 ch,
 	link_attr->buff_size[UL] = io_dev->ul_buffer_size;
 	link_attr->rb_len[DL] = io_dev->dl_num_buffers;
 	link_attr->buff_size[DL] = io_dev->dl_buffer_size;
-
-	if (io_dev->attrs & IODEV_ATTR(ATTR_ZEROCOPY))
-		link_attr->zerocopy = true;
-	else
-		link_attr->zerocopy = false;
-}
-
-static u64 recv_offset_from_zerocopy_adaptor(struct zerocopy_adaptor *zdptr)
-{
-	struct sbd_ring_buffer *rb = zdptr->rb;
-	u16 out = zdptr->pre_rp;
-	u8* src = rb->buff[out] + rb->payload_offset;
-	u64 offset;
-
-	memcpy(&offset, src, sizeof(offset));
-
-	return offset;
-}
-
-/**
-@brief		convert data offset to buffer
-
-@param rb	the pointer to sbd_ring_buffer
-
-@param offset	the offset of data from shared memory base
-		buffer + NET_HEADROOM is address of data
-@return buf	the pointer to buffer managed by buffer manager
-*/
-static u8* data_offset_to_buffer(u64 offset, struct sbd_ring_buffer *rb)
-{
-	struct sbd_link_device *sl = rb->sl;
-	struct device *dev = sl->ld->dev;
-	struct modem_data *md = sl->ld->mdm_data;
-	u8* v_zmb = shm_get_zmb_region();
-	unsigned int zmb_size = shm_get_zmb_size();
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	dma_addr_t dma_addr;
-	int buf_offset;
-	u8* buf = NULL;
-
-	if (offset < (sl->shmem_size + zmb_size)) {
-		buf_offset = offset - NET_HEADROOM;
-		buf = v_zmb + (buf_offset - sl->shmem_size);
-		if (!(buf >= v_zmb && buf < (v_zmb + zmb_size))) {
-			mif_err("invalid buf (1st pool) : %pK\n", buf);
-			return NULL;
-		}
-	} else if (offset >= (sl->shmem_size + zmb_size) &&
-				offset < (sl->shmem_size + zmb_size + md->bufpool_2nd_size)) {
-		offset -= (sl->shmem_size + zmb_size);
-		buf_offset = offset - NET_HEADROOM;
-		buf = (u8*)phys_to_virt(md->bufpool_2nd_base) + buf_offset;
-		if (virt_to_phys(buf) >= md->bufpool_2nd_base && virt_to_phys(buf)
-				< (md->bufpool_2nd_base + md->bufpool_2nd_size)) {
-			mif_err("invalid buf (2nd pool) : %pK\n", buf);
-			return NULL;
-		}
-	} else {
-		mif_err("unexpected offset : %lx\n", (long unsigned int)offset);
-		return NULL;
-	}
-
-	if (kfifo_out_spinlocked(&zdptr->fifo, &dma_addr, sizeof(dma_addr),
-				&zdptr->lock_kfifo) != sizeof(dma_addr)) {
-		mif_err("ERR! kfifo_out fails\n");
-		mif_err("kfifo_len:%d\n", kfifo_len(&zdptr->fifo));
-		mif_err("kfifo_is_empty:%d\n", kfifo_is_empty(&zdptr->fifo));
-		mif_err("kfifo_is_full:%d\n", kfifo_is_full(&zdptr->fifo));
-		mif_err("kfifo_avail:%d\n", kfifo_avail(&zdptr->fifo));
-		return NULL;
-	}
-	dma_unmap_single(dev, dma_addr, MIF_BUFF_DEFAULT_CELL_SIZE, DMA_FROM_DEVICE);
-
-	return buf;
-}
-
-static u8* unused_data_offset_to_buffer(u64 offset, struct sbd_ring_buffer *rb)
-{
-	struct sbd_link_device *sl = rb->sl;
-	struct modem_data *md = sl->ld->mdm_data;
-	u8* v_zmb = shm_get_zmb_region();
-	unsigned int zmb_size = shm_get_zmb_size();
-	int buf_offset;
-	u8* buf = NULL;
-
-	if (offset < (sl->shmem_size + zmb_size)) {
-		buf_offset = offset - NET_HEADROOM;
-		buf = v_zmb + (buf_offset - sl->shmem_size);
-		if (!(buf >= v_zmb && buf < (v_zmb + zmb_size))) {
-			mif_err("invalid buf (1st pool) : %pK\n", buf);
-			return NULL;
-		}
-	} else if (offset >= (sl->shmem_size + zmb_size) &&
-				offset < (sl->shmem_size + zmb_size + md->bufpool_2nd_size)) {
-		offset -= (sl->shmem_size + zmb_size);
-		buf_offset = offset - NET_HEADROOM;
-		buf = (u8*)phys_to_virt(md->bufpool_2nd_base) + buf_offset;
-		if (virt_to_phys(buf) >= md->bufpool_2nd_base && virt_to_phys(buf)
-				< (md->bufpool_2nd_base + md->bufpool_2nd_size)) {
-			mif_err("invalid buf (2nd pool) : %pK\n", buf);
-			return NULL;
-		}
-	} else {
-		mif_err("unexpected offset : %lx\n", (long unsigned int)offset);
-		return NULL;
-	}
-
-	return buf;
-}
-
-static inline void free_zerocopy_data(struct sbd_ring_buffer *rb, u16 *out)
-{
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	unsigned int qlen = zdptr->len;
-	u64 offset;
-	u8* buff;
-	u8* src = rb->buff[*out] + rb->payload_offset;
-
-	memcpy(&offset, src, sizeof(offset));
-
-	buff = unused_data_offset_to_buffer(offset, rb);
-
-	free_mif_buff(g_mif_buff_mng, buff);
-
-	*out = circ_new_ptr(qlen, *out, 1);
-}
-
-static inline void cancel_datalloc_timer(struct mem_link_device *mld,
-				   struct hrtimer *timer)
-{
-	struct link_device *ld = &mld->link_dev;
-	struct modem_ctl *mc = ld->mc;
-	unsigned long flags;
-
-	spin_lock_irqsave(&mc->lock, flags);
-
-	if (hrtimer_active(timer))
-		hrtimer_cancel(timer);
-
-	spin_unlock_irqrestore(&mc->lock, flags);
-}
-
-void __reset_zerocopy(struct mem_link_device *mld, struct sbd_ring_buffer *rb)
-{
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	u16 out = *zdptr->rp;
-	unsigned long flags;
-
-	mif_err("__reset_zerocopy [ch : %d]\n", rb->ch);
-
-	cancel_datalloc_timer(mld, &zdptr->datalloc_timer);
-
-	spin_lock_irqsave(&zdptr->lock, flags);
-	while (*zdptr->wp != out) {
-		free_zerocopy_data(rb, &out);
-	}
-	spin_unlock_irqrestore(&zdptr->lock, flags);
-}
-
-void reset_zerocopy(struct link_device *ld)
-{
-	struct mem_link_device *mld = ld_to_mem_link_device(ld);
-	struct sbd_link_device *sl = &mld->sbd_link_dev;
-	struct sbd_ipc_device *ipc_dev =  sl->ipc_dev;
-	struct sbd_ring_buffer *rb;
-	int i;
-
-	if (sl->reset_zerocopy_done) {
-		return;
-	}
-
-	mif_err("+++\n");
-
-	for (i = 0; i < sl->num_channels; i++) {
-		rb = &ipc_dev[i].rb[DL];
-		if (rb->zerocopy)
-			__reset_zerocopy(mld, rb);
-	}
-
-	/* set done flag 1 as reset_zerocopy func works once */
-	sl->reset_zerocopy_done = 1;
-
-	mif_err("---\n");
-}
-
-static int setup_zerocopy_adaptor(struct sbd_ipc_device *ipc_dev)
-{
-	struct zerocopy_adaptor *zdptr;
-	struct sbd_ring_buffer *rb;
-	struct link_device *ld;
-	struct sbd_link_device *sl;
-
-	if (ipc_dev->zerocopy == false) {
-		ipc_dev->zdptr = NULL;
-		return 0;
-	}
-
-	if (ipc_dev->zdptr == NULL) {
-		ipc_dev->zdptr = kzalloc(sizeof(struct zerocopy_adaptor), GFP_ATOMIC);
-		if (!ipc_dev->zdptr) {
-			mif_err("fail to allocate memory!\n");
-			return -ENOMEM;
-		}
-	}
-
-	/* register reset_zerocopy func */
-	rb = &ipc_dev->rb[DL];
-	sl = rb->sl;
-	ld = sl->ld;
-	ld->reset_zerocopy = reset_zerocopy;
-
-	zdptr = ipc_dev->zdptr;
-
-	/* Setup DL direction RB & Zerocopy adaptor */
-	rb->zdptr = zdptr;
-
-	spin_lock_init(&zdptr->lock);
-	spin_lock_init(&zdptr->lock_kfifo);
-	zdptr->rb = rb;
-	zdptr->rp = rb->wp; /* swap wp, rp  when zerocopy DL */
-	zdptr->wp = rb->rp; /* swap wp, rp  when zerocopy DL */
-	zdptr->pre_rp = *zdptr->rp;
-	zdptr->len = rb->len;
-
-	if (kfifo_initialized(&zdptr->fifo)) {
-		struct sbd_link_device *sl = rb->sl;
-		struct device *dev = sl->ld->dev;
-		dma_addr_t dma_addr;
-
-		while (kfifo_out_spinlocked(&zdptr->fifo, &dma_addr, sizeof(dma_addr),
-						&zdptr->lock_kfifo) == sizeof(dma_addr)) {
-			dma_unmap_single(dev, dma_addr, MIF_BUFF_DEFAULT_CELL_SIZE,
-									DMA_FROM_DEVICE);
-		}
-
-		kfifo_free(&zdptr->fifo);
-	}
-
-	if (kfifo_alloc(&zdptr->fifo, zdptr->len * sizeof(dma_addr_t), GFP_KERNEL)) {
-		mif_err("kfifo alloc fail\n");
-		return -ENOMEM;
-	}
-
-	hrtimer_init(&zdptr->datalloc_timer,
-			CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	zdptr->datalloc_timer.function = datalloc_timer_func;
-
-	allocate_data_in_advance(zdptr);
-
-	/* set done flag 0 as reset_zerocopy func works */
-	sl->reset_zerocopy_done = 0;
-
-	return 0;
 }
 
 static int init_sbd_ipc(struct sbd_link_device *sl,
@@ -551,7 +294,6 @@ static int init_sbd_ipc(struct sbd_link_device *sl,
 
 		ipc_dev[i].id = link_attr[i].id;
 		ipc_dev[i].ch = link_attr[i].ch;
-		ipc_dev[i].zerocopy = link_attr[i].zerocopy;
 
 		/*
 		Setup UL Ring Buffer in the ipc_dev[$i]
@@ -584,13 +326,6 @@ static int init_sbd_ipc(struct sbd_link_device *sl,
 		setup_sbd_rb_desc(rb_desc, rb);
 		rb_ch->dl_rbd_offset = calc_offset(rb_desc, sl->shmem);
 		rb_ch->dl_sbdv_offset = calc_offset(rb->addr_v, sl->shmem);
-
-		/*
-		Setup zerocopy_adaptor if zerocopy ipc_dev
-		*/
-		ret = setup_zerocopy_adaptor(&ipc_dev[i]);
-		if (ret < 0)
-			return ret;
 	}
 
 	return 0;
@@ -610,12 +345,10 @@ static void init_ipc_device(struct sbd_link_device *sl, u16 id,
 	rb = &ipc_dev->rb[UL];
 	spin_lock_init(&rb->lock);
 	skb_queue_head_init(&rb->skb_q);
-	atomic_set(&rb->busy, 0);
 
 	rb = &ipc_dev->rb[DL];
 	spin_lock_init(&rb->lock);
 	skb_queue_head_init(&rb->skb_q);
-	atomic_set(&rb->busy, 0);
 }
 
 /**
@@ -661,6 +394,14 @@ static unsigned int init_ctrl_tables(struct sbd_link_device *sl, int num_iodevs,
 			++id;
 		}
 	}
+
+#ifndef CONFIG_MODEM_IF_QOS
+	for (i = 0; i < num_iodevs; i++) {
+		int ch = iodevs[i].id;
+		if (sipc_ps_ch(ch))
+			sl->ch2id[ch] = sl->ch2id[QOS_HIPRIO];
+	}
+#endif
 
 	/* Finally, id has the number of actual link channels. */
 	return id;
@@ -712,8 +453,6 @@ int create_sbd_link_device(struct link_device *ld, struct sbd_link_device *sl,
 
 	for (i = 0; i < sl->num_channels; i++)
 		init_ipc_device(sl, i, sbd_id2dev(sl, i));
-
-	sl->reset_zerocopy_done = 1;
 
 	return 0;
 }
@@ -849,24 +588,6 @@ static inline void set_lnk_hdr(struct sbd_ring_buffer *rb, struct sk_buff *skb)
 	skbpriv(skb)->lnk_hdr = rb->lnk_hdr && !rb->more;
 }
 
-static inline void set_skb_priv_zerocopy_adaptor(struct sbd_ring_buffer *rb, struct sk_buff *skb)
-{
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	unsigned int out = zdptr->pre_rp;
-
-	/* Record the IO device, the link device, etc. into &skb->cb */
-	if (sipc_ps_ch(rb->ch)) {
-		unsigned ch = (rb->size_v[out] >> 16) & 0xffff;
-		skbpriv(skb)->iod = link_get_iod_with_channel(rb->ld, ch);
-		skbpriv(skb)->ld = rb->ld;
-		skbpriv(skb)->sipc_ch = ch;
-	} else {
-		skbpriv(skb)->iod = rb->iod;
-		skbpriv(skb)->ld = rb->ld;
-		skbpriv(skb)->sipc_ch = rb->ch;
-	}
-}
-
 static inline void set_skb_priv(struct sbd_ring_buffer *rb, struct sk_buff *skb)
 {
 	unsigned int out = *rb->rp;
@@ -923,163 +644,6 @@ struct sk_buff *sbd_pio_rx(struct sbd_ring_buffer *rb)
 	*rb->rp = circ_new_ptr(qlen, out, 1);
 
 	return skb;
-}
-
-struct sk_buff *zerocopy_alloc_skb(u8* buf, unsigned int data_len)
-{
-	struct sk_buff *skb;
-	skb = __build_skb(buf, 
-					SKB_DATA_ALIGN(data_len + NET_HEADROOM) 
-					+ SKB_DATA_ALIGN(sizeof(struct skb_shared_info)));
-
-	if (unlikely(!skb))
-		return NULL;
-
-	skb_reserve(skb, NET_HEADROOM);
-	skb_put(skb, data_len);
-
-	return skb;
-}
-
-struct sk_buff *zerocopy_alloc_skb_with_memcpy(u8* buf, unsigned int data_len)
-{
-	struct sk_buff *skb;
-	u8 *src;
-
-	skb = dev_alloc_skb(data_len);
-	if (unlikely(!skb))
-		return NULL;
-
-	src = buf + NET_HEADROOM;
-	skb_put(skb, data_len);
-	skb_copy_to_linear_data(skb, src, data_len);
-
-	free_mif_buff(g_mif_buff_mng, buf);
-
-	return skb;
-}
-
-struct sk_buff *sbd_pio_rx_zerocopy_adaptor(struct sbd_ring_buffer *rb, int use_memcpy)
-{
-	struct sk_buff *skb;
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	unsigned int qlen = zdptr->len;
-	unsigned int out = zdptr->pre_rp;
-	unsigned int data_len = rb->size_v[out] & 0xFFFF;
-	u64 offset;
-	u8* buff;
-
-	offset = recv_offset_from_zerocopy_adaptor(zdptr);
-	buff = data_offset_to_buffer(offset, rb);
-
-	if (!buff)
-		return NULL;
-
-	if (use_memcpy)
-		skb = zerocopy_alloc_skb_with_memcpy(buff, data_len);
-	else
-		skb = zerocopy_alloc_skb(buff, data_len);
-
-	if (unlikely(!skb)) {
-		mif_err("ERR! Socket buffer doesn't exist\n");
-		return NULL;
-	}
-
-	set_lnk_hdr(rb, skb);
-
-	set_skb_priv_zerocopy_adaptor(rb, skb);
-
-	check_more(rb, skb);
-
-	zdptr->pre_rp = circ_new_ptr(qlen, out, 1);
-
-	return skb;
-}
-
-/**
-@brief		convert buffer to data offset
-
-@param buf	the pointer to buffer managed by buffer manager
-@param rb	the pointer to sbd_ring_buffer
-
-@return offset	the offset of data from shared memory base
-		buffer + NET_HEADROOM is address of data
-*/
-static u64 buffer_to_data_offset(u8* buf, struct sbd_ring_buffer *rb)
-{
-	struct sbd_link_device *sl = rb->sl;
-	struct device *dev = sl->ld->dev;
-	struct modem_data *md = sl->ld->mdm_data;
-	struct zerocopy_adaptor *zdptr = rb->zdptr;
-	dma_addr_t dma_addr;
-	u8* v_zmb = shm_get_zmb_region();
-	unsigned int zmb_size = shm_get_zmb_size();
-	u8* data;
-	u64 offset;
-
-	data = buf + NET_HEADROOM;
-
-	if (buf >= v_zmb && buf < (v_zmb + zmb_size) ) {
-		offset = data - v_zmb + sl->shmem_size;
-	} else if (virt_to_phys(buf) >= md->bufpool_2nd_base
-			&& virt_to_phys(buf) < (md->bufpool_2nd_base + md->bufpool_2nd_size)) {
-		offset = data - (u8*)phys_to_virt(md->bufpool_2nd_base);
-		offset += sl->shmem_size + zmb_size;
-	} else {
-		mif_err("unexpected buff address : %lx\n", (unsigned long int)virt_to_phys(buf));
-		return -EINVAL;
-	}
-
-	dma_addr = dma_map_single(dev, buf, MIF_BUFF_DEFAULT_CELL_SIZE, DMA_FROM_DEVICE);
-	kfifo_in_spinlocked(&zdptr->fifo, &dma_addr, sizeof(dma_addr), &zdptr->lock_kfifo);
-
-	return offset;
-}
-
-int allocate_data_in_advance(struct zerocopy_adaptor *zdptr)
-{
-	struct sbd_ring_buffer *rb = zdptr->rb;
-	struct modem_ctl *mc = rb->sl->ld->mc;
-	struct mif_buff_mng *mif_buff_mng = rb->ld->mif_buff_mng;
-	unsigned int qlen = rb->len;
-	unsigned long flags;
-	u8 *buffer;
-	u64 offset;
-	u8 *dst;
-	int alloc_cnt = 0;
-
-	spin_lock_irqsave(&zdptr->lock, flags);
-	if (cp_offline(mc)) {
-		spin_unlock_irqrestore(&zdptr->lock, flags);
-		return 0;
-	}
-
-	while (zerocopy_adaptor_space(zdptr) > 0) {
-		buffer = alloc_mif_buff(mif_buff_mng);
-		if (!buffer) {
-			spin_unlock_irqrestore(&zdptr->lock, flags);
-			return -ENOMEM;
-		}
-
-		offset = buffer_to_data_offset(buffer, rb);
-
-		dst = rb->buff[*zdptr->wp] + rb->payload_offset;
-
-		memcpy(dst, &offset, sizeof(offset));
-
-		barrier();
-
-		*zdptr->wp = circ_new_ptr(qlen, *zdptr->wp, 1);
-
-		alloc_cnt++;
-
-	}
-	barrier();
-	spin_unlock_irqrestore(&zdptr->lock, flags);
-
-	/* Commit the item before incrementing the head */
-	smp_mb();
-	return alloc_cnt;
 }
 
 /**

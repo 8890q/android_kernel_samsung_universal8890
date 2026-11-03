@@ -37,14 +37,16 @@
 #include "include/circ_queue.h"
 #include "include/sipc5.h"
 
-//#define DEBUG_MODEM_IF
+// #define DEBUG_MODEM_IF
 #ifdef DEBUG_MODEM_IF
 	#if 1
 		#define DEBUG_MODEM_IF_LINK_TX
 	#endif
+
 	#if 1
 		#define DEBUG_MODEM_IF_LINK_RX
 	#endif
+
 	#if defined(DEBUG_MODEM_IF_LINK_TX) && defined(DEBUG_MODEM_IF_LINK_RX)
 		#define DEBUG_MODEM_IF_LINK_HEADER
 	#endif
@@ -52,6 +54,7 @@
 	#if 0
 		#define DEBUG_MODEM_IF_IODEV_TX
 	#endif
+
 	#if 0
 		#define DEBUG_MODEM_IF_IODEV_RX
 	#endif
@@ -63,6 +66,7 @@
 	#if 0
 		#define DEBUG_MODEM_IF_PS_DATA
 	#endif
+
 	#if 0
 		#define DEBUG_MODEM_IF_IP_DATA
 	#endif
@@ -111,21 +115,13 @@ IOCTL commands
 #ifdef CONFIG_LINK_DEVICE_SHMEM
 #define IOCTL_MODEM_GET_SHMEM_SRINFO	_IO('o', 0x45)
 #define IOCTL_MODEM_SET_SHMEM_SRINFO	_IO('o', 0x46)
-#define IOCTL_MODEM_GET_CP_BOOTLOG	_IO('o', 0x47)
-#define IOCTL_MODEM_CLR_CP_BOOTLOG	_IO('o', 0x48)
 #endif
-
 /* ioctl command for IPC Logger */
 #define IOCTL_MIF_LOG_DUMP		_IO('o', 0x51)
 #define IOCTL_MIF_DPRAM_DUMP		_IO('o', 0x52)
 
 #define IOCTL_SECURITY_REQ		_IO('o', 0x53)	/* Request smc_call */
 #define IOCTL_SHMEM_FULL_DUMP		_IO('o', 0x54)	/* For shmem dump */
-#define IOCTL_MODEM_CRASH_REASON	_IO('o', 0x55)	/* Get Crash Reason */
-#define IOCTL_MODEM_AIRPLANE_MODE	_IO('o', 0x56)	/* Set Airplane mode on/off */
-#define IOCTL_VSS_FULL_DUMP		_IO('o', 0x57)	/* For vss dump */
-#define IOCTL_ACPM_FULL_DUMP		_IO('o', 0x58)  /* for acpm memory dump */
-#define IOCTL_CPLOG_FULL_DUMP		_IO('o', 0x59)  /* for cplog memory dump */
 
 /*
 Definitions for IO devices
@@ -193,7 +189,6 @@ enum cp_boot_mode {
 	CP_BOOT_MODE_NORMAL,
 	CP_BOOT_MODE_DUMP,
 	CP_BOOT_RE_INIT,
-	CP_BOOT_REQ_CP_RAM_LOGGING = 5,
 	MAX_CP_BOOT_MODE
 };
 
@@ -283,7 +278,7 @@ enum iod_rx_state {
 	MAX_IOD_RX_STATE
 };
 
-static const char *rx_state_string[] = {
+static const char const *rx_state_string[] = {
 	[IOD_RX_ON_STANDBY]	= "RX_ON_STANDBY",
 	[IOD_RX_HEADER]		= "RX_HEADER",
 	[IOD_RX_PAYLOAD]	= "RX_PAYLOAD",
@@ -318,11 +313,7 @@ struct io_device {
 	struct miscdevice  miscdev;
 	struct net_device *ndev;
 	struct list_head node_ndev;
-#ifdef CONFIG_LINK_DEVICE_NAPI
 	struct napi_struct napi;
-	int napi_weight;
-	unsigned int rx_poll_count;
-#endif /* CONFIG_LINK_DEVICE_NAPI */
 
 	/* ID and Format for channel on the link */
 	unsigned int id;
@@ -416,7 +407,6 @@ struct link_device {
 	enum modem_link link_type;
 	struct modem_ctl *mc;
 	struct modem_shared *msd;
-	struct device *dev;
 
 	char *name;
 	bool sbd_ipc;
@@ -449,12 +439,6 @@ struct link_device {
 	struct workqueue_struct *rx_wq;
 	struct delayed_work rx_delayed_work;
 
-	/* MIF buffer management */
-	struct mif_buff_mng *mif_buff_mng;
-
-	/* Save reason of forced crash */
-	unsigned int crash_type;
-
 	int (*init_comm)(struct link_device *ld, struct io_device *iod);
 	void (*terminate_comm)(struct link_device *ld, struct io_device *iod);
 
@@ -483,18 +467,6 @@ struct link_device {
 	int (*dump_finish)(struct link_device *ld, struct io_device *iod,
 			   unsigned long arg);
 
-	/* method for VSS dump when CP crash */
-	int (*vss_dump)(struct link_device *ld, struct io_device *iod,
-				unsigned long arg);
-
-	/* method for ACPM dump when CP crash */
-	int (*acpm_dump)(struct link_device *ld, struct io_device *iod,
-				unsigned long arg);
-
-	/* method for CPLOG dump when CP crash */
-	int (*cplog_dump)(struct link_device *ld, struct io_device *iod,
-				unsigned long arg);
-
 	/* IOCTL extension */
 	int (*ioctl)(struct link_device *ld, struct io_device *iod,
 		     unsigned int cmd, unsigned long arg);
@@ -505,26 +477,6 @@ struct link_device {
 	/* Change secure mode, Call SMC API */
 	int (*security_req)(struct link_device *ld, struct io_device *iod,
 			unsigned long arg);
-
-	/* Get crash reason form modem_if driver */
-	int (*crash_reason)(struct link_device *ld, struct io_device *iod,
-			unsigned long arg);
-
-	/* Set airplane mode for power saving */
-	int (*airplane_mode)(struct link_device *ld, struct io_device *iod,
-			unsigned long arg);
-
-	/* Reset buffer & dma_addr for zerocopy */
-	void (*reset_zerocopy)(struct link_device *ld);
-
-#ifdef CONFIG_LINK_DEVICE_NAPI
-	/* Poll function for NAPI */
-	int (*poll_recv_on_iod)(struct link_device *ld, struct io_device *iod,
-			int budget);
-
-	int (*enable_rx_int)(struct link_device *ld);
-	int (*disable_rx_int)(struct link_device *ld);
-#endif /* CONFIG_LINK_DEVICE_NAPI */
 };
 
 #define pm_to_link_device(pm)	container_of(pm, struct link_device, pm)
@@ -607,6 +559,7 @@ struct modem_ctl {
 
 	struct modem_shared *msd;
 	void __iomem *sysram_alive;
+	struct regmap *pmureg;
 
 	enum modem_state phone_state;
 	struct sim_state sim_state;
@@ -676,44 +629,16 @@ struct modem_ctl {
 	unsigned int mbx_cp_wakeup;
 	unsigned int mbx_cp_status;
 	unsigned int mbx_perf_req;
-
-	/* for notify uart connection with direction*/
-	unsigned int mbx_uart_noti;
-	unsigned int int_uart_noti;
+	unsigned int mbx_et_dac_cal;
 
 	/* for checking aliveness of CP */
 	struct modem_irq irq_cp_wdt;		/* watchdog timer */
 	struct modem_irq irq_cp_fail;
-
-	/* Status Bit Info */
-	unsigned int sbi_lte_active_mask;
-	unsigned int sbi_lte_active_pos;
-	unsigned int sbi_cp_status_mask;
-	unsigned int sbi_cp_status_pos;
-
-	unsigned int sbi_pda_active_mask;
-	unsigned int sbi_pda_active_pos;
-	unsigned int sbi_ap_status_mask;
-	unsigned int sbi_ap_status_pos;
-
-	unsigned int sbi_uart_noti_mask;
-	unsigned int sbi_uart_noti_pos;
-
-	unsigned int sbi_crash_type_mask;
-	unsigned int sbi_crash_type_pos;
-
-	unsigned int airplane_mode;
 #endif
 
 #ifdef CONFIG_EXYNOS_BUSMONITOR
 	struct notifier_block busmon_nfb;
 #endif
-
-#if defined(CONFIG_MUIC_NOTIFIER)
-	struct notifier_block uart_notifier;
-#endif
-	bool uart_connect;
-	bool uart_dir;
 
 	struct work_struct pm_qos_work;
 
@@ -777,13 +702,4 @@ static inline bool rx_possible(struct modem_ctl *mc)
 int sipc5_init_io_device(struct io_device *iod);
 void sipc5_deinit_io_device(struct io_device *iod);
 
-#if defined(CONFIG_RPS) && defined(CONFIG_ARGOS)
-extern struct net init_net;
-extern int sec_argos_register_notifier(struct notifier_block *n, char *label);
-extern int sec_argos_unregister_notifier(struct notifier_block *n, char *label);
-
-int mif_init_argos_notifier(void);
-#else
-static inline int mif_init_argos_notifier(void) { return 0; }
-#endif
 #endif

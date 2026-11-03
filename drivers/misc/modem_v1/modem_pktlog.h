@@ -68,7 +68,7 @@ struct pktlog_data {
 };
 
 enum {
-	PKTLOG_BOTTOM,	/* to/from phy layer */
+	PKTLOG_BOTTOM, 	/* to/from phy layer */
 	PKTLOG_TOP,	/* to/from network/ril layer */
 	PKTLOG_TEXT,
 };

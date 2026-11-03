@@ -20,22 +20,14 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/mcu_ipc.h>
-#include <linux/shm_ipc.h>
 #include <linux/smc.h>
-#include <linux/modem_notifier.h>
-#include <soc/samsung/pmu-cp.h>
 
 #include "modem_prj.h"
 #include "modem_utils.h"
-#include "link_device_memory.h"
+#include "pmu-cp.h"
 
 #ifdef CONFIG_EXYNOS_BUSMONITOR
 #include <linux/exynos-busmon.h>
-#endif
-
-#if defined(CONFIG_SOC_EXYNOS8895) && defined(CONFIG_EXYNOS_DECON_FB)
-#define DEFAULT_DSP_TYPE	0;
-extern int get_lcd_info(char *arg);
 #endif
 
 #define MIF_INIT_TIMEOUT	(15 * HZ)
@@ -50,11 +42,11 @@ static inline int change_cp_pmu_manual_reset(void)
 static inline int change_cp_pmu_manual_reset(void) {return 0; }
 #endif
 
-#ifdef CONFIG_UART_SEL
-extern void cp_recheck_uart_dir(void);
-#endif
-
 static struct modem_ctl *g_mc;
+
+static int sys_rev;
+static int new_rev;
+int rev_usage = 0;
 
 static irqreturn_t cp_wdt_handler(int irq, void *arg)
 {
@@ -65,13 +57,10 @@ static irqreturn_t cp_wdt_handler(int irq, void *arg)
 	mif_disable_irq(&mc->irq_cp_wdt);
 	mif_err("%s: ERR! CP_WDOG occurred\n", mc->name);
 
-	if (mc->phone_state == STATE_ONLINE)
-		modem_notify_event(MODEM_EVENT_WATCHDOG);
-
 	/* Disable debug Snapshot */
 	mif_set_snapshot(false);
 
-	exynos_clear_cp_reset();
+	exynos_clear_cp_reset(mc);
 	new_state = STATE_CRASH_WATCHDOG;
 
 	mif_err("new_state = %s\n", cp_state_str(new_state));
@@ -93,7 +82,7 @@ static irqreturn_t cp_fail_handler(int irq, void *arg)
 	mif_disable_irq(&mc->irq_cp_fail);
 	mif_err("%s: ERR! CP_FAIL occurred\n", mc->name);
 
-	exynos_cp_active_clear();
+	exynos_cp_active_clear(mc);
 	new_state = STATE_CRASH_RESET;
 
 	mif_err("new_state = %s\n", cp_state_str(new_state));
@@ -110,9 +99,8 @@ static void cp_active_handler(void *arg)
 {
 	struct modem_ctl *mc = (struct modem_ctl *)arg;
 	struct io_device *iod;
-	int cp_on = exynos_get_cp_power_status();
-	int cp_active = mbox_extract_value(MCU_CP, mc->mbx_cp_status,
-					mc->sbi_lte_active_mask, mc->sbi_lte_active_pos);
+	int cp_on = exynos_get_cp_power_status(mc);
+	int cp_active = mbox_get_value(MCU_CP, mc->mbx_phone_active);
 	enum modem_state old_state = mc->phone_state;
 	enum modem_state new_state = mc->phone_state;
 
@@ -131,9 +119,6 @@ static void cp_active_handler(void *arg)
 	if (old_state != new_state) {
 		mif_err("new_state = %s\n", cp_state_str(new_state));
 
-		if (old_state == STATE_ONLINE)
-			modem_notify_event(MODEM_EVENT_EXIT);
-
 		list_for_each_entry(iod, &mc->modem_state_notify_list, list) {
 			if (iod && atomic_read(&iod->opened) > 0)
 				iod->modem_state_changed(iod, new_state);
@@ -141,6 +126,25 @@ static void cp_active_handler(void *arg)
 	}
 }
 
+#ifdef CONFIG_HW_REV_DETECT
+static int __init seal_setup(char *str)
+{
+        get_option(&str, &new_rev);
+        mif_info("new_rev : %d\n", new_rev);
+        return 0;
+}
+__setup("androidboot.revision=", seal_setup);
+
+
+static int __init console_setup(char *str)
+{
+	get_option(&str, &sys_rev);
+	mif_info("board_rev : %d\n", sys_rev);
+	return 0;
+}
+__setup("androidboot.hw_rev=", console_setup);
+
+#else
 static int get_system_rev(struct device_node *np)
 {
 	int value, cnt, gpio_cnt;
@@ -165,6 +169,7 @@ static int get_system_rev(struct device_node *np)
 
 	return hw_rev;
 }
+#endif
 
 #ifdef CONFIG_GPIO_DS_DETECT
 static int get_ds_detect(struct device_node *np)
@@ -195,89 +200,40 @@ static int init_mailbox_regs(struct modem_ctl *mc)
 {
 	struct platform_device *pdev = to_platform_device(mc->dev);
 	struct device_node *np = pdev->dev.of_node;
-	unsigned int mbx_ap_status;
-	unsigned int sbi_ds_det_mask, sbi_ds_det_pos;
-	unsigned int sbi_sys_rev_mask, sbi_sys_rev_pos;
-	int sys_rev, ds_det, i;
-#ifdef CONFIG_CP_RAM_LOGGING
-	unsigned int sbi_ext_backtrace_mask, sbi_ext_backtrace_pos;
-#endif
-#if defined(CONFIG_SOC_EXYNOS8895) && defined(CONFIG_EXYNOS_DECON_FB)
-	unsigned int sbi_device_type_mask, sbi_device_type_pos;
-	unsigned int value = 0;
-	int dsp_connected = 0;
-	int dsp_type = 0;
-#endif
+	unsigned int info_val, val;
+	int ds_det, i;
 
 	for (i = 0; i < MAX_MBOX_NUM; i++)
 		mbox_set_value(MCU_CP, i, 0);
 
 	if (np) {
-		mif_dt_read_u32(np, "mbx_ap2cp_united_status", mbx_ap_status);
-		mif_dt_read_u32(np, "sbi_sys_rev_mask", sbi_sys_rev_mask);
-		mif_dt_read_u32(np, "sbi_sys_rev_pos", sbi_sys_rev_pos);
-		mif_dt_read_u32(np, "sbi_ds_det_mask", sbi_ds_det_mask);
-		mif_dt_read_u32(np, "sbi_ds_det_pos", sbi_ds_det_pos);
+		mif_dt_read_u32(np, "mbx_ap2cp_info_value", info_val);
 
-#if defined(CONFIG_SOC_EXYNOS8895) && defined(CONFIG_EXYNOS_DECON_FB)
-		mif_dt_read_u32(np, "sbi_device_type_mask", sbi_device_type_mask);
-		mif_dt_read_u32(np, "sbi_device_type_pos", sbi_device_type_pos);
-
-		dsp_connected = get_lcd_info("connected");
-		if (dsp_connected < 0) {
-			mif_err("Failed to get dsp_info(%d)\n", dsp_connected);
-			value = DEFAULT_DSP_TYPE;
-		} else {
-			/* 1: dsp_connect, 0: dsp_disconnect */
-			if (dsp_connected) {
-				dsp_type = get_lcd_info("id");
-				if (dsp_type < 0) {
-					mif_err("Failed to get dsp_type(%d)\n", dsp_type);
-					value = DEFAULT_DSP_TYPE;
-				} else {
-					/* [3:0] display type, [4] connected or not */
-					value |= ((dsp_connected & 0x1) << 4);
-					/* DSP ID1 value is located in [19:16] */
-					value |= ((dsp_type >> 16) & 0xf);
-				}
-			} else {
-				mif_err("display disconnected, set default value\n");
-				value = DEFAULT_DSP_TYPE;
-			}
-		}
-
-		mbox_update_value(MCU_CP, mbx_ap_status, value,
-			sbi_device_type_mask, sbi_device_type_pos);
-
-		mif_info("dsp_type:0x%x, conn:0x%x, get_val: 0x%x\n",
-			dsp_type, dsp_connected,
-			mbox_get_value(MCU_CP, mbx_ap_status));
-#endif
-
+#ifndef CONFIG_HW_REV_DETECT
 		sys_rev = get_system_rev(np);
-		ds_det = get_ds_detect(np);
-		if (sys_rev < 0 || ds_det < 0) {
-			mif_info("sys_rev:%d ds_det:%d\n", sys_rev, ds_det);
-			return -EINVAL;
-		}
-
-		mbox_update_value(MCU_CP, mbx_ap_status, sys_rev,
-			sbi_sys_rev_mask, sbi_sys_rev_pos);
-		mbox_update_value(MCU_CP, mbx_ap_status, ds_det,
-			sbi_ds_det_mask, sbi_ds_det_pos);
-
-		mif_info("sys_rev:%d, ds_det:%u (0x%x)\n",
-				sys_rev, ds_det, mbox_get_value(MCU_CP, mbx_ap_status));
-
-#ifdef CONFIG_CP_RAM_LOGGING
-		mif_dt_read_u32(np, "sbi_ext_backtrace_mask",
-				sbi_ext_backtrace_mask);
-		mif_dt_read_u32(np, "sbi_ext_backtrace_pos",
-				sbi_ext_backtrace_pos);
-
-		mbox_update_value(MCU_CP, mbx_ap_status, shm_get_cplog_flag(),
-			sbi_ext_backtrace_mask, sbi_ext_backtrace_pos);
 #endif
+		ds_det = get_ds_detect(np);
+
+		if (new_rev <= sys_rev){
+			if (sys_rev < 0 || ds_det < 0)
+				return -EINVAL;
+
+			val = sys_rev | (ds_det & 0x1) << 8;
+			mbox_set_value(MCU_CP, info_val, val);
+			rev_usage = 1;
+			mif_info("sys_rev:%d, ds_det:%u (0x%x)\n",
+					sys_rev, ds_det, mbox_get_value(MCU_CP, info_val));
+		} else {
+			if (new_rev < 0 || ds_det < 0)
+                                return -EINVAL;
+
+                        val = new_rev | (ds_det & 0x1) << 8;
+                        mbox_set_value(MCU_CP, info_val, val);
+			rev_usage = 2;
+                        mif_info("new_rev:%d, ds_det:%u (0x%x)\n",
+                                        new_rev, ds_det, mbox_get_value(MCU_CP, info_val));
+
+		}
 	} else {
 		mif_info("non-DT project, can't set system_rev\n");
 	}
@@ -288,17 +244,21 @@ static int init_mailbox_regs(struct modem_ctl *mc)
 static int ss310ap_on(struct modem_ctl *mc)
 {
 	int ret;
-	int cp_active = mbox_extract_value(MCU_CP, mc->mbx_cp_status,
-						mc->sbi_lte_active_mask, mc->sbi_lte_active_pos);
-	int cp_status = mbox_extract_value(MCU_CP, mc->mbx_cp_status,
-						mc->sbi_cp_status_mask, mc->sbi_cp_status_pos);
+	int cp_active = mbox_get_value(MCU_CP, mc->mbx_phone_active);
+	int cp_status = mbox_get_value(MCU_CP, mc->mbx_cp_status);
+#ifdef CONFIG_SOC_EXYNOS8890
+	void __iomem *base = shm_get_ipc_region();
+#endif
+#ifdef CONFIG_SOC_EXYNOS8890
+	u32 __maybe_unused et_dac_cal;
+	register u64 reg0 __asm__("x0");
+	register u64 reg1 __asm__("x1");
+	register u64 reg2 __asm__("x2");
+	register u64 reg3 __asm__("x3");
+#endif
 
 	mif_err("+++\n");
 	mif_err("cp_active:%d cp_status:%d\n", cp_active, cp_status);
-
-#ifndef CONFIG_CP_SECURE_BOOT
-	exynos_cp_init();
-#endif
 
 	/* Enable debug Snapshot */
 	mif_set_snapshot(true);
@@ -308,26 +268,41 @@ static int ss310ap_on(struct modem_ctl *mc)
 	if (init_mailbox_regs(mc))
 		mif_err("Failed to initialize mbox regs\n");
 
-	mbox_update_value(MCU_CP, mc->mbx_ap_status, 1,
-			mc->sbi_pda_active_mask, mc->sbi_pda_active_pos);
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Transfer DRAM CAL data to CP */
+	memmove(base + 0x1000, mc->sysram_alive, 0x800);
 
-	if (exynos_get_cp_power_status() > 0) {
+	/* Transfer ET_DAC_CAL tuning bit to CP */
+	reg0 = 0;
+	reg1 = 0;
+	reg2 = 0;
+	reg3 = 0;
+
+	/* SMC_ID = 0x82001014, CMD_ID = 0x2002, read_idx=0x1C */
+	ret = exynos_smc(0x82001014, 0, 0x2002, 0x1C);
+	__asm__ volatile(
+		"\t"
+		: "+r"(reg0), "+r"(reg1), "+r"(reg2), "+r"(reg3)
+	);
+	et_dac_cal = (uint32_t)((0x00000000FFFF0000 & reg2) >> 16);
+
+	mif_err("ret = 0x%x, et_cac_cal value = 0x%x\n", ret, et_dac_cal);
+	mbox_set_value(MCU_CP, mc->mbx_et_dac_cal,(u32)et_dac_cal);
+#endif
+	mbox_set_value(MCU_CP, mc->mbx_pda_active, 1);
+
+	if (exynos_get_cp_power_status(mc) > 0) {
 		mif_err("CP aleady Power on, Just start!\n");
-		exynos_cp_release();
+		exynos_cp_release(mc);
 	} else {
-		exynos_set_cp_power_onoff(CP_POWER_ON);
+		exynos_set_cp_power_onoff(mc, CP_POWER_ON);
 	}
 
 	msleep(300);
 	ret = change_cp_pmu_manual_reset();
 	mif_err("change_mr_reset -> %d\n", ret);
 
-#ifdef CONFIG_UART_SEL
-	mif_err("Recheck UART direction.\n");
-	cp_recheck_uart_dir();
-#endif
-
-	mif_info("---\n");
+	mif_err("---\n");
 	return 0;
 }
 
@@ -335,9 +310,7 @@ static int ss310ap_off(struct modem_ctl *mc)
 {
 	mif_err("+++\n");
 
-	mbox_set_interrupt(MCU_CP, mc->int_cp_wakeup);
-	msleep(5);
-	exynos_set_cp_power_onoff(CP_POWER_OFF);
+	exynos_set_cp_power_onoff(mc, CP_POWER_OFF);
 
 	mif_err("---\n");
 	return 0;
@@ -352,10 +325,10 @@ static int ss310ap_shutdown(struct modem_ctl *mc)
 	mif_err("+++\n");
 
 	if (mc->phone_state == STATE_OFFLINE
-		|| exynos_get_cp_power_status() <= 0)
+		|| exynos_get_cp_power_status(mc) <= 0)
 		goto exit;
 
-	reinit_completion(&mc->off_cmpl);
+	init_completion(&mc->off_cmpl);
 	remain = wait_for_completion_timeout(&mc->off_cmpl, timeout);
 	if (remain == 0) {
 		mif_err("T-I-M-E-O-U-T\n");
@@ -367,9 +340,7 @@ static int ss310ap_shutdown(struct modem_ctl *mc)
 	}
 
 exit:
-	mbox_set_interrupt(MCU_CP, mc->int_cp_wakeup);
-	msleep(5);
-	exynos_set_cp_power_onoff(CP_POWER_OFF);
+	exynos_set_cp_power_onoff(mc, CP_POWER_OFF);
 	mif_err("---\n");
 	return 0;
 }
@@ -380,27 +351,14 @@ static int ss310ap_reset(struct modem_ctl *mc)
 	mif_err("+++\n");
 
 	/* mc->phone_state = STATE_OFFLINE; */
-	if (mc->phone_state == STATE_OFFLINE)
-		return 0;
 
 	/* FIXME: For CP debug */
-	if (base) {
-		if (*(unsigned int *)(base + 0xF80) == 0xDEB)
-			return 0;
-	}
+	if (*(unsigned int *)(base + 0xF80) == 0xDEB)
+		return 0;
 
-	if (mc->phone_state == STATE_ONLINE)
-		modem_notify_event(MODEM_EVENT_RESET);
-
-	/* Change phone state to OFFLINE */
-	mc->phone_state = STATE_OFFLINE;
-
-	if (exynos_get_cp_power_status() > 0) {
+	if (exynos_get_cp_power_status(mc) > 0) {
 		mif_err("CP aleady Power on, try reset\n");
-		mbox_set_interrupt(MCU_CP, mc->int_cp_wakeup);
-		msleep(5);
-		exynos_cp_reset();
-		mbox_sw_reset(MCU_CP);
+		exynos_cp_reset(mc);
 	}
 
 	mif_err("---\n");
@@ -418,13 +376,15 @@ static int ss310ap_boot_on(struct modem_ctl *mc)
 	if (ld->boot_on)
 		ld->boot_on(ld, mc->bootd);
 
+	init_completion(&mc->init_cmpl);
+	init_completion(&mc->off_cmpl);
+
 	list_for_each_entry(iod, &mc->modem_state_notify_list, list) {
 		if (iod && atomic_read(&iod->opened) > 0)
 			iod->modem_state_changed(iod, STATE_BOOTING);
 	}
 
-	while (mbox_extract_value(MCU_CP, mc->mbx_cp_status,
-				mc->sbi_cp_status_mask, mc->sbi_cp_status_pos) == 0) {
+	while (mbox_get_value(MCU_CP, mc->mbx_cp_status) == 0) {
 		if (--cnt > 0)
 			usleep_range(10000, 20000);
 		else
@@ -434,9 +394,7 @@ static int ss310ap_boot_on(struct modem_ctl *mc)
 	mif_disable_irq(&mc->irq_cp_wdt);
 	mif_enable_irq(&mc->irq_cp_fail);
 
-	mif_info("cp_status=%u\n",
-			mbox_extract_value(MCU_CP, mc->mbx_cp_status,
-					mc->sbi_cp_status_mask, mc->sbi_cp_status_pos));
+	mif_info("cp_status=%u\n", mbox_get_value(MCU_CP, mc->mbx_cp_status));
 
 	mif_info("---\n");
 	return 0;
@@ -449,7 +407,6 @@ static int ss310ap_boot_off(struct modem_ctl *mc)
 	int err = 0;
 	mif_info("+++\n");
 
-	reinit_completion(&mc->init_cmpl);
 	remain = wait_for_completion_timeout(&mc->init_cmpl, MIF_INIT_TIMEOUT);
 	if (remain == 0) {
 		mif_err("T-I-M-E-O-U-T\n");
@@ -492,30 +449,11 @@ static int ss310ap_force_crash_exit(struct modem_ctl *mc)
 
 int ss310ap_force_crash_exit_ext(void)
 {
-	if (g_mc) {
-		mif_err("Make forced crash exit\n");
+	if (g_mc)
 		ss310ap_force_crash_exit(g_mc);
-	}
 
 	return 0;
 }
-EXPORT_SYMBOL(ss310ap_force_crash_exit_ext);
-
-int ss310ap_send_panic_noti_ext(void)
-{
-	struct modem_data *modem;
-
-	if (g_mc) {
-		modem = g_mc->mdm_data;
-		if (modem->mld) {
-			mif_err("Send CMD_KERNEL_PANIC message to CP\n");
-			send_ipc_irq(modem->mld, cmd2int(CMD_KERNEL_PANIC));
-		}
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL(ss310ap_send_panic_noti_ext);
 
 static int ss310ap_dump_start(struct modem_ctl *mc)
 {
@@ -528,17 +466,13 @@ static int ss310ap_dump_start(struct modem_ctl *mc)
 		return -EFAULT;
 	}
 
-	/* Change phone state to CRASH_EXIT */
-	mc->phone_state = STATE_CRASH_EXIT;
-
 	err = ld->dump_start(ld, mc->bootd);
 	if (err)
 		return err;
 
-	exynos_cp_release();
+	exynos_cp_release(mc);
 
-	mbox_update_value(MCU_CP, mc->mbx_ap_status, 1,
-			mc->sbi_ap_status_mask, mc->sbi_ap_status_pos);
+	mbox_set_value(MCU_CP, mc->mbx_ap_status, 1);
 
 	mif_err("---\n");
 	return err;
@@ -546,11 +480,8 @@ static int ss310ap_dump_start(struct modem_ctl *mc)
 
 static void ss310ap_modem_boot_confirm(struct modem_ctl *mc)
 {
-	mbox_update_value(MCU_CP,mc->mbx_ap_status, 1,
-			mc->sbi_ap_status_mask, mc->sbi_ap_status_pos);
-	mif_info("ap_status=%u\n",
-			mbox_extract_value(MCU_CP, mc->mbx_ap_status,
-					mc->sbi_ap_status_mask, mc->sbi_ap_status_pos));
+	mbox_set_value(MCU_CP, mc->mbx_ap_status, 1);
+	mif_info("ap_status=%u\n", mbox_get_value(MCU_CP, mc->mbx_ap_status));
 }
 
 static void ss310ap_get_ops(struct modem_ctl *mc)
@@ -571,10 +502,10 @@ static void ss310ap_get_pdata(struct modem_ctl *mc, struct modem_data *modem)
 {
 	struct modem_mbox *mbx = modem->mbx;
 
+	mc->mbx_pda_active = mbx->mbx_ap2cp_active;
 	mc->int_pda_active = mbx->int_ap2cp_active;
 
-	mc->int_cp_wakeup = mbx->int_ap2cp_wakeup;
-
+	mc->mbx_phone_active = mbx->mbx_cp2ap_active;
 	mc->irq_phone_active = mbx->irq_cp2ap_active;
 
 	mc->mbx_ap_status = mbx->mbx_ap2cp_status;
@@ -583,23 +514,7 @@ static void ss310ap_get_pdata(struct modem_ctl *mc, struct modem_data *modem)
 	mc->mbx_perf_req = mbx->mbx_cp2ap_perf_req;
 	mc->irq_perf_req = mbx->irq_cp2ap_perf_req;
 
-	mc->int_uart_noti = mbx->int_ap2cp_uart_noti;
-
-	mc->sbi_lte_active_mask = mbx->sbi_lte_active_mask;
-	mc->sbi_lte_active_pos = mbx->sbi_lte_active_pos;
-	mc->sbi_cp_status_mask = mbx->sbi_cp_status_mask;
-	mc->sbi_cp_status_pos = mbx->sbi_cp_status_pos;
-
-	mc->sbi_pda_active_mask = mbx->sbi_pda_active_mask;
-	mc->sbi_pda_active_pos = mbx->sbi_pda_active_pos;
-	mc->sbi_ap_status_mask = mbx->sbi_ap_status_mask;
-	mc->sbi_ap_status_pos = mbx->sbi_ap_status_pos;
-
-	mc->sbi_uart_noti_mask = mbx->sbi_uart_noti_mask;
-	mc->sbi_uart_noti_pos = mbx->sbi_uart_noti_pos;
-
-	mc->sbi_crash_type_mask = mbx->sbi_crash_type_mask;
-	mc->sbi_crash_type_pos = mbx->sbi_crash_type_pos;
+	mc->mbx_et_dac_cal = mbx->mbx_ap2cp_et_dac_cal;
 }
 
 #ifdef CONFIG_EXYNOS_BUSMONITOR
@@ -622,15 +537,22 @@ static int ss310ap_busmon_notifier(struct notifier_block *nb,
 }
 #endif
 
+module_param(sys_rev, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(sys_rev, "Modem revision detect");
+
+module_param(new_rev, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(new_rev, "test param");
+
+module_param(rev_usage, int, S_IRUGO | S_IWUSR | S_IWGRP);
+MODULE_PARM_DESC(rev_usage, "test usgae param");
+
 int ss310ap_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 {
 	struct platform_device *pdev = to_platform_device(mc->dev);
 	struct device_node *np = pdev->dev.of_node;
 	int ret = 0;
 	unsigned int irq_num;
-#ifdef CONFIG_SOC_EXYNOS8890
 	struct resource *sysram_alive;
-#endif
 	unsigned long flags = IRQF_NO_SUSPEND | IRQF_NO_THREAD;
 	unsigned int cp_rst_n ;
 
@@ -674,14 +596,12 @@ int ss310ap_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 	mc->irq_cp_wdt.active = true;
 	mif_disable_irq(&mc->irq_cp_wdt);
 
-#ifdef CONFIG_SOC_EXYNOS8890
 	sysram_alive = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	mc->sysram_alive = devm_ioremap_resource(&pdev->dev, sysram_alive);
 	if (IS_ERR(mc->sysram_alive)) {
 		ret = PTR_ERR(mc->sysram_alive);
 		return ret;
 	}
-#endif
 
 	/*
 	** Register LTE_ACTIVE MBOX interrupt handler
@@ -693,7 +613,6 @@ int ss310ap_init_modemctl_device(struct modem_ctl *mc, struct modem_data *pdata)
 		return ret;
 	}
 
-	init_completion(&mc->init_cmpl);
 	init_completion(&mc->off_cmpl);
 
 	/*

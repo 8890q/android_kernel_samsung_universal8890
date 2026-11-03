@@ -92,9 +92,8 @@ static inline u8 sipc5_get_ctrl(u8 *frm)
 
 static inline unsigned int sipc5_calc_padding_size(unsigned int len)
 {
-	unsigned int residue = len & (BITS_PER_LONG / 8 - 1);
-
-	return residue ? (BITS_PER_LONG / 8 - residue) : 0;
+	unsigned int residue = len & (sizeof(size_t) - 1);
+	return residue ? (sizeof(size_t) - residue) : 0;
 }
 
 /**

@@ -18,7 +18,6 @@
 #include "modem_prj.h"
 #include "modem_utils.h"
 #include "link_device_memory.h"
-#include "modem_dump.h"
 
 #ifdef GROUP_MEM_LINK_DEVICE
 

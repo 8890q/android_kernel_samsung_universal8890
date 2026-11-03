@@ -7,15 +7,10 @@ menuconfig SEC_SIPC_MODEM_IF
 if SEC_SIPC_MODEM_IF
 
 config SEC_MODEM_SS310AP
-	bool "Exynos8895 and SS310 feature"
+	bool "Exynos7580 and SS310 feature"
 	select UMTS_MODEM_SS310AP
 	select LINK_DEVICE_SHMEM
 	select CP_SECURE_BOOT
-	select CP_RAM_LOGGING
-	default y
-
-config CP_ZEROCOPY
-	bool "Support zero memory copy"
 	default y
 
 menu "Configuration Description"
@@ -93,9 +88,13 @@ config GPIO_DS_DETECT
 	bool "Support GPIO DS Detect"
 	default n
 
-config CP_RAM_LOGGING
-	bool "Support CP ram logging feature"
+config HW_REV_DETECT
+	bool "Support HW REV Detect"
 	default n
+
+config MODEM_N7_BL6
+        bool "Support Note 7 on Android 6 BL"
+        default n
 
 config MODEM_IF_LEGACY_QOS
 	bool "Implement QoS for legacy"

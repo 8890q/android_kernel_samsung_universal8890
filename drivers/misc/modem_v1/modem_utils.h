@@ -17,7 +17,6 @@
 
 #include <linux/rbtree.h>
 #include "modem_prj.h"
-#include "link_device_memory.h"
 
 #define MIF_TAG	"mif"
 
@@ -109,7 +108,7 @@ enum ipc_layer {
 	MAX_SIPC_LAYER
 };
 
-static const char *sipc_layer_string[] = {
+static const char const *sipc_layer_string[] = {
 	[LINK] = "LNK",
 	[IODEV] = "IOD",
 	[APP] = "APP",
@@ -124,7 +123,7 @@ static const inline char *layer_str(enum ipc_layer layer)
 		return sipc_layer_string[layer];
 }
 
-static const char *dev_format_string[] = {
+static const char const *dev_format_string[] = {
 	[IPC_FMT]	= "FMT",
 	[IPC_RAW]	= "RAW",
 	[IPC_RFS]	= "RFS",
@@ -148,7 +147,7 @@ static inline enum direction opposite(enum direction dir)
 	return (dir == TX) ? RX : TX;
 }
 
-static const char *direction_string[] = {
+static const char const *direction_string[] = {
 	[TX] = "TX",
 	[RX] = "RX"
 };
@@ -161,7 +160,7 @@ static const inline char *dir_str(enum direction dir)
 		return direction_string[dir];
 }
 
-static const char *udl_string[] = {
+static const char const *udl_string[] = {
 	[UL] = "UL",
 	[DL] = "DL"
 };
@@ -174,7 +173,7 @@ static const inline char *udl_str(enum direction dir)
 		return udl_string[dir];
 }
 
-static const char *q_direction_string[] = {
+static const char const *q_direction_string[] = {
 	[TX] = "TXQ",
 	[RX] = "RXQ"
 };
@@ -187,7 +186,7 @@ static const inline char *q_dir(enum direction dir)
 		return q_direction_string[dir];
 }
 
-static const char *ipc_direction_string[] = {
+static const char const *ipc_direction_string[] = {
 	[TX] = "AP->CP",
 	[RX] = "AP<-CP"
 };
@@ -200,7 +199,7 @@ static const inline char *ipc_dir(enum direction dir)
 		return ipc_direction_string[dir];
 }
 
-static const char *arrow_direction[] = {
+static const char const *arrow_direction[] = {
 	[TX] = "->",
 	[RX] = "<-"
 };
@@ -213,7 +212,7 @@ static const inline char *arrow(enum direction dir)
 		return arrow_direction[dir];
 }
 
-static const char *modem_state_string[] = {
+static const char const *modem_state_string[] = {
 	[STATE_OFFLINE]		= "OFFLINE",
 	[STATE_CRASH_RESET]	= "CRASH_RESET",
 	[STATE_CRASH_EXIT]	= "CRASH_EXIT",
@@ -368,11 +367,6 @@ static inline struct io_device *link_get_iod_with_channel(
 			struct link_device *ld, unsigned int channel)
 {
 	struct io_device *iod = get_iod_with_channel(ld->msd, channel);
-	struct mem_link_device *mld = ld->mdm_data->mld;
-
-	if (!iod && atomic_read(&mld->cp_boot_done))
-		mif_err("No IOD matches channel (%d)\n", channel);
-
 	return (iod && IS_CONNECTED(iod, ld)) ? iod : NULL;
 }
 
@@ -517,63 +511,4 @@ int argos_task_affinity_setup_label(struct task_struct *p, const char *label,
 
 void mif_set_snapshot(bool enable);
 void set_wakeup_packet_log(bool enable);
-
-/* MIF buffer management */
-
-/* Printout debuggin message for MIF buffer */
-//#define MIF_BUFF_DEBUG
-
-/*
-   IP packet : 2048
-   sizeof(struct skb_shared_info): 512
-   2048 + 512 = 2560 (0xA00)
-*/
-#define MIF_BUFF_DEFAULT_CELL_SIZE	(2048 + 512)
-#define MIF_BUFF_MAP_CELL_SIZE	(sizeof(uint64_t))
-#define MIF_BITS_FOR_BYTE	(8)
-#define MIF_BITS_FOR_MAP_CELL	(MIF_BUFF_MAP_CELL_SIZE * MIF_BITS_FOR_BYTE)
-#define MIF_64BIT_FIRST_BIT	(0x8000000000000000ULL)
-
-struct mif_buff_mng {
-	unsigned char *buffer_start;
-	unsigned char *buffer_end;
-	unsigned int buffer_size;
-	unsigned int cell_size;
-
-	unsigned int cell_count;
-	unsigned int used_cell_count;
-	unsigned int free_cell_count;
-
-	spinlock_t lock;
-
-	uint64_t *buffer_map;
-	unsigned int buffer_map_size;
-	int current_map_index;
-};
-
-struct mif_buff_mng *init_mif_buff_mng(unsigned char *buffer_start,
-	unsigned int buffer_size, unsigned int cell_size);
-void exit_mif_buff_mng(struct mif_buff_mng *bm);
-void *alloc_mif_buff(struct mif_buff_mng *bm);
-int free_mif_buff(struct mif_buff_mng *bm, void *buffer);
-
-static inline unsigned int get_mif_buff_free_count(struct mif_buff_mng *bm)
-{
-	if (bm)
-		return bm->free_cell_count;
-	else
-		return 0;
-}
-
-static inline unsigned int get_mif_buff_used_count(struct mif_buff_mng *bm)
-{
-	if (bm)
-		return bm->used_cell_count;
-	else
-		return 0;
-}
-
-extern struct mif_buff_mng *g_mif_buff_mng;
-int security_request_cp_ram_logging(void);
-
 #endif/*__MODEM_UTILS_H__*/

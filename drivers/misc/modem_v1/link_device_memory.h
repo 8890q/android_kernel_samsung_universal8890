@@ -34,7 +34,6 @@
 #include <linux/debugfs.h>
 
 #include "modem_prj.h"
-#include "modem_utils.h"
 #include "include/link_device_memory_config.h"
 #include "include/circ_queue.h"
 #include "include/sbd.h"
@@ -139,7 +138,6 @@ struct __packed shmem_4mb_phys_map {
 #define CMD_REQ_ACTIVE		0x0003
 #define CMD_RES_ACTIVE		0x0004
 #define CMD_REQ_TIME_SYNC	0x0005
-#define CMD_KERNEL_PANIC	0x0006
 #define CMD_CRASH_RESET		0x0007
 #define CMD_PHONE_START		0x0008
 #define CMD_CRASH_EXIT		0x0009
@@ -155,7 +153,7 @@ struct __packed shmem_4mb_phys_map {
 #ifdef GROUP_MEM_IPC_DEVICE
 
 struct mem_ipc_device {
-	enum legacy_ipc_map id;
+	enum dev_format id;
 	char name[16];
 
 	struct circ_queue txq;
@@ -173,8 +171,6 @@ struct mem_ipc_device {
 
 #endif
 
-#define DATALLOC_PERIOD_MS		2	/* 2 ms */
-
 #ifdef GROUP_MEM_FLOW_CONTROL
 #define MAX_SKB_TXQ_DEPTH		1024
 #define TX_PERIOD_MS			1	/* 1 ms */
@@ -185,7 +181,6 @@ struct mem_ipc_device {
 
 #define TXQ_STOP_MASK			(0x1<<0)
 #define TX_SUSPEND_MASK			(0x1<<1)
-#define SHM_FLOWCTL_BIT			BIT(2)
 #endif
 
 #ifdef GROUP_MEM_CP_CRASH
@@ -240,38 +235,6 @@ enum mem_ipc_mode {
 	MEM_SBD_IPC,
 };
 
-#define CRASH_REASON_SIZE	512
-enum crash_type {
-	CRASH_REASON_CP_ACT_CRASH = 0,
-	CRASH_REASON_RIL_MNR,
-	CRASH_REASON_RIL_REQ_FULL,
-	CRASH_REASON_RIL_PHONE_DIE,
-	CRASH_REASON_RIL_RSV_MAX,
-	CRASH_REASON_USER = 5,
-	CRASH_REASON_MIF_TX_ERR = 6,
-	CRASH_REASON_MIF_RIL_BAD_CH,
-	CRASH_REASON_MIF_RX_BAD_DATA,
-	CRASH_REASON_MIF_ZMC,
-	CRASH_REASON_MIF_RSV_0,
-	CRASH_REASON_MIF_RSV_1,
-	CRASH_REASON_MIF_RSV_MAX = 12,
-	CRASH_REASON_CP_SRST,
-	CRASH_REASON_CP_RSV_0,
-	CRASH_REASON_CP_RSV_MAX = 15,
-};
-
-struct crash_reason {
-	u32 owner;
-	char string[CRASH_REASON_SIZE];
-};
-
-#define FREQ_MAX_LV (40)
-
-struct freq_table {
-    int num_of_table;
-    u32 freq[FREQ_MAX_LV];
-};
-
 struct mem_link_device {
 	/**
 	 * COMMON and MANDATORY to all link devices
@@ -312,29 +275,6 @@ struct mem_link_device {
 	u8 __iomem *base;
 
 	/**
-	 * vss region for dump
-	 */
-	u8 __iomem *vss_base;
-
-	/**
-	 * acpm region for dump
-	 */
-	u8 __iomem *acpm_base;
-	int acpm_size;
-
-	/**
-	 * CP Binary size for CRC checking
-	 */
-	u32 cp_binary_size;
-
-	/**
-	 * (u32 *) syscp_alive[0] = Magic Code, Version
-	 * (u32 *) syscp_alive[1] = CP Reserved Size
-	 * (u32 *) syscp_alive[2] = Shared Mem Size
-	 */
-	struct resource *syscp_info;
-
-	/**
 	 * Actual logical IPC devices (for IPC_FMT and IPC_RAW)
 	 */
 	struct mem_ipc_device ipc_dev[MAX_SIPC_MAP];
@@ -344,7 +284,6 @@ struct mem_link_device {
 	 */
 	u32 __iomem *magic;
 	u32 __iomem *access;
-	u32 __iomem *clk_table;
 	struct mem_ipc_device *dev[MAX_SIPC_MAP];
 
 	struct sbd_link_device sbd_link_dev;
@@ -356,14 +295,8 @@ struct mem_link_device {
 	unsigned int mbx_cp2ap_msg;	/* MBOX# for IPC RX */
 	unsigned int irq_cp2ap_msg;	/* IRQ# for IPC RX  */
 
-	unsigned int sbi_cp2ap_wakelock_mask;
-	unsigned int sbi_cp2ap_wakelock_pos;
-
 	unsigned int mbx_ap2cp_msg;	/* MBOX# for IPC TX */
 	unsigned int int_ap2cp_msg;	/* INTR# for IPC TX */
-
-	unsigned int sbi_cp_status_mask;
-	unsigned int sbi_cp_status_pos;
 
 	unsigned int mbx_perf_req;
 	unsigned int mbx_perf_req_cpu;
@@ -378,16 +311,11 @@ struct mem_link_device {
 	struct work_struct pm_qos_work_mif;
 	struct work_struct pm_qos_work_int;
 
-	struct freq_table cl0_table;
-	struct freq_table cl1_table;
-	struct freq_table mif_table;
-	struct freq_table int_table;
-
+	unsigned int mbx_cp2ap_wakelock;	/* MBOX# for wakelock */
 	unsigned int irq_cp2ap_wakelock;	/* INTR# for wakelock */
 
-	unsigned int sbi_cp_rat_mode_mask;		/* MBOX# for pcie */
-	unsigned int sbi_cp_rat_mode_pos;		/* MBOX# for pcie */
-	unsigned int irq_cp2ap_rat_mode;		/* INTR# for pcie */
+	unsigned int mbx_cp2ap_pcie_l1ss_disable;	/* MBOX# for pcie */
+	unsigned int irq_cp2ap_pcie_l1ss_disable;	/* INTR# for pcie */
 
 	unsigned int *ap_clk_table;
 	unsigned int ap_clk_cnt;
@@ -397,8 +325,6 @@ struct mem_link_device {
 
 	unsigned int *int_clk_table;
 	unsigned int int_clk_cnt;
-
-	int current_mif_val;
 
 	unsigned int mbx_cp2ap_status;	/* MBOX# for TX FLOWCTL */
 	unsigned int irq_cp2ap_status;	/* INTR# for TX FLOWCTL */
@@ -492,10 +418,6 @@ struct mem_link_device {
 	struct debugfs_blob_wrapper mem_dump_blob;
 	struct dentry *dbgfs_frame;
 #endif
-	unsigned int tx_period_ms;
-	unsigned int force_use_memcpy;
-	unsigned int memcpy_packet_count;
-	unsigned int zeromemcpy_packet_count;
 
 	atomic_t forced_cp_crash;
 	struct timer_list crash_ack_timer;
@@ -504,19 +426,6 @@ struct mem_link_device {
 	enum link_state state;
 
 	struct pktlog_data *pktlog;
-
-	struct crash_reason crash_reason;
-
-	struct notifier_block reboot_nb;
-
-#ifdef CONFIG_LINK_DEVICE_NAPI
-	struct net_device dummy_net;
-	struct napi_struct mld_napi;
-	unsigned int rx_int_enable;
-	unsigned int rx_int_count;
-	unsigned int rx_poll_count;
-	unsigned long long rx_int_disabled_time;
-#endif /* CONFIG_LINK_DEVICE_NAPI */
 };
 
 #define to_mem_link_device(ld) \
@@ -530,19 +439,6 @@ struct mem_link_device {
 #define MEM_CRASH_MAGIC		0xDEADDEAD
 #define MEM_BOOT_MAGIC		0x424F4F54
 #define MEM_DUMP_MAGIC		0x44554D50
-
-#define MAX_TABLE_COUNT 8
-
-struct clock_table_info {
-	char table_name[4];
-	u32 table_count;
-};
-
-struct clock_table {
-	char parser_version[4];
-	u32 total_table_count;
-	struct clock_table_info table_info[MAX_TABLE_COUNT];
-};
 
 #endif
 
@@ -734,16 +630,17 @@ static inline enum dev_format dev_id(enum sipc_ch_id ch)
 	return sipc5_fmt_ch(ch) ? IPC_FMT : IPC_RAW;
 }
 
-static inline enum legacy_ipc_map get_mmap_idx(enum sipc_ch_id ch,
+static inline enum dev_format get_mmap_idx(enum sipc_ch_id ch,
 		struct sk_buff *skb)
 {
 	if (sipc5_fmt_ch(ch))
 		return IPC_MAP_FMT;
+	else
 #ifdef CONFIG_MODEM_IF_LEGACY_QOS
-	return (skb->queue_mapping == 1) ?
-		IPC_MAP_HPRIO_RAW : IPC_MAP_NORM_RAW;
+		return (skb->queue_mapping == 1) ?
+			IPC_MAP_HPRIO_RAW : IPC_MAP_NORM_RAW;
 #else
-	return IPC_MAP_NORM_RAW;
+		return IPC_MAP_NORM_RAW;
 #endif
 }
 
@@ -770,9 +667,6 @@ static inline void set_access(struct mem_link_device *mld, unsigned int val)
 {
 	iowrite32(val, mld->access);
 }
-
-void shmem_unlock_mif_freq(struct mem_link_device *mld);
-void shmem_restore_mif_freq(struct mem_link_device *mld);
 
 #endif
 
@@ -837,12 +731,6 @@ void mem_cmd_handler(struct mem_link_device *mld, u16 cmd);
 
 #ifdef GROUP_MEM_FLOW_CONTROL
 
-void sbd_txq_stop(struct sbd_ring_buffer *rb);
-void sbd_txq_start(struct sbd_ring_buffer *rb);
-
-int sbd_under_tx_flow_ctrl(struct sbd_ring_buffer *rb);
-int sbd_check_tx_flow_ctrl(struct sbd_ring_buffer *rb);
-
 void tx_flowctrl_suspend(struct mem_link_device *mld);
 void tx_flowctrl_resume(struct mem_link_device *mld);
 void txq_stop(struct mem_link_device *mld, struct mem_ipc_device *dev);
@@ -880,6 +768,9 @@ void print_res_ack(struct mem_link_device *mld, struct mem_snapshot *mst,
 void print_mem_snapshot(struct mem_link_device *mld, struct mem_snapshot *mst);
 void print_dev_snapshot(struct mem_link_device *mld, struct mem_snapshot *mst,
 			struct mem_ipc_device *dev);
+
+void save_mem_dump(struct mem_link_device *mld);
+void mem_dump_work(struct work_struct *ws);
 
 #endif
 
@@ -933,8 +824,6 @@ static inline struct sk_buff *mem_alloc_skb(unsigned int len)
 void tx_iosm_message(struct mem_link_device *, u8, u32 *);
 void iosm_event_work(struct work_struct *work);
 void iosm_event_bh(struct mem_link_device *mld, u16 cmd);
-
-#define NET_HEADROOM (NET_SKB_PAD + NET_IP_ALIGN)
 
 #endif
 

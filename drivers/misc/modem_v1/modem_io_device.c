@@ -23,8 +23,6 @@
 #include <linux/etherdevice.h>
 #include <linux/device.h>
 #include <linux/module.h>
-#include <soc/samsung/pmu-cp.h>
-#include <trace/events/napi.h>
 
 #include "modem_prj.h"
 #include "modem_utils.h"
@@ -344,14 +342,10 @@ static int rx_multi_pdp(struct sk_buff *skb)
 	mif_pkt(iod->id, "IOD-RX", skb);
 #endif
 
-#ifdef CONFIG_LINK_DEVICE_NAPI
-	ret = netif_receive_skb(skb);
-#else /* !CONFIG_LINK_DEVICE_NAPI */
 	if (in_interrupt())
 		ret = netif_rx(skb);
 	else
 		ret = netif_rx_ni(skb);
-#endif /* CONFIG_LINK_DEVICE_NAPI */
 
 	if (ret != NET_RX_SUCCESS) {
 		mif_err_limited("%s: %s<-%s: ERR! netif_rx fail\n",
@@ -532,7 +526,6 @@ static int misc_release(struct inode *inode, struct file *filp)
 	if (atomic_dec_and_test(&iod->opened)) {
 		skb_queue_purge(&iod->sk_rx_q);
 
-		/* purge multi_frame queue */
 		for (i = 0; i < NUM_SIPC_MULTI_FRAME_IDS; i++)
 			skb_queue_purge(&iod->sk_multi_q[i]);
 	}
@@ -621,7 +614,6 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	enum modem_state p_state;
 	unsigned long size;
 	int tx_link;
-	int ret;
 
 	switch (cmd) {
 	case IOCTL_MODEM_ON:
@@ -643,10 +635,7 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 	case IOCTL_MODEM_RESET:
 		if (mc->ops.modem_reset) {
 			mif_err("%s: IOCTL_MODEM_RESET\n", iod->name);
-			ret = mc->ops.modem_reset(mc);
-			if (ld->reset_zerocopy)
-				ld->reset_zerocopy(ld);
-			return ret;
+			return mc->ops.modem_reset(mc);
 		}
 		mif_err("%s: !mc->ops.modem_reset\n", iod->name);
 		return -EINVAL;
@@ -723,10 +712,8 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 
 	case IOCTL_MODEM_FORCE_CRASH_EXIT:
 		if (mc->ops.modem_force_crash_exit) {
-			if (arg)
- 				ld->crash_type = arg;
-			mif_err("%s: IOCTL_MODEM_FORCE_CRASH_EXIT (%d)\n",
-				iod->name, ld->crash_type);
+			mif_err("%s: IOCTL_MODEM_FORCE_CRASH_EXIT\n",
+				iod->name);
 			return mc->ops.modem_force_crash_exit(mc);
 		}
 		mif_err("%s: !mc->ops.modem_force_crash_exit\n", iod->name);
@@ -817,27 +804,6 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		else
 			return -EINVAL;
 
-	case IOCTL_VSS_FULL_DUMP:
-		mif_info("%s: IOCTL_VSS_FULL_DUMP\n", iod->name);
-		if (ld->vss_dump)
-			return ld->vss_dump(ld, iod, arg);
-		else
-			return -EINVAL;
-
-	case IOCTL_ACPM_FULL_DUMP:
-		mif_info("%s: IOCTL_ACPM_FULL_DUMP\n", iod->name);
-		if (ld->acpm_dump)
-			return ld->acpm_dump(ld, iod, arg);
-		else
-			return -EINVAL;
-
-	case IOCTL_CPLOG_FULL_DUMP:
-		mif_info("%s: IOCTL_CPLOG_FULL_DUMP\n", iod->name);
-		if (ld->cplog_dump)
-			return ld->cplog_dump(ld, iod, arg);
-		else
-			return -EINVAL;
-
 	case IOCTL_MODEM_SET_TX_LINK:
 		mif_info("%s: IOCTL_MODEM_SET_TX_LINK\n", iod->name);
 		if (copy_from_user(&tx_link, (void __user *)arg, sizeof(int)))
@@ -868,22 +834,6 @@ static long misc_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return ld->security_req(ld, iod, arg);
 		}
 		mif_err("%s: !ld->check_security\n", iod->name);
-		return -EINVAL;
-
-	case IOCTL_MODEM_CRASH_REASON:
-		if (ld->crash_reason) {
-			mif_info("%s: IOCTL_MODEM_CRASH_REASON\n", iod->name);
-			return ld->crash_reason(ld, iod, arg);
-		}
-		mif_err("%s: !ld->crash_reason\n", iod->name);
-		return -EINVAL;
-
-	case IOCTL_MODEM_AIRPLANE_MODE:
-		if (ld->airplane_mode) {
-			mif_info("%s: IOCTL_MODEM_AIRPLANE_MODE\n", iod->name);
-			return ld->airplane_mode(ld, iod, arg);
-		}
-		mif_err("%s: !ld->airplane_mode\n", iod->name);
 		return -EINVAL;
 
 	default:
@@ -1118,7 +1068,6 @@ static int vnet_open(struct net_device *ndev)
 		}
 	}
 	list_add(&iod->node_ndev, &iod->msd->activated_ndev_list);
-
 	netif_start_queue(ndev);
 
 	mif_err("%s (opened %d) by %s\n",
@@ -1538,9 +1487,9 @@ int sipc5_init_io_device(struct io_device *iod)
 void sipc5_deinit_io_device(struct io_device *iod)
 {
 	mif_err("%s: io_typ=%d\n", iod->name, iod->io_typ);
-	
+
 	wake_lock_destroy(&iod->wakelock);
-	
+
 	/* De-register misc or net device */
 	switch (iod->io_typ) {
 	case IODEV_MISC:
@@ -1551,7 +1500,7 @@ void sipc5_deinit_io_device(struct io_device *iod)
 
 		misc_deregister(&iod->miscdev);
 		break;
-		
+
 	case IODEV_NET:
 		unregister_netdev(iod->ndev);
 		free_netdev(iod->ndev);
@@ -1561,9 +1510,8 @@ void sipc5_deinit_io_device(struct io_device *iod)
 		device_remove_file(iod->miscdev.this_device, &attr_waketime);
 		device_remove_file(iod->miscdev.this_device, &attr_loopback);
 		device_remove_file(iod->miscdev.this_device, &attr_txlink);
-		
+
 		misc_deregister(&iod->miscdev);
 		break;
 	}
 }
-
