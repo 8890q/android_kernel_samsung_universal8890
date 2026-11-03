@@ -1,3 +1,6 @@
+#ifdef CONFIG_SOC_EXYNOS8890
+#include <soc/samsung/exynos-devfreq8890.h>
+#else
 /* linux/arch/arm64/mach-exynos/include/mach/exynos-devfreq.h
  *
  * Copyright (c) 2015 Samsung Electronics Co., Ltd.
@@ -260,3 +263,5 @@ int exynos_devfreq_sync_voltage(enum exynos_devfreq_type type, bool turn_on)
 }
 #endif
 #endif	/* __EXYNOS_DEVFREQ_H_ */
+
+#endif

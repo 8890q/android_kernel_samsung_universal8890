@@ -116,7 +116,7 @@ static int exynos8890_devfreq_mif_pm_suspend_prepare(struct device *dev,
 		origin_suspend_freq = data->devfreq_profile.suspend_freq;
 
 #ifdef CONFIG_MCU_IPC
-	if (mbox_get_value(MBOX_EVS_MODE))
+	if (mbox_get_value(MCU_CP, MBOX_EVS_MODE))
 		data->devfreq_profile.suspend_freq = DEVFREQ_MIF_EVS_FREQ;
 	else
 		data->devfreq_profile.suspend_freq = origin_suspend_freq;
@@ -288,7 +288,7 @@ static int exynos8890_devfreq_mif_set_freq_post(struct device *dev,
 
 #ifdef CONFIG_MCU_IPC
 	/* Send information about MIF frequency to mailbox */
-	mbox_set_value(13, data->new_freq);
+	mbox_set_value(MCU_CP, 13, data->new_freq);
 #endif
 
 	return 0;

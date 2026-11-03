@@ -142,7 +142,7 @@ config ARM_EXYNOS8890_BUS_DEVFREQ
 	default y
 	depends on ARM_EXYNOS_DEVFREQ
 	depends on SOC_EXYNOS8890
-	select DEVFREQ_GOV_SIMPLE_INTERACTIVE
+	select DEVFREQ_GOV_SIMPLE_EXYNOS
 	help
 	  This adds the DEVFREQ driver for Exynos8890 memory and int.
 
