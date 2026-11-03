@@ -62,6 +62,7 @@ struct exynos_powermode_info {
 };
 
 static struct exynos_powermode_info *pm_info;
+static bool cpd_freq_blocked;
 
 /******************************************************************************
  *                                CAL interfaces                              *
@@ -447,7 +448,7 @@ static int is_cpd_available(unsigned int cpu)
 		return false;
 
 	/* If other driver blocks cpd, cpd_blocking is true */
-	if (pm_info->cpd_blocking)
+	if (pm_info->cpd_blocking || READ_ONCE(cpd_freq_blocked))
 		return false;
 
 	/*
@@ -512,9 +513,20 @@ static int is_sicd_available(unsigned int cpu)
  */
 static int cluster_idle_state[MAX_CLUSTER];
 
-static int check_cluster_idle_state(unsigned int cpu)
+int check_cluster_idle_state(unsigned int cpu)
 {
 	return cluster_idle_state[get_cluster_id(cpu)];
+}
+
+/* Keep the cluster awake through the full voltage/clock transition. */
+void block_cpd(void)
+{
+	WRITE_ONCE(cpd_freq_blocked, true);
+}
+
+void release_cpd(void)
+{
+	WRITE_ONCE(cpd_freq_blocked, false);
 }
 
 static void update_cluster_idle_state(int idle, unsigned int cpu)

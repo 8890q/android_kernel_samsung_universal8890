@@ -60,6 +60,16 @@ static inline char* get_sys_powerdown_str(int mode)
 extern int exynos_cpu_pm_enter(unsigned int cpu, int index);
 extern void exynos_cpu_pm_exit(unsigned int cpu, int enter_failed);
 
+#ifdef CONFIG_ARM64_EXYNOS_CPUIDLE
+int check_cluster_idle_state(unsigned int cpu);
+void block_cpd(void);
+void release_cpd(void);
+#else
+static inline int check_cluster_idle_state(unsigned int cpu) { return 0; }
+static inline void block_cpd(void) { }
+static inline void release_cpd(void) { }
+#endif
+
 /**
   IDLE_IP control
  */
