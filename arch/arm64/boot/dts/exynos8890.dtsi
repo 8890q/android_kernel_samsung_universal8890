@@ -1433,13 +1433,15 @@
 			};
 		};
 
-		ufs-sys {
+		ufs-io-coherency {
 			#address-cells = <2>;
 			#size-cells = <1>;
 			ranges;
 
 			reg =
 				<0x0 0x10e50700 0x4>;
+			mask = <0x30000>;
+			bits = <0x30000>;
 		};
 	};
 
@@ -1484,6 +1486,15 @@
 		num-lanes = <1>;
 		msi-base = <200>;
 		ch-num = <0>;
+		ip-ver = <0x889000>;
+		pcie-irq-toe-enable = <0>;
+		pcie-irq-toe-num = <0>;
+		pcie-irq-msi-cp-enable = <0>;
+		pcie-irq-msi-cp-base-bit = <0>;
+		pcie-irq-msi-cp-num = <0>;
+		use-cache-coherency = "false";
+		use-msi = "false";
+		use-sicd = "true";
 		pcie-clk-num = <1>;
 		phy-clk-num = <3>;
 		pcie-changed;
@@ -1521,6 +1532,15 @@
 		num-lanes = <1>;
 		msi-base = <200>;
 		ch-num = <1>;
+		ip-ver = <0x889000>;
+		pcie-irq-toe-enable = <0>;
+		pcie-irq-toe-num = <0>;
+		pcie-irq-msi-cp-enable = <0>;
+		pcie-irq-msi-cp-base-bit = <0>;
+		pcie-irq-msi-cp-num = <0>;
+		use-cache-coherency = "false";
+		use-msi = "false";
+		use-sicd = "true";
 		pcie-clk-num = <1>;
 		phy-clk-num = <3>;
 		pcie-changed;
@@ -2841,6 +2861,7 @@
 
 	usbdrd_phy0: phy@15500000 {
 		compatible = "samsung,exynos8890-usbdrd-phy";
+		change_refclk = <0>;
 		reg = <0x0 0x15500000 0x100>;
 		clocks = <&clock 1>, <&clock 700>, <&clock 703>, <&clock 708>, <&clock 709>;
 		clock-names = "ext_xtal", "aclk", "sclk", "phyclock", "pipe_pclk";
@@ -2853,6 +2874,7 @@
 
 	usbdrd_phy1: phy@15520000 {
 		compatible = "samsung,exynos8890-usbhost-phy";
+		change_refclk = <0>;
 		reg = <0x0 0x15520000 0x100>;
 		clocks =  <&clock 701>, <&clock 703>, <&clock 712>, <&clock 715>;
 		clock-names = "aclk", "sclk", "phyclock", "phy_ref";

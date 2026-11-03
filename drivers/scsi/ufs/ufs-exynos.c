@@ -506,7 +506,8 @@ static u8 exynos_ufs_set_unipro_pclk(struct exynos_ufs *ufs)
 
 	WARN(pclk_rate < f_min, "not available pclk range %d\n", pclk_rate);
 
-	if (ufs->hw_rev == UFS_VER_0003)
+	if (ufs->hw_rev == UFS_VER_0003 &&
+	    !(ufs->opts & EXYNOS_UFS_OPTS_USE_SEPERATED_PCLK))
 		exynos_ufs_set_pclk_period(ufs, div);
 
 	ufs->pclk_rate = pclk_rate;
@@ -1425,8 +1426,9 @@ static int exynos_ufs_init_system(struct exynos_ufs *ufs)
                 regmap_update_bits(ufs->pmureg, 0x0620, 0x1, 1);
 #endif
 
-	/* change reference clock source w/a */
-	if (ufs->hw_rev == UFS_VER_0003) {
+	/* The 8890 has a separate UniPro configuration clock. */
+	if (ufs->hw_rev == UFS_VER_0003 &&
+	    !(ufs->opts & EXYNOS_UFS_OPTS_USE_SEPERATED_PCLK)) {
 		const char *const clks[] = {
 			"mout_sclk_combo_phy_embedded", "top_sclk_phy_fsys1_26m",
 		};
@@ -1491,7 +1493,8 @@ static int exynos_ufs_get_clks(struct ufs_hba *hba)
 			if (!strcmp(clki->name, "sclk_ufsunipro"))
 				ufs->clk_unipro = clki->clk;
 
-			if (ufs->hw_rev == UFS_VER_0003) {
+			if (ufs->hw_rev == UFS_VER_0003 &&
+			    !(ufs->opts & EXYNOS_UFS_OPTS_USE_SEPERATED_PCLK)) {
 				if (!strcmp(clki->name, "aclk_ufs"))
 					ufs->pclk = clki->clk;
 			} else {
@@ -1931,8 +1934,8 @@ static int exynos_ufs_populate_dt_sys_per_feature(struct device *dev,
 
 	np = of_get_child_by_name(dev->of_node, name[index]);
 	if (!np) {
-		dev_err(dev, "failed to get ufs-sys node\n");
-		return -ENODEV;
+		/* Per-feature system controls are optional. */
+		return 0;
 	}
 
 	ret = of_address_to_resource(np, 0, &io_res);
@@ -2121,6 +2124,9 @@ static int exynos_ufs_populate_dt(struct device *dev, struct exynos_ufs *ufs)
 
 	if (of_find_property(np, "ufs-opts-skip-connection-estab", NULL))
 		ufs->opts |= EXYNOS_UFS_OPTS_SKIP_CONNECTION_ESTAB;
+
+	if (of_property_read_bool(np, "ufs-opts-use-seperated-pclk"))
+		ufs->opts |= EXYNOS_UFS_OPTS_USE_SEPERATED_PCLK;
 
 	if (of_find_property(np, "ufs-opts-set-line-init-prep-len", NULL))
 		ufs->opts |= EXYNOS_UFS_OPTS_SET_LINE_INIT_PREP_LEN;

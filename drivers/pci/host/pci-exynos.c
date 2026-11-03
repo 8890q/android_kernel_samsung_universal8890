@@ -1237,6 +1237,9 @@ static int __init exynos_pcie_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
+	if (ch_num < 0 || ch_num >= MAX_RC_NUM)
+		return -EINVAL;
+
 	exynos_pcie = &g_pcie[ch_num];
 	pp = &exynos_pcie->pp;
 	pp->dev = &pdev->dev;
@@ -1271,6 +1274,7 @@ static int __init exynos_pcie_probe(struct platform_device *pdev)
 	pinctrl_reset = devm_pinctrl_get_select(&pdev->dev, "clkreq_output");
 	if (IS_ERR(pinctrl_reset)) {
 		dev_err(&pdev->dev, "failed to set pcie clkerq pin to output high\n");
+		ret = PTR_ERR(pinctrl_reset);
 		goto probe_fail;
 	}
 
@@ -1378,9 +1382,9 @@ static int __init exynos_pcie_probe(struct platform_device *pdev)
 	atomic_notifier_chain_register(&panic_notifier_list, &exynos_pcie->ss_dma_mon_nb);
 
 	exynos_pcie->pcie_wq = create_freezable_workqueue("pcie_wq");
-	if (IS_ERR(exynos_pcie->pcie_wq)) {
+	if (!exynos_pcie->pcie_wq) {
 		dev_err(pp->dev, "couldn't create workqueue\n");
-		ret = EBUSY;
+		ret = -ENOMEM;
 		goto probe_fail;
 	}
 	INIT_DELAYED_WORK(&exynos_pcie->work, exynos_pcie_work);
@@ -1403,6 +1407,7 @@ static int __init exynos_pcie_probe(struct platform_device *pdev)
         }
 
 probe_fail:
+	exynos_pcie->initialized = !ret;
 	if (ret)
 		dev_err(&pdev->dev, "%s: pcie probe failed(%d)\n", __func__, ret);
 	else
@@ -1553,6 +1558,11 @@ int exynos_pcie_poweron(int ch_num)
 	struct pinctrl *pinctrl_reset;
 	u32 val, vendor_id, device_id;
 
+	if (ch_num < 0 || ch_num >= MAX_RC_NUM)
+		return -EINVAL;
+	if (!exynos_pcie->initialized)
+		return -ENODEV;
+
 	dev_info(pp->dev, "%s, start of poweron, pcie state: %d\n", __func__,
 		 exynos_pcie->state);
 
@@ -1687,6 +1697,9 @@ void exynos_pcie_poweroff(int ch_num)
 	struct pinctrl *pinctrl_reset;
 	unsigned long flags;
 	u32 val;
+
+	if (ch_num < 0 || ch_num >= MAX_RC_NUM || !exynos_pcie->initialized)
+		return;
 
 	dev_info(pp->dev, "%s, start of poweroff, pcie state: %d\n", __func__,
 		 exynos_pcie->state);
@@ -1829,6 +1842,9 @@ void exynos_pcie_pm_suspend(int ch_num)
 	struct pcie_port *pp = &g_pcie[ch_num].pp;
 	struct exynos_pcie *exynos_pcie = to_exynos_pcie(pp);
 	unsigned long flags;
+
+	if (ch_num < 0 || ch_num >= MAX_RC_NUM || !exynos_pcie->initialized)
+		return;
 
 	if (exynos_pcie->state == STATE_LINK_DOWN) {
 		dev_info(pp->dev, "RC%d already off\n", exynos_pcie->ch_num);

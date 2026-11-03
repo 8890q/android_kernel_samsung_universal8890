@@ -674,6 +674,7 @@ struct exynos_ufs {
 	u32 opts;
 #define EXYNOS_UFS_OPTS_SKIP_CONNECTION_ESTAB	BIT(0)
 #define EXYNOS_UFS_OPTS_SET_LINE_INIT_PREP_LEN	BIT(1)
+#define EXYNOS_UFS_OPTS_USE_SEPERATED_PCLK	BIT(2)
 
 	/* for miscellaneous control */
 	u32 misc_flags;
