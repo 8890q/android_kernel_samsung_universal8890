@@ -170,6 +170,9 @@ endif
 
 fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A96TA316) += abov/a96ta316aun_vlte.fw
 
+fw-shipped-$(CONFIG_MACH_EXYNOS8890_HEROLTE_EUR_OPEN) += \
+	tsp_sec/hero.bin abov/abov_hero.fw \
+	cypress/cy8cmbr3145_hero.fw
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
 quiet_cmd_ihex  = IHEX    $@
