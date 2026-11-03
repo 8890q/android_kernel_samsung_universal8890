@@ -27,21 +27,45 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/kthread.h>
-#if defined(CONFIG_SSP_MOTOR_CALLBACK)
-#include <linux/ssp_motorcallback.h>
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+#include "max77854_haptic.h"
+#include "../sensorhub/brcm/ssp_motor.h"
 #endif
 
-#define MAX_INTENSITY		10000
+#define MAX_INTENSITY			10000
+#define PACKET_MAX_SIZE			1000
+
+#define HAPTIC_ENGINE_FREQ_MIN		1200
+#define HAPTIC_ENGINE_FREQ_MAX		3500
 
 #define MOTOR_LRA			(1<<7)
 #define MOTOR_EN			(1<<6)
 #define EXT_PWM				(0<<5)
 #define DIVIDER_128			(1<<1)
-#define MRDBTMER_MASK		(0x7)
-#define MREN					(1 << 3)
+#define MRDBTMER_MASK			(0x7)
+#define MREN				(1 << 3)
 #define BIASEN				(1 << 7)
 
-#define VIB_BUFSIZE		30
+#define VIB_BUFSIZE			100
+
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+int (*sensorCallback)(int);
+#endif
+
+struct vib_packet {
+	int time;
+	int intensity;
+	int freq;
+	int overdrive;
+};
+
+enum {
+	VIB_PACKET_TIME = 0,
+	VIB_PACKET_INTENSITY,
+	VIB_PACKET_FREQUENCY,
+	VIB_PACKET_OVERDRIVE,
+	VIB_PACKET_MAX,
+};
 
 struct max77854_haptic_drvdata {
 	struct max77854_dev *max77854;
@@ -58,7 +82,94 @@ struct max77854_haptic_drvdata {
 	u32 intensity;
 	u32 timeout;
 	int duty;
+
+	bool f_packet_en;
+	int packet_size;
+	int packet_cnt;
+	bool packet_running;
+	struct vib_packet test_pac[PACKET_MAX_SIZE];
 };
+
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+int setMotorCallback(int (*callback)(int state))
+{
+	if (callback)
+		sensorCallback = callback;
+	else
+		pr_debug("sensor callback is Null !%s\n", __func__);
+	return 0;
+}
+#endif
+
+static int max77854_haptic_set_frequency(struct max77854_haptic_drvdata *drvdata, int num)
+{
+	struct max77854_haptic_pdata *pdata = drvdata->pdata;
+
+	if (num >= 0 && num < pdata->multi_frequency) {
+		pdata->period = pdata->multi_freq_period[num];
+		pdata->duty = pdata->multi_freq_duty[num];
+		pdata->freq_num = num;
+	} else if (num >= HAPTIC_ENGINE_FREQ_MIN && num <= HAPTIC_ENGINE_FREQ_MAX) {
+		pdata->period = pdata->multi_freq_divider / num;
+		pdata->duty = pdata->period * 95 / 100;
+		drvdata->intensity = MAX_INTENSITY;
+		drvdata->duty = pdata->duty;
+		pdata->freq_num = num;
+	} else {
+		pr_err("%s out of range %d\n", __func__, num);
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
+static int max77854_haptic_set_intensity(struct max77854_haptic_drvdata *drvdata, int intensity)
+{
+	int duty = drvdata->pdata->period >> 1;
+
+	if (intensity < -(MAX_INTENSITY) || MAX_INTENSITY < intensity) {
+		pr_err("%s out of range %d\n", __func__, intensity);
+		return -EINVAL;
+	}
+
+	if (MAX_INTENSITY == intensity)
+		duty = drvdata->pdata->duty;
+	else if (intensity == -(MAX_INTENSITY))
+		duty = drvdata->pdata->period - drvdata->pdata->duty;
+	else if (0 != intensity)
+		duty += (drvdata->pdata->duty - duty) * intensity / MAX_INTENSITY;
+
+	drvdata->intensity = intensity;
+	drvdata->duty = duty;
+
+	return 0;
+}
+
+static int max77854_haptic_set_pwm(struct max77854_haptic_drvdata *drvdata, bool en)
+{
+	struct max77854_haptic_pdata *pdata = drvdata->pdata;
+	int ret = 0;
+
+	if (en && drvdata->intensity > 0) {
+		ret = pwm_config(drvdata->pwm, drvdata->duty, pdata->period);
+		if (ret < 0) {
+			pr_err("faild to config pwm %d\n", ret);
+			return ret;
+		}
+
+		ret = pwm_enable(drvdata->pwm);
+		if (ret < 0)
+			pr_err("faild to enable pwm %d\n", ret);
+	} else {
+		ret = pwm_config(drvdata->pwm, pdata->period >> 1, pdata->period);
+		if (ret < 0)
+			pr_err("faild to config pwm %d\n", ret);
+
+		pwm_disable(drvdata->pwm);
+	}
+
+	return ret;
+}
 
 static int motor_vdd_en(struct max77854_haptic_drvdata *drvdata, bool en)
 {
@@ -119,6 +230,39 @@ static void max77854_haptic_i2c(struct max77854_haptic_drvdata *drvdata,
 	else
 		max77854_update_reg(drvdata->i2c,
 			MAX77854_PMIC_REG_MCONFIG, 0x0, MOTOR_EN);
+}
+
+static void max77854_haptic_engine_run_packet(struct max77854_haptic_drvdata *drvdata,
+		struct vib_packet haptic_packet)
+{
+	int frequency = haptic_packet.freq;
+	int intensity = haptic_packet.intensity;
+	int time = haptic_packet.time;
+
+	if (!drvdata->f_packet_en) {
+		pr_err("haptic packet is empty\n");
+		return;
+	}
+
+	max77854_haptic_set_frequency(drvdata, frequency);
+	max77854_haptic_set_intensity(drvdata, intensity);
+	max77854_haptic_set_pwm(drvdata, true);
+
+	if (intensity == 0) {
+		if (drvdata->packet_running) {
+			pr_info("[haptic engine] motor stop\n");
+			max77854_haptic_i2c(drvdata, false);
+		}
+		drvdata->packet_running = false;
+	} else {
+		if (!drvdata->packet_running) {
+			pr_info("[haptic engine] motor run\n");
+			max77854_haptic_i2c(drvdata, true);
+		}
+		drvdata->packet_running = true;
+	}
+
+	pr_info("%s [haptic_engine] freq:%d, intensity:%d, time:%d\n", __func__, frequency, intensity, time);
 }
 
 static ssize_t store_duty(struct device *dev,
@@ -191,7 +335,6 @@ static ssize_t intensity_store(struct device *dev,
 	struct timed_output_dev *tdev = dev_get_drvdata(dev);
 	struct max77854_haptic_drvdata *drvdata
 		= container_of(tdev, struct max77854_haptic_drvdata, tout_dev);
-	int duty = drvdata->pdata->period >> 1;
 	int intensity = 0, ret = 0;
 
 	ret = kstrtoint(buf, 0, &intensity);
@@ -200,20 +343,16 @@ static ssize_t intensity_store(struct device *dev,
 		return -EINVAL;
 	}
 
-	if (intensity < 0 || MAX_INTENSITY < intensity) {
-		pr_err("out of rage\n");
-		return -EINVAL;
+	ret = max77854_haptic_set_intensity(drvdata, intensity);
+	if (ret) {
+		pr_err("cannot change intensity\n");
+		return ret;
 	}
 
-	if (MAX_INTENSITY == intensity)
-		duty = drvdata->pdata->duty;
-	else if (0 != intensity)
-		duty += (drvdata->pdata->duty - duty) * intensity / MAX_INTENSITY;
-
-	drvdata->intensity = intensity;
-	drvdata->duty = duty;
-
-	pwm_config(drvdata->pwm, duty, drvdata->pdata->period);
+	ret = max77854_haptic_set_pwm(drvdata, true);
+	if (ret) {
+		pr_err("cannot enable pwm\n");
+	}
 
 	return count;
 }
@@ -225,7 +364,7 @@ static ssize_t intensity_show(struct device *dev,
 	struct max77854_haptic_drvdata *drvdata
 		= container_of(tdev, struct max77854_haptic_drvdata, tout_dev);
 
-	return snprintf(buf, VIB_BUFSIZE, "intensity: %u\n", drvdata->intensity);
+	return snprintf(buf, VIB_BUFSIZE, "%u\n", drvdata->intensity);
 }
 
 static DEVICE_ATTR(intensity, 0660, intensity_show, intensity_store);
@@ -236,7 +375,6 @@ static ssize_t frequency_store(struct device *dev,
 	struct timed_output_dev *tdev = dev_get_drvdata(dev);
 	struct max77854_haptic_drvdata *drvdata
 		= container_of(tdev, struct max77854_haptic_drvdata, tout_dev);
-	struct max77854_haptic_pdata *pdata = drvdata->pdata;
 	int num, ret;
 
 	ret = kstrtoint(buf, 0, &num);
@@ -244,14 +382,12 @@ static ssize_t frequency_store(struct device *dev,
 		pr_err("fail to get frequency\n");
 		return -EINVAL;
 	}
-	if (num < 0 || num >= pdata->multi_frequency) {
-		pr_err("out of rage\n");
-		return -EINVAL;
-	}
 
-	pdata->period = pdata->multi_freq_period[num];
-	pdata->duty = pdata->multi_freq_duty[num];
-	pdata->freq_num = num;
+	ret = max77854_haptic_set_frequency(drvdata, num);
+	if (ret) {
+		pr_err("cannot change frequency\n");
+		return ret;
+	}
 
 	return count;
 }
@@ -268,6 +404,77 @@ static ssize_t frequency_show(struct device *dev,
 }
 
 static DEVICE_ATTR(multi_freq, 0660, frequency_show, frequency_store);
+
+static ssize_t haptic_engine_store(struct device *dev,
+	struct device_attribute *devattr, const char *buf, size_t count)
+{
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	struct max77854_haptic_drvdata *drvdata
+		= container_of(tdev, struct max77854_haptic_drvdata, tout_dev);
+	int i = 0, _data = 0, tmp = 0;
+
+	if (sscanf(buf, "%6d", &_data) == 1) {
+		if (_data > PACKET_MAX_SIZE * VIB_PACKET_MAX)
+			pr_info("%s, [%d] packet size over\n", __func__, _data);
+		else {
+			drvdata->packet_size = _data / VIB_PACKET_MAX;
+			drvdata->packet_cnt = 0;
+			drvdata->f_packet_en = true;
+
+			buf = strstr(buf, " ");
+
+			for (i = 0; i < drvdata->packet_size; i++) {
+				for (tmp = 0; tmp < VIB_PACKET_MAX; tmp++) {
+					if (sscanf(buf++, "%6d", &_data) == 1) {
+						switch (tmp) {
+						case VIB_PACKET_TIME:
+							drvdata->test_pac[i].time = _data;
+							break;
+						case VIB_PACKET_INTENSITY:
+							drvdata->test_pac[i].intensity = _data;
+							break;
+						case VIB_PACKET_FREQUENCY:
+							drvdata->test_pac[i].freq = _data;
+							break;
+						case VIB_PACKET_OVERDRIVE:
+							drvdata->test_pac[i].overdrive = _data;
+							break;
+						}
+						buf = strstr(buf, " ");
+					} else {
+						pr_info("%s packet data error\n", __func__);
+						drvdata->f_packet_en = false;
+						return count;
+					}
+				}
+			}
+		}
+	}
+
+	return count;
+}
+
+static ssize_t haptic_engine_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	struct timed_output_dev *tdev = dev_get_drvdata(dev);
+	struct max77854_haptic_drvdata *drvdata
+		= container_of(tdev, struct max77854_haptic_drvdata, tout_dev);
+	int i = 0;
+	size_t size = 0;
+
+	for (i = 0; i < drvdata->packet_size && drvdata->f_packet_en &&
+			((4 * VIB_BUFSIZE + size) < PAGE_SIZE); i++) {
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", drvdata->test_pac[i].time);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", drvdata->test_pac[i].intensity);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", drvdata->test_pac[i].freq);
+		size += snprintf(&buf[size], VIB_BUFSIZE, "%u,", drvdata->test_pac[i].overdrive);
+	}
+
+	return size;
+}
+
+static DEVICE_ATTR(haptic_engine, 0660, haptic_engine_show, haptic_engine_store);
 
 static int haptic_get_time(struct timed_output_dev *tout_dev)
 {
@@ -290,8 +497,6 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 		= container_of(tout_dev, struct max77854_haptic_drvdata, tout_dev);
 	struct hrtimer *timer = &drvdata->timer;
 	struct max77854_haptic_pdata *pdata = drvdata->pdata;
-	int period = pdata->period;
-	int duty = drvdata->duty;
 	int ret = 0;
 
 	flush_kthread_worker(&drvdata->kworker);
@@ -306,28 +511,47 @@ static void haptic_enable(struct timed_output_dev *tout_dev, int value)
 	if (value > 0) {
 		mutex_lock(&drvdata->mutex);
 
-#if defined(CONFIG_SSP_MOTOR_CALLBACK)
-		setSensorCallback(true);
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+		if (sensorCallback != NULL)
+			sensorCallback(true);
+		else {
+			pr_info("%s sensorCallback is null.start\n", __func__);
+			sensorCallback = getMotorCallback();
+			sensorCallback(true);
+		}
 #endif
-		pwm_config(drvdata->pwm, duty, period);
-		ret = pwm_enable(drvdata->pwm);
-		if (ret)
-			pr_err("%s: error to enable pwm %d\n", __func__, ret);
-		max77854_haptic_i2c(drvdata, true);
+		if (drvdata->f_packet_en) {
+			drvdata->packet_running = false;
+			drvdata->timeout = drvdata->test_pac[0].time;
+			max77854_haptic_engine_run_packet(drvdata, drvdata->test_pac[0]);
+		} else {
+			ret = max77854_haptic_set_pwm(drvdata, true);
+			if (ret)
+				pr_err("%s: error to enable pwm %d\n", __func__, ret);
+			max77854_haptic_i2c(drvdata, true);
+		}
 
 		mutex_unlock(&drvdata->mutex);
 		hrtimer_start(timer, ns_to_ktime((u64)drvdata->timeout * NSEC_PER_MSEC),
 			HRTIMER_MODE_REL);
-	}
-	else if (value == 0) {
+	} else if (value == 0) {
 		mutex_lock(&drvdata->mutex);
 
-		max77854_haptic_i2c(drvdata, false);
-		pwm_config(drvdata->pwm, period >> 1, period);
-		pwm_disable(drvdata->pwm);
+		drvdata->f_packet_en = false;
+		drvdata->packet_cnt = 0;
+		drvdata->packet_size = 0;
 
-#if defined(CONFIG_SSP_MOTOR_CALLBACK)
-		setSensorCallback(false);
+		max77854_haptic_i2c(drvdata, false);
+		max77854_haptic_set_pwm(drvdata, false);
+
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+		if (sensorCallback != NULL)
+			sensorCallback(false);
+		else {
+			pr_debug("%s sensorCallback is null.start\n", __func__);
+			sensorCallback = getMotorCallback();
+			sensorCallback(false);
+		}
 #endif
 		pr_debug("off\n");
 
@@ -348,19 +572,39 @@ static void haptic_work(struct kthread_work *work)
 {
 	struct max77854_haptic_drvdata *drvdata
 		= container_of(work, struct max77854_haptic_drvdata, kwork);
-	int period = drvdata->pdata->period;
+	struct hrtimer *timer = &drvdata->timer;
 
 	mutex_lock(&drvdata->mutex);
 
-	max77854_haptic_i2c(drvdata, false);
-	pwm_config(drvdata->pwm, period >> 1, period);
-	pwm_disable(drvdata->pwm);
+	if (drvdata->f_packet_en) {
+		drvdata->packet_cnt++;
+		if (drvdata->packet_cnt < drvdata->packet_size) {
+			max77854_haptic_engine_run_packet(drvdata, drvdata->test_pac[drvdata->packet_cnt]);
+			hrtimer_start(timer, ns_to_ktime((u64)drvdata->test_pac[drvdata->packet_cnt].time * NSEC_PER_MSEC), HRTIMER_MODE_REL);
 
-#if defined(CONFIG_SSP_MOTOR_CALLBACK)
-	setSensorCallback(false);
+			goto unlock_without_vib_off;
+		} else {
+			drvdata->f_packet_en = false;
+			drvdata->packet_cnt = 0;
+			drvdata->packet_size = 0;
+		}
+	}
+
+	max77854_haptic_i2c(drvdata, false);
+	max77854_haptic_set_pwm(drvdata, false);
+
+#if defined(CONFIG_MOTOR_DRV_SENSOR)
+	if (sensorCallback != NULL)
+		sensorCallback(false);
+	else {
+		pr_debug("%s sensorCallback is null.start\n", __func__);
+		sensorCallback = getMotorCallback();
+		sensorCallback(false);
+	}
 #endif
 	pr_debug("off\n");
 
+unlock_without_vib_off:
 	mutex_unlock(&drvdata->mutex);
 }
 
@@ -412,13 +656,22 @@ static struct max77854_haptic_pdata *of_max77854_haptic_dt(struct device *dev)
 		pdata->multi_frequency = (int)temp;
 
 	if (pdata->multi_frequency) {
+		ret = of_property_read_u32(np, "haptic,multi_frequency_divider", &temp);
+		if (IS_ERR_VALUE(ret)) {
+			pr_err("%s : error to get dt node multi_freq_divider\n", __func__);
+			goto err_parsing_dt;
+		} else {
+			pdata->multi_freq_divider = (int)temp;
+			pr_debug("multi_frequency_divider = %d\n", pdata->multi_freq_divider);
+		}
+
 		pdata->multi_freq_duty
 			= devm_kzalloc(dev, sizeof(u32)*pdata->multi_frequency, GFP_KERNEL);
 		if (!pdata->multi_freq_duty) {
 			pr_err("%s: failed to allocate duty data\n", __func__);
 			goto err_parsing_dt;
 		}
-		pdata->multi_freq_period 
+		pdata->multi_freq_period
 			= devm_kzalloc(dev, sizeof(u32)*pdata->multi_frequency, GFP_KERNEL);
 		if (!pdata->multi_freq_period) {
 			pr_err("%s: failed to allocate period data\n", __func__);
@@ -442,8 +695,7 @@ static struct max77854_haptic_pdata *of_max77854_haptic_dt(struct device *dev)
 		pdata->duty = pdata->multi_freq_duty[0];
 		pdata->period = pdata->multi_freq_period[0];
 		pdata->freq_num = 0;
-	}
-	else {
+	} else {
 		ret = of_property_read_u32(np,
 				"haptic,duty", &temp);
 		if (IS_ERR_VALUE(ret)) {
@@ -496,12 +748,11 @@ static struct max77854_haptic_pdata *of_max77854_haptic_dt(struct device *dev)
 	pr_debug("max_timeout = %d\n", pdata->max_timeout);
 	if (pdata->multi_frequency) {
 		pr_debug("multi frequency = %d\n", pdata->multi_frequency);
-		for (i=0; i<pdata->multi_frequency; i++) {
+		for (i = 0; i < pdata->multi_frequency; i++) {
 			pr_debug("duty[%d] = %d\n", i, pdata->multi_freq_duty[i]);
 			pr_debug("period[%d] = %d\n", i, pdata->multi_freq_period[i]);
 		}
-	}
-	else {
+	} else {
 		pr_debug("duty = %d\n", pdata->duty);
 		pr_debug("period = %d\n", pdata->period);
 	}
@@ -627,6 +878,13 @@ static int max77854_haptic_probe(struct platform_device *pdev)
 					&dev_attr_multi_freq.attr);
 		if (error < 0) {
 			pr_err("Failed to register multi_freq sysfs : %d\n", error);
+			goto err_timed_output_register;
+		}
+
+		error = sysfs_create_file(&drvdata->tout_dev.dev->kobj,
+					&dev_attr_haptic_engine.attr);
+		if (error < 0) {
+			pr_err("Failed to register haptic_engine sysfs : %d\n", error);
 			goto err_timed_output_register;
 		}
 	}

@@ -63,35 +63,16 @@ static const struct iio_info indio_info = {
 
 int initialize_iio_buffer_and_device(struct iio_dev *indio_dev, struct ssp_data *data)
 {
-	int iRet = 0;
+	int ret;
 
-	iRet = ssp_iio_configure_ring(indio_dev);
-	if (iRet)
-		goto err_config_ring_buffer;
-
-        iRet = iio_buffer_register(indio_dev, indio_dev->channels, indio_dev->num_channels);
-	if (iRet)
-		goto err_buffer_register;
-
-	iRet = iio_device_register(indio_dev);
-	if (iRet)
-		goto err_register_device;
-
+	ret = ssp_iio_configure_ring(indio_dev);
+	if (ret)
+		return ret;
 	iio_device_set_drvdata(indio_dev, data);
-
-	return iRet;
-
-err_register_device:
-	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
-	iio_device_unregister(indio_dev);
-err_buffer_register:
-	pr_err("[SSP]: failed to register %s device\n", indio_dev->name);
-	iio_buffer_unregister(indio_dev);
-err_config_ring_buffer:
-	pr_err("[SSP]: failed to configure %s buffer\n", indio_dev->name);
-	ssp_iio_unconfigure_ring(indio_dev);
-
-	return iRet;
+	ret = iio_device_register(indio_dev);
+	if (ret)
+		ssp_iio_unconfigure_ring(indio_dev);
+	return ret;
 }
 
 static int ssp_push_iio_buffer(struct iio_dev *indio_dev, u64 timestamp, u8 *data, int data_len)

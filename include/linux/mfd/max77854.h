@@ -47,6 +47,7 @@ struct max77854_haptic_pdata {
 
 	/* for multi-frequency */
 	int multi_frequency;
+	int multi_freq_divider;
 	int freq_num;
 	u32 *multi_freq_duty;
 	u32 *multi_freq_period;

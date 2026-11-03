@@ -52,18 +52,7 @@ static int ssp_predisable(struct iio_dev *indio_dev)
 }
 
 
-static int ssp_preenable(struct iio_dev *indio_dev)
-{
-	int result;
-
-	result = iio_sw_buffer_preenable(indio_dev);
-
-	return result;
-}
-
-
 static const struct iio_buffer_setup_ops ssp_iio_ring_setup_ops = {
-	.preenable = &ssp_preenable,
 	.predisable = &ssp_predisable,
 };
 
@@ -71,19 +60,19 @@ int ssp_iio_configure_ring(struct iio_dev *indio_dev)
 {
 	struct iio_buffer *ring;
 
-	ring = iio_kfifo_allocate(indio_dev);
+	ring = iio_kfifo_allocate();
 	if (!ring)
 		return -ENOMEM;
 
 	ring->bytes_per_datum = 8;
-	indio_dev->buffer = ring;
+	iio_device_attach_buffer(indio_dev, ring);
 	/* setup ring buffer */
 	ring->scan_timestamp = true;
 	indio_dev->setup_ops = &ssp_iio_ring_setup_ops;
 	/*scan count double count timestamp. should subtract 1. but
 	number of channels still includes timestamp*/
 
-	indio_dev->modes |= INDIO_BUFFER_HARDWARE;
+	indio_dev->modes |= INDIO_BUFFER_SOFTWARE;
 
 	return 0;
 }

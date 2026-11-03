@@ -450,7 +450,7 @@ static ssize_t set_shake_cam(struct device *dev,
 	u64 uNewEnable;
 	s32 dMsDelay = 20;
 
-	if (strict_strtoul(buf, 10, &enable))
+	if (kstrtoul(buf, 10, &enable))
 		return -EINVAL;
 
 	memcpy(&buffer[0], &dMsDelay, 4);

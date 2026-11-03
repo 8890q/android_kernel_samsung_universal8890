@@ -20,3 +20,7 @@ config MOTOR_DRV2624
 	default n
 	help
 	  Say Y to enable MOTOR DRV2624.
+
+config MOTOR_DRV_SENSOR
+	bool "MAX77854 motor feedback to sensor hub"
+	depends on MOTOR_DRV_MAX77854 && SSP_MOTOR
