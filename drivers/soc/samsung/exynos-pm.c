@@ -67,7 +67,7 @@ struct exynos_pm_info {
 	unsigned int suspend_psci_idx;		/* psci index to be used in suspend scenario */
 	unsigned int cp_call_mode_idx;		/* power mode to be used in cp_call scenario */
 	unsigned int cp_call_psci_idx;		/* psci index to be used in cp_call scenario */
-	u8 num_extra_stat;			/* Total number of extra wakeup_stat */
+	unsigned int num_extra_stat;			/* Total number of extra wakeup_stat */
 	unsigned int *extra_wakeup_stat;	/* Extra wakeup stat SFRs offset */
 };
 static struct exynos_pm_info *pm_info;
@@ -602,16 +602,20 @@ static __init int exynos_pm_drvinit(void)
 			BUG();
 		}
 
+		/* 8890 has only the primary WAKEUP_STAT; extra banks are optional. */
 		ret = of_property_count_u32_elems(np, "extra_wakeup_stat");
-		if (!ret) {
-			pr_err("%s %s: unabled to get wakeup_stat value from DT\n",
-					EXYNOS_PM_PREFIX, __func__);
-			BUG();
-		} else {
+		if (ret > 0) {
+			pm_info->extra_wakeup_stat = kcalloc(ret, sizeof(unsigned int),
+							GFP_KERNEL);
+			if (!pm_info->extra_wakeup_stat) {
+				of_node_put(np);
+				return -ENOMEM;
+			}
 			pm_info->num_extra_stat = ret;
-			pm_info->extra_wakeup_stat = kzalloc(sizeof(unsigned int) * ret, GFP_KERNEL);
-			of_property_read_u32_array(np, "extra_wakeup_stat", pm_info->extra_wakeup_stat, ret);
+			of_property_read_u32_array(np, "extra_wakeup_stat",
+					pm_info->extra_wakeup_stat, ret);
 		}
+		of_node_put(np);
 	} else {
 		pr_err("%s %s: failed to have populated device tree\n",
 					EXYNOS_PM_PREFIX, __func__);

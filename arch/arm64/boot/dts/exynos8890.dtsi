@@ -114,6 +114,20 @@
 		reg = <0x0 0x10000000 0x100>;
 	};
 
+	exynos-pm {
+		compatible = "samsung,exynos-pm";
+		reg = <0x0 0x10580000 0x2000>,
+		      <0x0 0x11001200 0x100>;
+		reg-names = "gpio_alive_base", "gicd_ispendrn_base";
+		num-eint = <32>;
+		num-gic = <16>;
+		suspend_mode_idx = <8>;  /* SYS_SLEEP */
+		suspend_psci_idx = <133>; /* 4.4 PSCI_SYSTEM_SLEEP -> affinity 3 */
+		/* The 8890 reference uses normal system sleep during calls too. */
+		cp_call_mode_idx = <8>;
+		cp_call_psci_idx = <133>;
+	};
+
 	reboot {
 		compatible = "exynos,reboot";
 		pmu_base = <0x105C0000>;
