@@ -37,7 +37,9 @@ obj-$(CONFIG_EXYNOS_ACPM)       += acpm/
 
 # CP
 obj-$(CONFIG_SEC_SIPC_HIGGS_MODEM_IF) += pmu-cp.o
+ifneq ($(CONFIG_SOC_EXYNOS8890),y)
 obj-$(CONFIG_SEC_SIPC_MODEM_IF) += pmu-cp.o
+endif
 obj-$(CONFIG_SEC_MODEM_IF)  += pmu-cp.o
 
 # Exynos Secure Log
