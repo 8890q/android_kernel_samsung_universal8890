@@ -1731,19 +1731,23 @@ const struct samsung_pin_ctrl exynos8890_pin_ctrl[] = {
 		.suspend	= exynos_pinctrl_suspend,
 		.resume		= exynos_pinctrl_resume,
 	}, {
-		/* pin-controller instance 3 ESE data */
+		/* pin-controller instance 3 FP data */
 		.pin_banks	= exynos8890_pin_banks3,
 		.nr_banks	= ARRAY_SIZE(exynos8890_pin_banks3),
+#if !defined(ENABLE_SENSORS_FPRINT_SECURE)
 		.eint_gpio_init = exynos_eint_gpio_init,
 		.suspend	= exynos_pinctrl_suspend,
 		.resume		= exynos_pinctrl_resume,
+#endif
 	}, {
-		/* pin-controller instance 4 FP data */
+		/* pin-controller instance 4 ESE data */
 		.pin_banks	= exynos8890_pin_banks4,
 		.nr_banks	= ARRAY_SIZE(exynos8890_pin_banks4),
+#if !defined(CONFIG_ESE_SECURE) || defined(CONFIG_SEC_FACTORY)
 		.eint_gpio_init = exynos_eint_gpio_init,
 		.suspend	= exynos_pinctrl_suspend,
 		.resume		= exynos_pinctrl_resume,
+#endif
 	}, {
 		/* pin-controller instance 5 FSYS0 data */
 		.pin_banks	= exynos8890_pin_banks5,
@@ -1762,9 +1766,11 @@ const struct samsung_pin_ctrl exynos8890_pin_ctrl[] = {
 		/* pin-controller instance 7 NFC data */
 		.pin_banks	= exynos8890_pin_banks7,
 		.nr_banks	= ARRAY_SIZE(exynos8890_pin_banks7),
+#if !defined(CONFIG_MST_SECURE_GPIO)
 		.eint_gpio_init = exynos_eint_gpio_init,
 		.suspend	= exynos_pinctrl_suspend,
 		.resume		= exynos_pinctrl_resume,
+#endif
 	}, {
 		/* pin-controller instance 8 PERIC0 data */
 		.pin_banks	= exynos8890_pin_banks8,

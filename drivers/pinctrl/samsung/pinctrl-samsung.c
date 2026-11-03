@@ -354,6 +354,9 @@ static void samsung_pin_dbg_show(struct pinctrl_dev *pctldev,
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
 
+	if (samsung_pin_bank_is_secure(bank))
+		return;
+
 	spin_lock_irqsave(&bank->slock, flags);
 
 	for (cfg_type = 0; cfg_type < PINCFG_TYPE_NUM; cfg_type++) {
@@ -448,6 +451,9 @@ static void samsung_pinmux_setup(struct pinctrl_dev *pctldev, unsigned selector,
 	pin_to_reg_bank(drvdata, grp->pins[0] - drvdata->pin_base,
 			&reg, &pin_offset, &bank);
 
+	if (samsung_pin_bank_is_secure(bank))
+		return;
+
 	type = bank->type;
 	mask = (1 << type->fld_width[PINCFG_TYPE_FUNC]) - 1;
 	shift = pin_offset * type->fld_width[PINCFG_TYPE_FUNC];
@@ -501,6 +507,9 @@ static int samsung_pinconf_rw(struct pinctrl_dev *pctldev, unsigned int pin,
 	drvdata = pinctrl_dev_get_drvdata(pctldev);
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
+
+	if (samsung_pin_bank_is_secure(bank))
+		return 0;
 
 	type = bank->type;
 
@@ -604,6 +613,9 @@ static void samsung_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
 
+	if (samsung_pin_bank_is_secure(bank))
+		return;
+
 	spin_lock_irqsave(&bank->slock, flags);
 
 	for (cfg_type = PINCFG_TYPE_PUD; cfg_type <= PINCFG_TYPE_PUD_PDN
@@ -650,6 +662,9 @@ static void samsung_gpio_set(struct gpio_chip *gc, unsigned offset, int value)
 	void __iomem *reg;
 	u32 data;
 
+	if (samsung_pin_bank_is_secure(bank))
+		return;
+
 	reg = bank->drvdata->virt_base + bank->pctl_offset;
 
 	data = readl(reg + type->reg_offset[PINCFG_TYPE_DAT]);
@@ -677,6 +692,9 @@ static int samsung_gpio_get(struct gpio_chip *gc, unsigned offset)
 	struct samsung_pin_bank *bank = gc_to_pin_bank(gc);
 	const struct samsung_pin_bank_type *type = bank->type;
 
+	if (samsung_pin_bank_is_secure(bank))
+		return 0;
+
 	reg = bank->drvdata->virt_base + bank->pctl_offset;
 
 	data = readl(reg + type->reg_offset[PINCFG_TYPE_DAT]);
@@ -701,6 +719,9 @@ static int samsung_gpio_set_direction(struct gpio_chip *gc,
 	bank = gc_to_pin_bank(gc);
 	type = bank->type;
 	drvdata = bank->drvdata;
+
+	if (samsung_pin_bank_is_secure(bank))
+		return 0;
 
 	reg = drvdata->virt_base + bank->pctl_offset +
 					type->reg_offset[PINCFG_TYPE_FUNC];
@@ -1231,6 +1252,11 @@ static int samsung_pinctrl_probe(struct platform_device *pdev)
 	/* Add to the global list */
 	list_add_tail(&drvdata->node, &drvdata_list);
 
+	dev_info(dev, "registered %u pins%s\n", drvdata->nr_pins,
+		drvdata->nr_banks == 1 &&
+		samsung_pin_bank_is_secure(drvdata->pin_banks) ?
+		" (secure firmware owns bank)" : "");
+
 	return 0;
 }
 
@@ -1266,6 +1292,9 @@ static void samsung_pinctrl_suspend_dev(
 		const u8 *offs = bank->type->reg_offset;
 		const u8 *widths = bank->type->fld_width;
 		enum pincfg_type type;
+
+		if (samsung_pin_bank_is_secure(bank))
+			continue;
 
 		/* Registers without a powerdown config aren't lost */
 		if (!widths[PINCFG_TYPE_CON_PDN])
@@ -1316,6 +1345,9 @@ static void samsung_pinctrl_resume_dev(struct samsung_pinctrl_drv_data *drvdata)
 		const u8 *offs = bank->type->reg_offset;
 		const u8 *widths = bank->type->fld_width;
 		enum pincfg_type type;
+
+		if (samsung_pin_bank_is_secure(bank))
+			continue;
 
 		/* Registers without a powerdown config aren't lost */
 		if (!widths[PINCFG_TYPE_CON_PDN])
@@ -1523,6 +1555,11 @@ static void gpiodvs_check_init_gpio(struct samsung_pinctrl_drv_data *drvdata,
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
 
+	if (samsung_pin_bank_is_secure(bank)) {
+		init_gpio_idx++;
+		goto out;
+	}
+
 	/* GPH ports are AUD interface (I2S, UART, PCM, SB) that should not
 	 * access when AUD power is disabled
 	 */
@@ -1567,6 +1604,10 @@ static void gpiodvs_check_sleep_gpio(struct samsung_pinctrl_drv_data *drvdata,
 	pin_to_reg_bank(drvdata, pin - drvdata->pin_base, &reg_base,
 					&pin_offset, &bank);
 
+	if (samsung_pin_bank_is_secure(bank)) {
+		sleep_gpio_idx++;
+		goto out;
+	}
 
 	/* GPH ports are AUD interface (I2S, UART, PCM, SB) that should not
 	 * access when AUD power is disabled

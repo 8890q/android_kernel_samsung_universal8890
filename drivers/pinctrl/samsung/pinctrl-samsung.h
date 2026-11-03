@@ -24,6 +24,7 @@
 #include <linux/pinctrl/machine.h>
 
 #include <linux/gpio.h>
+#include <linux/string.h>
 
 /* pinmux function number for pin as gpio output line */
 #define FUNC_INPUT	0x0
@@ -177,6 +178,26 @@ struct samsung_pin_bank {
 
 	u32 pm_save[PINCFG_TYPE_NUM + 1]; /* +1 to handle double CON registers*/
 };
+
+/* These 8890 banks are owned by the fingerprint/ESE/MST secure drivers. */
+static inline bool samsung_pin_bank_is_secure(struct samsung_pin_bank *bank)
+{
+#ifdef CONFIG_SOC_EXYNOS8890
+#ifdef ENABLE_SENSORS_FPRINT_SECURE
+	if (!strcmp(bank->name, CONFIG_SENSORS_FP_SPI_GPIO))
+		return true;
+#endif
+#if defined(CONFIG_ESE_SECURE) && !defined(CONFIG_SEC_FACTORY)
+	if (!strcmp(bank->name, CONFIG_ESE_SECURE_GPIO))
+		return true;
+#endif
+#ifdef CONFIG_MST_SECURE_GPIO
+	if (!strcmp(bank->name, "gpf0"))
+		return true;
+#endif
+#endif
+	return false;
+}
 
 /**
  * struct samsung_pin_ctrl: represent a pin controller.

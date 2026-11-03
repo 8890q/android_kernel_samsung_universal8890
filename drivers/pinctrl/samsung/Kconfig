@@ -30,3 +30,7 @@ config PINCTRL_S3C64XX
 config SEC_GPIO_DVS
 	tristate "setting Samsung GPIO debugging and verification system"
 	depends on SEC_PM
+
+config MST_SECURE_GPIO
+	bool "Keep the Exynos 8890 MST GPIO bank under secure firmware control"
+	depends on SOC_EXYNOS8890
