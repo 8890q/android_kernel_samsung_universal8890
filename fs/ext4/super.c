@@ -1775,9 +1775,14 @@ static int parse_options(char *options, struct super_block *sb,
 	}
 	if (test_opt(sb, DATA_FLAGS) == EXT4_MOUNT_ORDERED_DATA &&
 	    test_opt(sb, JOURNAL_ASYNC_COMMIT)) {
-		ext4_msg(sb, KERN_ERR, "can't mount with journal_async_commit "
-			 "in data=ordered mode");
-		return 0;
+		/*
+		 * Legacy Samsung fstabs request this combination.  Keep ordered
+		 * data and journal checksums, but use synchronous commit records
+		 * so recovery retains the ordering guarantees of this JBD2.
+		 */
+		ext4_msg(sb, KERN_WARNING, "using synchronous journal commits "
+			 "for data=ordered mode");
+		clear_opt(sb, JOURNAL_ASYNC_COMMIT);
 	}
 	return 1;
 }
