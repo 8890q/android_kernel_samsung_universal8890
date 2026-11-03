@@ -338,13 +338,8 @@
 		 *	        sicd	      sicd_cpd      sicd_aud	aftr          stop
 		 *	        dstop	      lpd           lpa		sleep
 		 */
-		wakeup_mask =  <0x400001E0>, <0x400001E0>, <0x400001E0>, <0x400001E0>,	<0x0>,
-			       <0x0>,	     <0x0>, 	   <0x400001E0>, <0x50077E7E>;
-		wakeup_mask2 = <0x0>,	     <0x0>, 	   <0x0>, 	 <0x0>,		<0x0>,
-			       <0x0>, 	     <0x0>, 	   <0xFFFF00FF>, <0xFFFF00FF>;
-		wakeup_mask3 = <0x0>,	     <0x0>, 	   <0x0>,	 <0x0>,		<0x0>,
-			       <0x0>, 	     <0x0>, 	   <0xFFFF00FF>, <0xFFFF00FF>;
 
+		cpd_enabled = <1>;
 		cpd_residency = <3000>;
 		sicd_residency = <3000>;
 
@@ -430,6 +425,21 @@
 					     <20>, <21>, <22>, <23>, <24>, <25>, <26>, <27>, <28>, <29>,
 					           <31>, <32>, <33>,       <35>, <36>, <37>, <38>, <39>,
 					     <40>, <41>, <42>, <43>;
+			};
+		};
+
+		wakeup-masks {
+			wakeup-mask0 {
+				mask = <0x400001E0 0x400001E0 0x400001E0 0x400001E0 0x0 0x0 0x0 0x400001E0 0x50077E7E>;
+				reg-offset = <0x610>;
+			};
+			wakeup-mask1 {
+				mask = <0x0 0x0 0x0 0x0 0x0 0x0 0x0 0xFFFF00FF 0xFFFF00FF>;
+				reg-offset = <0x614>;
+			};
+			wakeup-mask2 {
+				mask = <0x0 0x0 0x0 0x0 0x0 0x0 0x0 0xFFFF00FF 0xFFFF00FF>;
+				reg-offset = <0x618>;
 			};
 		};
 	};
@@ -531,7 +541,6 @@
 				  26  312000  837500       0   /* ARM L23: 300MHz */
 				  27  208000  837500       0 >;/* ARM L23: 200MHz */
 	};
-
 
 	memory_comp: mcomp@11170000 {
 		compatible = "samsung,exynos-mcomp";
@@ -1571,6 +1580,7 @@
 	};
 
 	idma_g0: vpp@0x13951000{
+		iommus = <&sysmmu_disp_00>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13951000 0x1000>;
@@ -1581,6 +1591,7 @@
 	};
 
 	idma_g1: vpp@0x13952000{
+		iommus = <&sysmmu_disp_01>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13952000 0x1000>;
@@ -1591,6 +1602,7 @@
 	};
 
 	idma_vg0: vpp@0x13953000{
+		iommus = <&sysmmu_disp_00>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13953000 0x1000>;
@@ -1601,6 +1613,7 @@
 	 };
 
 	idma_vg1: vpp@0x13954000{
+		iommus = <&sysmmu_disp_01>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13954000 0x1000>;
@@ -1611,6 +1624,7 @@
 	};
 
 	idma_g2: vpp@0x13E01000{
+		iommus = <&sysmmu_disp_10>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <6>;
 		reg = <0x0 0x13E01000 0x1000>;
@@ -1621,6 +1635,7 @@
 	};
 
 	idma_g3: vpp@0x13E02000{
+		iommus = <&sysmmu_disp_11>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13E02000 0x1000>;
@@ -1631,6 +1646,7 @@
 	};
 
 	idma_vgr0: vpp@0x13E03000{
+		iommus = <&sysmmu_disp_10>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <6>;
 		#ar-id-num = <3>;
@@ -1642,6 +1658,7 @@
 	};
 
 	idma_vgr1: vpp@0x13E04000{
+		iommus = <&sysmmu_disp_11>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <6>;
 		#ar-id-num = <2>;
@@ -1653,6 +1670,7 @@
 	};
 
 	odma_wb: vpp@0x13E05000{
+		iommus = <&sysmmu_disp_11>;
 		compatible = "samsung,exynos7-vpp";
 		#pb-id-cells = <3>;
 		reg = <0x0 0x13E05000 0x1000>;
@@ -1826,7 +1844,8 @@
 			<&idma_vgr1>, <&odma_wb>;
 
 		sysmmu_disp_00: sysmmu@0x13A00000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x13A00000 0x1000>;
 			interrupts = <0 191 0>;
 			qos = <15>;
@@ -1842,7 +1861,8 @@
 		};
 
 		sysmmu_disp_01: sysmmu@0x13A10000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x13A10000 0x1000>;
 			interrupts = <0 193 0>;
 			qos = <15>;
@@ -1858,7 +1878,8 @@
 		};
 
 		sysmmu_disp_10: sysmmu@0x13E30000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x13E30000 0x1000>;
 			interrupts = <0 232 0>;
 			qos = <15>;
@@ -1874,7 +1895,8 @@
 		};
 
 		sysmmu_disp_11: sysmmu@0x13E40000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x13E40000 0x1000>;
 			interrupts = <0 235 0>;
 			qos = <15>;
@@ -1903,6 +1925,7 @@
 	};
 
 	mfc_0: mfc0@152E0000 {
+		iommus = <&sysmmu_mfc0_0>, <&sysmmu_mfc0_1>;
 		compatible = "samsung,mfc-v6";
 		#pb-id-cells = <0>;
 		reg = <0x0 0x152E0000 0x10000>;
@@ -2027,7 +2050,8 @@
 		domain-clients = <&mfc_0>;
 
 		sysmmu_mfc0_0: sysmmu@0x15200000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15200000 0x1000>;
 			interrupts = <0 296 0>;
 			qos = <4>;
@@ -2040,7 +2064,8 @@
 			};
 		};
 		sysmmu_mfc0_1: sysmmu@0x15220000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15220000 0x1000>;
 			interrupts = <0 298 0>;
 			qos = <4>;
@@ -2055,6 +2080,7 @@
 	};
 
 	fimc_is: fimc_is@14370000 {
+		iommus = <&sysmmu_is_a>, <&sysmmu_mc_scaler>, <&sysmmu_vra>, <&sysmmu_ispcpu>, <&sysmmu_is_b>, <&sysmmu_is_c>;
 		compatible = "samsung,exynos5-fimc-is";
 		#pb-id-cells = <6>;
 		reg = <0x0 0x14370000 0x10000>;
@@ -2207,6 +2233,7 @@
 	};
 
 	fimc_is_sensor0: fimc_is_sensor@14000000 {
+		iommus = <&sysmmu_is_a>;
 		/* BACK/CSIS0 */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2230,6 +2257,7 @@
 	};
 
 	fimc_is_sensor1: fimc_is_sensor@14100000 {
+		iommus = <&sysmmu_is_b>;
 		/* FRONT/CSIS2 */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2253,6 +2281,7 @@
 	};
 
 	fimc_is_sensor2: fimc_is_sensor@14010000 {
+		iommus = <&sysmmu_is_a>;
 		/* DEPTH/CSIS1 */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2276,6 +2305,7 @@
 	};
 
 	fimc_is_sensor3: fimc_is_sensor@14020000 {
+		iommus = <&sysmmu_is_b>;
 		/* IRIS/CSIS3 */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2299,6 +2329,7 @@
 	};
 
 	fimc_is_sensor4: fimc_is_sensor_stdby@14000000 {
+		iommus = <&sysmmu_is_a>;
 		/* IRIS/CSIS0 clone for standby */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2322,6 +2353,7 @@
 	};
 
 	fimc_is_sensor5: fimc_is_sensor_stdby_front@14000000 {
+		iommus = <&sysmmu_is_a>;
 		/* IRIS/CSIS0 clone for standby front */
 		compatible = "samsung,exynos5-fimc-is-sensor";
 		#pb-id-cells = <4>;
@@ -2359,7 +2391,8 @@
 				 <&fimc_is_sensor5>;
 
 		sysmmu_is_a: sysmmu@0x140E0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x140E0000 0x1000>;
 			interrupts = <0 112 0>;
 			qos = <15>;
@@ -2385,7 +2418,8 @@
 		};
 
 		sysmmu_mc_scaler: sysmmu@0x141B0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x141B0000 0x1000>;
 			interrupts = <0 159 0>;
 			qos = <4>;
@@ -2406,7 +2440,8 @@
 		};
 
 		sysmmu_vra: sysmmu@0x141C0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x141C0000 0x1000>;
 			interrupts = <0 134 0>;
 			qos = <4>;
@@ -2421,7 +2456,8 @@
 		};
 
 		sysmmu_ispcpu: sysmmu@0x141D0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x141D0000 0x1000>;
 			interrupts = <0 155 0>;
 			qos = <4>;
@@ -2436,7 +2472,8 @@
 		};
 
 		sysmmu_is_b: sysmmu@0x141E0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x141E0000 0x1000>;
 			interrupts = <0 157 0>;
 			qos = <4>;
@@ -2457,7 +2494,8 @@
 		};
 
 		sysmmu_is_c: sysmmu@0x14280000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x14280000 0x1000>;
 			interrupts = <0 279 0>;
 			qos = <4>;
@@ -2486,6 +2524,7 @@
 		domain-clients = <&smfc>;
 
 		smfc: smfc@15020000 {
+			iommus = <&sysmmu_smfc>;
 			compatible = "samsung,exynos8890-jpeg";
 			reg = <0x0 0x15020000 0x1000>;
 			interrupts = <0 268 0>;
@@ -2496,7 +2535,8 @@
 		};
 
 		sysmmu_smfc: sysmmu@15060000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15060000 0x1000>;
 			interrupts = <0 260 0>;
 			qos = <4>;
@@ -2519,6 +2559,7 @@
 		domain-clients = <&scaler_0>, <&scaler_1>;
 
 		scaler_0: scaler@0x15000000 {
+			iommus = <&sysmmu_mscl0>;
 			compatible = "samsung,exynos5-scaler";
 			#pb-id-cells = <0>;
 			reg = <0x0 0x15000000 0x1300>;
@@ -2529,6 +2570,7 @@
 		};
 
 		scaler_1: scaler@0x15010000 {
+			iommus = <&sysmmu_mscl1>;
 			compatible = "samsung,exynos5-scaler";
 			#pb-id-cells = <0>;
 			reg = <0x0 0x15010000 0x1300>;
@@ -2540,7 +2582,8 @@
 		};
 
 		sysmmu_mscl0: sysmmu@0x15040000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15040000 0x1000>;
 			interrupts = <0 262 0>;
 			qos = <4>;
@@ -2554,7 +2597,8 @@
 		};
 
 		sysmmu_mscl1: sysmmu@0x15140000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15140000 0x1000>;
 			interrupts = <0 265 0>;
 			qos = <4>;
@@ -2577,6 +2621,7 @@
 		domain-clients = <&fimg2d_0>;
 
 		fimg2d_0: fimg2d@15100000 {
+			iommus = <&sysmmu_g2d>;
 			compatible = "samsung,s5p-fimg2d";
 			#pb-id-cells = <0>;
 			reg = <0x0 0x15100000 0x1000>;
@@ -2620,7 +2665,8 @@
 		};
 
 		sysmmu_g2d: sysmmu@0x15190000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x15190000 0x1000>;
 			interrupts = <0 269 0>;
 			qos = <4>;
@@ -2636,6 +2682,7 @@
 	};
 
 	lpass: lpass@11400000 {
+		iommus = <&sysmmu_aud>;
 		compatible = "samsung,exynos8890-lpass";
 		#address-cells = <2>;
 		#size-cells = <1>;
@@ -2660,7 +2707,8 @@
 		domain-clients = <&lpass>;
 
 		sysmmu_aud: sysmmu@0x114E0000 {
-			compatible = "samsung,exynos7420-sysmmu";
+			compatible = "samsung,exynos-sysmmu";
+			#iommu-cells = <0>;
 			reg = <0x0 0x114E0000 0x1000>;
 			interrupts = <0 57 0>;
 			qos = <4>;
