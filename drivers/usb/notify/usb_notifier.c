@@ -575,9 +575,17 @@ static int set_online(int event, int state)
 	/* for KNOX DT charging */
 	pr_info("Knox Desktop connection state = %s\n", state ? "Connected" : "Disconnected");
 	if (state)
+#if defined(CONFIG_BATTERY_SAMSUNG_V2)
 		val.intval = SEC_BATTERY_CABLE_SMART_NOTG;
+#else
+		val.intval = POWER_SUPPLY_TYPE_SMART_NOTG;
+#endif
 	else
+#if defined(CONFIG_BATTERY_SAMSUNG_V2)
 		val.intval = SEC_BATTERY_CABLE_NONE;
+#else
+		val.intval = POWER_SUPPLY_TYPE_BATTERY;
+#endif
 
 	psy_do_property("battery", set,
 			POWER_SUPPLY_PROP_ONLINE, val);
@@ -667,7 +675,9 @@ static struct otg_notify dwc_lsi_notify = {
 	.disable_control = 1,
 	.device_check_sec = 3,
 	.set_battcall = set_online,
+#if defined(CONFIG_CCIC_NOTIFIER)
 	.set_ldo_onoff = usb_regulator_onoff,
+#endif
 #if defined(CONFIG_BATTERY_SAMSUNG_V2)
 	.set_chg_current = usb_blocked_chg_control,
 #endif

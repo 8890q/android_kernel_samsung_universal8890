@@ -659,8 +659,10 @@ static int exynos_usbdrd_get_phyinfo(struct exynos_usbdrd_phy *phy_drd)
 	phy_drd->use_additional_tuning = of_property_read_bool(node,
 						"use_additional_tuning");
 
+#if defined(CONFIG_USB_TYPEC_MANAGER_NOTIFIER)
 	phy_drd->phy_revert = of_property_read_bool(node,
 						"phy_revert");
+#endif
 
 	if ((phy_drd->drv_data->cpu_type != TYPE_EXYNOS8890) &&
 		(phy_drd->drv_data->cpu_type != TYPE_EXYNOS8895) &&
