@@ -34,6 +34,7 @@ extern struct exynos_cpu_power_ops exynos_cpu;
 /**
  * The APIs to control the PMU
  */
+int exynos_pmu_early_init(void);
 int exynos_pmu_read(unsigned int offset, unsigned int *val);
 int exynos_pmu_write(unsigned int offset, unsigned int val);
 int exynos_pmu_update(unsigned int offset, unsigned int mask, unsigned int val);

@@ -904,6 +904,16 @@ static int __init dt_init(void)
 
 static int __init exynos_powermode_early_init(void)
 {
+#if defined(CONFIG_SOC_EXYNOS8890)
+	int ret;
+
+	/* The 8890 CPU power operations need the PMU map during SMP bring-up. */
+	ret = exynos_pmu_early_init();
+	if (ret) {
+		pr_err("%s: failed to initialize PMU: %d\n", __func__, ret);
+		return ret;
+	}
+#endif
 	return register_hotcpu_notifier(&cpuidle_hotcpu_notifier);
 }
 early_initcall(exynos_powermode_early_init);

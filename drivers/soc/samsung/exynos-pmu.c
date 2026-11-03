@@ -10,6 +10,7 @@
  */
 
 #include <linux/smp.h>
+#include <linux/of.h>
 #include <linux/regmap.h>
 #include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
@@ -20,6 +21,25 @@
  * "pmureg" has the mapped base address of PMU(Power Management Unit)
  */
 static struct regmap *pmureg;
+
+/* CPU_STARTING notifications run before platform devices are probed. */
+int __init exynos_pmu_early_init(void)
+{
+	struct device_node *np;
+	struct regmap *map;
+
+	np = of_find_compatible_node(NULL, NULL, "samsung,exynos-pmu");
+	if (!np)
+		return -ENODEV;
+
+	map = syscon_regmap_lookup_by_phandle(np, "samsung,syscon-phandle");
+	of_node_put(np);
+	if (IS_ERR(map))
+		return PTR_ERR(map);
+
+	pmureg = map;
+	return 0;
+}
 
 /**
  * No driver refers the "pmureg" directly, through the only exported API.
@@ -306,11 +326,16 @@ static int exynos_pmu_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 
-	pmureg = syscon_regmap_lookup_by_phandle(dev->of_node,
+	if (!pmureg) {
+		struct regmap *map;
+
+		map = syscon_regmap_lookup_by_phandle(dev->of_node,
 						"samsung,syscon-phandle");
-	if (IS_ERR(pmureg)) {
-		pr_err("Fail to get regmap of PMU\n");
-		return PTR_ERR(pmureg);
+		if (IS_ERR(map)) {
+			dev_err(dev, "Fail to get regmap of PMU\n");
+			return PTR_ERR(map);
+		}
+		pmureg = map;
 	}
 
 	if (subsys_system_register(&exynos_info_subsys,
