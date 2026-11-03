@@ -118,6 +118,7 @@ static int configure_fmp_disk_enc(struct ufshcd_sg_entry *prd_table,
 	return 0;
 }
 
+#if defined(CONFIG_UFS_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_EXT4CRYPT_FS)
 static int configure_fmp_file_algo_mode(struct ufshcd_sg_entry *prd_table,
 				uint32_t idx, int algo_mode, uint32_t size)
 {
@@ -312,6 +313,8 @@ static int configure_fmp_file_enc_direct_io(struct ufshcd_sg_entry *prd_table,
 	return 0;
 }
 
+#endif
+
 int fmp_ufs_map_sg(struct ufshcd_sg_entry *prd_table, struct scatterlist *sg,
 					uint32_t enc_mode, uint32_t idx,
 					uint32_t sector, struct bio *bio)
@@ -335,6 +338,7 @@ int fmp_ufs_map_sg(struct ufshcd_sg_entry *prd_table, struct scatterlist *sg,
 		return ret;
 	}
 
+#if defined(CONFIG_UFS_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_EXT4CRYPT_FS)
 	if (bio->private_enc_mode == FMP_FILE_ENC_MODE) {
 		ret = configure_fmp_file_enc_direct_io(prd_table, enc_mode,
 						idx, sector, bio, sg, size);
@@ -352,11 +356,14 @@ int fmp_ufs_map_sg(struct ufshcd_sg_entry *prd_table, struct scatterlist *sg,
 		return ret;
 	}
 
+#else
+	if (enc_mode & UFS_FILE_ENC_MODE)
+		return -EOPNOTSUPP;
+#endif
+
 	return 0;
 }
-#ifndef CONFIG_MODULES
-EXPORT_SYMBOL_GPL(fmp_map_sg);
-#endif
+EXPORT_SYMBOL_GPL(fmp_ufs_map_sg);
 
 #if defined(CONFIG_FIPS_FMP)
 #if defined(CONFIG_UFS_FMP_ECRYPT_FS) || defined(CONFIG_UFS_FMP_EXT4CRYPT_FS)
