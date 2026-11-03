@@ -85,18 +85,21 @@ void acct_update_power(struct task_struct *task, cputime_t cputime) {
 
 	policy = cpufreq_cpu_get(cpu_num);
 
-	if (WARN_ON_ONCE(!policy))
+	/* Scheduler ticks start before the CPUFreq driver creates policies. */
+	if (!policy)
 		return;
 
 	powerstats = per_cpu(cpufreq_power_stats, cpu_num);
 	stats = policy->stats;
-	if (!powerstats || !stats)
-		return;
+	if (!powerstats || !stats || task->cpu_power == ULLONG_MAX)
+		goto out;
+	if (stats->last_index >= powerstats->state_num)
+		goto out;
 
 	curr = powerstats->curr[stats->last_index];
 	task->cpu_power += curr * cputime_to_usecs(cputime);
-	if (task->cpu_power != ULLONG_MAX)
-		task->cpu_power += curr * cputime_to_usecs(cputime);
+out:
+	cpufreq_cpu_put(policy);
 }
 EXPORT_SYMBOL_GPL(acct_update_power);
 
