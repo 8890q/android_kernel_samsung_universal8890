@@ -77,15 +77,6 @@
 #define MUIC_REG_INT1	0x03
 #define MUIC_REG_INT2	0x04
 
-/* Interrupt type */
-enum {
-	INT_REQ_ATTACH = 1<<0,
-	INT_REQ_DETACH = 1<<1,
-	INT_REQ_OVP = 1<<2,
-	INT_REQ_RESET = 1<<3,
-	INT_REQ_DONE = 1<<4,
-	INT_REQ_DISCARD = 1<<5,
-};
 
 extern struct muic_platform_data muic_pdata;
 
@@ -260,7 +251,7 @@ static void muic_handle_vbus(muic_data_t *pmuic)
 }
 #endif
 
-static irqreturn_t max77854_muic_irq_handler(muic_data_t *pmuic, int irq)
+static int max77854_muic_irq_handler(muic_data_t *pmuic, int irq)
 {
 	int local_irq;
 
@@ -294,13 +285,13 @@ static irqreturn_t muic_irq_thread(int irq, void *data)
 	mutex_lock(&pmuic->muic_mutex);
 
 	if(pmuic->vps_table == VPS_TYPE_TABLE) {
-		if(max77854_muic_irq_handler(pmuic, irq) & INT_REQ_DONE) {
+		if(max77854_muic_irq_handler(pmuic, irq) == INT_REQ_DONE) {
 			muic_detect_dev(pmuic, irq);
 			if (muis_is_vbus_int(pmuic, irq))
 				muic_handle_vbus(pmuic);
 		}
 	} else{
-		if (muic_irq_handler(pmuic, irq) & INT_REQ_DONE)
+		if (muic_irq_handler(pmuic, irq) == INT_REQ_DONE)
 			muic_detect_dev(pmuic, irq);
 	}
 
