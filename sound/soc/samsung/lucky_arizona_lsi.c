@@ -11,7 +11,6 @@
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/clk.h>
-#include <linux/clk-private.h>
 #include <linux/io.h>
 #include <linux/slab.h>
 #include <linux/gpio.h>
@@ -1445,12 +1444,12 @@ static int lucky_late_probe(struct snd_soc_card *card)
 	snd_soc_dapm_ignore_suspend(&card->dapm, "HP");
 	snd_soc_dapm_sync(&card->dapm);
 
-	snd_soc_dapm_ignore_suspend(&codec->dapm, "AIF2 Playback");
-	snd_soc_dapm_ignore_suspend(&codec->dapm, "AIF2 Capture");
-	snd_soc_dapm_ignore_suspend(&codec->dapm, "AIF3 Playback");
-	snd_soc_dapm_ignore_suspend(&codec->dapm, "AIF3 Capture");
-	snd_soc_dapm_ignore_suspend(&codec->dapm, "DSP Virtual Output");
-	snd_soc_dapm_sync(&codec->dapm);
+	snd_soc_dapm_ignore_suspend(snd_soc_codec_get_dapm(codec), "AIF2 Playback");
+	snd_soc_dapm_ignore_suspend(snd_soc_codec_get_dapm(codec), "AIF2 Capture");
+	snd_soc_dapm_ignore_suspend(snd_soc_codec_get_dapm(codec), "AIF3 Playback");
+	snd_soc_dapm_ignore_suspend(snd_soc_codec_get_dapm(codec), "AIF3 Capture");
+	snd_soc_dapm_ignore_suspend(snd_soc_codec_get_dapm(codec), "DSP Virtual Output");
+	snd_soc_dapm_sync(snd_soc_codec_get_dapm(codec));
 
 	memcpy(&priv->sysclk.mclk, &lucky_mclk_data[0],
 					sizeof(struct snd_mclk_info));
@@ -1674,7 +1673,7 @@ static int lucky_set_bias_level(struct snd_soc_card *card,
 {
 	struct arizona_machine_priv *priv = card->drvdata;
 
-	if (!priv->codec || dapm != &priv->codec->dapm)
+	if (!priv->codec || dapm != snd_soc_codec_get_dapm(priv->codec))
 		return 0;
 
 	switch (level) {

@@ -1467,6 +1467,21 @@ config MFD_ARIZONA
 	select MFD_CORE
 	bool
 
+config MFD_ARIZONA_DEFERRED_RESUME
+	bool "Arizona Deferred Resume"
+	depends on MFD_ARIZONA
+	help
+	  Support for Arizona deferred resume
+
+config MFD_MOON
+	bool "Cirrus Logic Moon class codecs"
+	depends on MFD_ARIZONA
+	help
+	  Support for Cirrus Logic Moon class low power audio SoC
+	  such as the CS47L90. This driver provides common support
+	  for accessing the device, additional drivers must be
+	  enabled in order to use the functionality of the device.
+
 config MFD_ARIZONA_I2C
 	tristate "Wolfson Microelectronics Arizona platform with I2C"
 	select MFD_ARIZONA

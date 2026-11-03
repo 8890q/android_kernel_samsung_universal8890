@@ -199,8 +199,12 @@ config SND_SOC_ALL_CODECS
 config SND_SOC_88PM860X
 	tristate
 
+config SND_SOC_MOON
+	tristate
+
 config SND_SOC_ARIZONA
 	tristate
+	default SND_SOC_MOON
 	default y if SND_SOC_WM5102=y
 	default y if SND_SOC_WM5110=y
 	default y if SND_SOC_WM8997=y
@@ -217,6 +221,7 @@ config SND_SOC_WM_HUBS
 
 config SND_SOC_WM_ADSP
 	tristate
+	default SND_SOC_MOON
 	select SND_SOC_COMPRESS
 	default y if SND_SOC_MADERA=y
 	default y if SND_SOC_WM5102=y

@@ -405,3 +405,6 @@ obj-y += moro_sound.o
 # Amp
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
+
+snd-soc-moon-objs := moon.o
+obj-$(CONFIG_SND_SOC_MOON) += snd-soc-moon.o

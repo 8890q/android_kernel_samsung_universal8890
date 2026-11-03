@@ -29,6 +29,9 @@
 /* Non-ALSA coefficient types start at 0x1000 */
 #define WMFW_CTL_TYPE_ACKED       0x1000 /* acked control */
 #define WMFW_CTL_TYPE_HOSTEVENT   0x1001 /* event control */
+#define WMFW_CTL_TYPE_HP_IMP      0x1003 /* headphone impedance */
+
+#define WMFW_CTL_HP_IMP_LEN                  4
 
 struct wmfw_header {
 	char magic[4];

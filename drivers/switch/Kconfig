@@ -20,3 +20,11 @@ config SWITCH_MADERA
 	  on Cirrus Logic Madera class codecs.
 
 endif # SWITCH
+
+config SWITCH_ARIZONA
+	tristate "Wolfson Arizona Switch support"
+	depends on SWITCH && MFD_ARIZONA && INPUT && SND_SOC
+	help
+	  Say Y here to enable support for external accessory detection
+	  with Wolfson Arizona devices. These are audio CODECs with
+	  advanced audio accessory detection support.

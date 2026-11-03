@@ -267,6 +267,10 @@
 #define KEY_F17			187
 #define KEY_F18			188
 #define KEY_F19			189
+/* Samsung voice-trigger key codes retained for herolte userspace. */
+#define KEY_LPSD_WAKEUP	198
+#define KEY_VOICE_WAKEUP	199
+
 #define KEY_F20			190
 #define KEY_F21			191
 #define KEY_F22			192
