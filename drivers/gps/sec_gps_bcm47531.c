@@ -28,7 +28,6 @@ static struct device *gps_dev;
 //static unsigned int gps_host_wake_up = 0;
 static unsigned int gps_pwr_on = 0;
 static struct pinctrl *gps_pwr_pinctrl;
-static struct pinctrl_state *gps_pwr_on_pinctrl;
 
 #if 0 //def CONFIG_SENSORS_SSP_BBD
 static struct pinctrl *host_wake_pinctrl;
@@ -255,16 +254,11 @@ static int __init gps_bcm47531_init(void)
 	gpio_export_link(gps_dev, "GPS_PWR_EN", gps_pwr_on);
 
 	gps_dev->of_node = root_node;
-	gps_pwr_pinctrl = devm_pinctrl_get(gps_dev);
-
-	gps_pwr_on_pinctrl = pinctrl_lookup_state(gps_pwr_pinctrl, "hub_en");
-	if (!gps_pwr_on_pinctrl)
-		pr_err("%s: failed to get gps_pwr_on_pinctrl pinctrl\n", __func__);
-
-	ret = pinctrl_select_state(gps_pwr_pinctrl, gps_pwr_on_pinctrl);
-	if (ret) {
-		dev_err(gps_dev, "Failed to get gps_pwr_on_pinctrl.\n");
-		ret = -ENODEV;
+	gps_pwr_pinctrl = devm_pinctrl_get_select_default(gps_dev);
+	if (IS_ERR(gps_pwr_pinctrl)) {
+		ret = PTR_ERR(gps_pwr_pinctrl);
+		dev_err(gps_dev, "Failed to select GPS power pinctrl state: %d\n",
+			ret);
 		goto err_sec_device_create;
 	}
 #if 0
