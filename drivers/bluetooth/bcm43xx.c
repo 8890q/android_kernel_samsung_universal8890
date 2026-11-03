@@ -387,6 +387,11 @@ static int bcm43xx_bluetooth_remove(struct platform_device *pdev)
 static const struct of_device_id exynos_bluetooth_match[] = {
 	{
 		.compatible = "samsung,bcm43xx",
+		.compatible = "broadcom,bcm4359",
+		.compatible = "broadcom,bcm4359",
+		.compatible = "broadcom,bcm4359",
+		.compatible = "broadcom,bcm4359",
+		.compatible = "broadcom,bcm4359",
 	},
 	{},
 };
