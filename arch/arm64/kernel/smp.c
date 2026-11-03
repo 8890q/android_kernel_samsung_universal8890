@@ -832,11 +832,14 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 		break;
 #endif
 
-#ifdef CONFIG_ARM64_ACPI_PARKING_PROTOCOL
+#if defined(CONFIG_SOC_EXYNOS8890) || defined(CONFIG_ARM64_ACPI_PARKING_PROTOCOL)
 	case IPI_WAKEUP:
+#ifdef CONFIG_ARM64_ACPI_PARKING_PROTOCOL
 		WARN_ONCE(!acpi_parking_protocol_valid(cpu),
 			  "CPU%u: Wake-up IPI outside the ACPI parking protocol\n",
 			  cpu);
+#endif
+		/* Exynos 8890 firmware also sends SGI 6 when waking a CPU. */
 		break;
 #endif
 

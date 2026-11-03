@@ -234,8 +234,14 @@ static int psci_suspend_customized_finisher(unsigned long index)
 		state = psci_power_state_pack(0, 0, 1);
 		break;
 	case PSCI_SYSTEM_IDLE:
-	case PSCI_SYSTEM_IDLE_AUDIO:
 		state = psci_power_state_pack(1, 0, 0);
+		break;
+	case PSCI_SYSTEM_IDLE_AUDIO:
+#if defined(CONFIG_SOC_EXYNOS8890)
+		state = psci_power_state_pack(2, 0, 0);
+#else
+		state = psci_power_state_pack(1, 0, 0);
+#endif
 		break;
 	case PSCI_SYSTEM_IDLE_CLUSTER_SLEEP:
 		state = psci_power_state_pack(1, 0, 1);
