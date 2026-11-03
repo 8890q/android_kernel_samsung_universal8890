@@ -219,7 +219,7 @@ static int dwc3_otg_start_host(struct otg_fsm *fsm, int on)
 
 	if (on) {
 #if defined(CONFIG_USB_HOST_NOTIFY)
-		if (o_notify){
+		if (o_notify && o_notify->set_ldo_onoff) {
 			o_notify->set_ldo_onoff(pdata, on);
 		}
 #endif
@@ -269,7 +269,7 @@ err1:
 		pm_runtime_put_sync(dev);
 		wake_unlock(&dotg->wakelock);
 #if defined(CONFIG_USB_HOST_NOTIFY)
-		if (o_notify){
+		if (o_notify && o_notify->set_ldo_onoff) {
 			o_notify->set_ldo_onoff(pdata, on);
 		}
 #endif
@@ -301,7 +301,7 @@ static int dwc3_otg_start_gadget(struct otg_fsm *fsm, int on)
 
 	if (on) {
 #if defined(CONFIG_USB_HOST_NOTIFY)
-		if (o_notify){
+		if (o_notify && o_notify->set_ldo_onoff) {
 			o_notify->set_ldo_onoff(pdata, on);
 		}
 #endif
@@ -343,7 +343,7 @@ err1:
 		pm_runtime_put_sync(dev);
 		wake_unlock(&dotg->wakelock);
 #if defined(CONFIG_USB_HOST_NOTIFY)
-		if (o_notify){
+		if (o_notify && o_notify->set_ldo_onoff) {
 			o_notify->set_ldo_onoff(pdata, on);
 		}
 #endif
