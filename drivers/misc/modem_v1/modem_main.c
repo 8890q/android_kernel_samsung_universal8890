@@ -23,6 +23,7 @@
 
 #include <linux/uaccess.h>
 #include <linux/fs.h>
+#include <linux/proc_fs.h>
 #include <linux/io.h>
 #include <linux/wait.h>
 #include <linux/sched.h>
