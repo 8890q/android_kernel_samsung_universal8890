@@ -389,6 +389,25 @@ struct cpufreq_frequency_table *cpufreq_get_info_table(unsigned int cpu)
 	return freq_table;
 }
 
+
+#ifdef CONFIG_SEC_BOOTSTAT
+void sec_bootstat_get_cpuinfo(int *freq, int *online)
+{
+	int cpu;
+	unsigned int cluster;
+
+	freq[0] = freq[1] = 0;
+	get_online_cpus();
+	*online = cpumask_bits(cpu_online_mask)[0];
+	for_each_online_cpu(cpu) {
+		cluster = get_cur_cluster(cpu);
+		if (exynos_info[cluster] && exynos_info[cluster]->get_freq)
+			freq[cluster] = clk_get_freq(cluster);
+	}
+	put_online_cpus();
+}
+#endif
+
 unsigned int exynos_getspeed_cluster(cluster_type cluster)
 {
 	return clk_get_freq(cluster);

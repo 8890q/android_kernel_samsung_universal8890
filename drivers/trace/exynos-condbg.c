@@ -1560,7 +1560,9 @@ static void set_param(set_param_fn_t *fn)
 	fn[ECD_LOOKUP_DUMP_SFR] = (set_param_fn_t)ecd_lookup_dump_sfr;
 	fn[ECD_LOOKUP_CHECK_SFR] = (set_param_fn_t)ecd_lookup_check_sfr;
 
+#ifdef CONFIG_EXYNOS_ITMON
 	fn[ITMON_ENABLE] = (set_param_fn_t)itmon_enable;
+#endif
 	fn[EXYNOS_SS_DUMPER_ONE] = (set_param_fn_t)exynos_ss_dumper_one;
 	fn[WDT_SET_EMERGENCY_RESET] = (set_param_fn_t)s3c2410wdt_set_emergency_reset;
 	fn[WAKE_LOCK_INIT] = (set_param_fn_t)ecd_wake_lock_init;

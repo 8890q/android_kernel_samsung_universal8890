@@ -10,8 +10,14 @@ menuconfig TRACE
 
 if TRACE
 
+config EXYNOS_BUSMONITOR
+	bool "Exynos 8890 BUS Monitor support"
+	depends on SOC_EXYNOS8890
+	default y
+
 config EXYNOS_ITMON
         bool "Exynos IPs Traffic Monitor"
+        depends on SOC_EXYNOS8895
         default y
         depends on ARCH_EXYNOS
 

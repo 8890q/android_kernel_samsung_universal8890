@@ -5522,7 +5522,7 @@ static int decon_probe(struct platform_device *pdev)
 
 	}
 
-	decon->ion_client = ion_client_create(ion_exynos, device_name);
+	decon->ion_client = exynos_ion_client_create(device_name);
 	if (IS_ERR(decon->ion_client)) {
 		decon_err("failed to ion_client_create\n");
 		goto fail_psr_thread;

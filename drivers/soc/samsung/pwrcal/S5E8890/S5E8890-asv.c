@@ -1191,3 +1191,103 @@ struct cal_asv_ops cal_asv_ops = {
 	.get_ids_info = asv_get_ids_info,
 	.set_ssa0 = asv_set_ssa0,
 };
+
+#if defined(CONFIG_SEC_PM_DEBUG)
+enum asv_group {
+	asv_max_lv,
+	dvfs_freq,
+	dvfs_voltage,
+	dvfs_group,
+	table_group,
+	num_of_asc,
+};
+
+int asv_get_information(enum dvfs_id id, enum asv_group grp, unsigned int lv) {
+
+	int max_lv, volt, group, asv;
+	void *asv_block;
+	struct ect_voltage_domain *domain;
+
+	asv_block = ect_get_block("ASV");
+	if (asv_block == NULL)
+		BUG();
+
+	if (!asv_tbl_info.fused_grp)
+		goto notfused;
+
+	switch (id) {
+		case cal_asv_dvfs_big:
+			max_lv = asv_dvfs_big->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_big");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.mngs_asv_group;
+			asv = get_asv_group(cal_asv_dvfs_big, lv);
+			break;
+		case cal_asv_dvfs_little:
+			max_lv = asv_dvfs_little->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_little");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.apollo_asv_group;
+			asv = get_asv_group(cal_asv_dvfs_little, lv);
+			break;
+		case cal_asv_dvfs_g3d:
+			max_lv = asv_dvfs_g3d->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_g3d");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.g3d_asv_group;
+			asv = get_asv_group(cal_asv_dvfs_g3d, lv);
+			break;
+		case cal_asv_dvfs_mif:
+			max_lv = asv_dvfs_mif->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_mif");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.mif_asv_group;
+			asv = get_asv_group(cal_asv_dvfs_mif, lv);
+			break;
+		case cal_asv_dvfs_int:
+			max_lv = asv_dvfs_int->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_int");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.int_asv_group;
+			break;
+		case cal_asv_dvfs_cam:
+			max_lv = asv_dvfs_cam->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_cam");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.disp_asv_group;
+			break;
+		case cal_asv_dvfs_disp:
+			max_lv = asv_dvfs_disp->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvfs_disp");
+			volt = get_asv_voltage(id, lv);
+			group = asv_tbl_info.disp_asv_group;
+			break;
+		case cal_asv_dvs_g3dm:
+			max_lv = asv_dvs_g3dm->table->num_of_lv;
+			domain = ect_asv_get_domain(asv_block, "dvs_g3dm");
+			volt = get_asv_voltage(id, lv);
+			group = 0;
+			break;
+		default:
+			break;
+	}
+
+	if (grp == asv_max_lv)
+		return max_lv;
+	else if (grp == dvfs_freq)
+		return domain->level_list[lv] * 1000;
+	else if (grp == dvfs_voltage)
+		return volt;
+	else if (grp == dvfs_group)
+		return group;
+	else if (grp == table_group)
+		return asv_tbl_info.asv_table_ver;
+	else
+		return 0;
+
+notfused:
+
+	return 0;
+
+}
+#endif /* CONFIG_SEC_PM_DEBUG */

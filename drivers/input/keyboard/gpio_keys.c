@@ -38,6 +38,27 @@
 
 struct device *sec_key;
 EXPORT_SYMBOL(sec_key);
+int wakeup_reason;
+bool irq_in_suspend;
+bool suspend_state;
+
+bool wakeup_by_key(void) {
+	if (irq_in_suspend) {
+		if (wakeup_reason == KEY_HOMEPAGE) {
+			irq_in_suspend = false;
+			wakeup_reason = 0;
+			return true;
+		}
+	}
+	return false;
+}
+EXPORT_SYMBOL(wakeup_by_key);
+
+#if defined(CONFIG_FB) && defined(CONFIG_SENSORS_VFS7XXX)
+extern void vfsspi_fp_homekey_ev(void);
+#endif
+
+
 
 static int call_gpio_keys_notifier(unsigned int code, int state);
 
@@ -540,6 +561,10 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 	} else {
 		bdata->key_state = !!state;
 		input_event(input, type, button->code, !!state);
+#if defined(CONFIG_FB) && defined(CONFIG_SENSORS_VFS7XXX)
+		if (button->code == KEY_HOMEPAGE && state)
+			vfsspi_fp_homekey_ev();
+#endif
 	}
 	input_sync(input);
 }
@@ -578,6 +603,10 @@ static irqreturn_t gpio_keys_gpio_isr(int irq, void *dev_id)
 	struct gpio_button_data *bdata = dev_id;
 
 	int state = (gpio_get_value(bdata->button->gpio) ? 1 : 0) ^ bdata->button->active_low;
+	if (READ_ONCE(suspend_state)) {
+		WRITE_ONCE(irq_in_suspend, true);
+		WRITE_ONCE(wakeup_reason, bdata->button->code);
+	}
 	call_gpio_keys_notifier(bdata->button->code, state);
 
 	BUG_ON(irq != bdata->irq);
@@ -1046,6 +1075,10 @@ static int gpio_keys_suspend(struct device *dev)
 	struct input_dev *input = ddata->input;
 	int i;
 
+	WRITE_ONCE(wakeup_reason, 0);
+	WRITE_ONCE(irq_in_suspend, false);
+	WRITE_ONCE(suspend_state, true);
+
 	if (device_may_wakeup(dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {
 			struct gpio_button_data *bdata = &ddata->data[i];
@@ -1068,6 +1101,8 @@ static int gpio_keys_resume(struct device *dev)
 	struct input_dev *input = ddata->input;
 	int error = 0;
 	int i;
+
+	WRITE_ONCE(suspend_state, false);
 
 	if (device_may_wakeup(dev)) {
 		for (i = 0; i < ddata->pdata->nbuttons; i++) {

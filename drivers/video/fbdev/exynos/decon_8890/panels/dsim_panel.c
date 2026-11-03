@@ -574,6 +574,21 @@ early_param("lcdres_offset", get_dsu_config);
 unsigned int lcdtype = 0;
 EXPORT_SYMBOL(lcdtype);
 
+int get_lcd_info(char *arg)
+{
+	if (!arg)
+		return -EINVAL;
+	if (!strcmp(arg, "connected"))
+		return lcdtype != 0;
+	if (!strcmp(arg, "id"))
+		return lcdtype;
+	if (!strcmp(arg, "window_color"))
+		return (lcdtype >> 16) & 0xf;
+	return -EINVAL;
+}
+EXPORT_SYMBOL(get_lcd_info);
+
+
 static int __init get_lcd_type(char *arg)
 {
 	get_option(&arg, &lcdtype);
