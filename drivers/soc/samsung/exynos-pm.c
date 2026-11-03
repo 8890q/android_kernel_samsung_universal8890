@@ -242,9 +242,11 @@ static int exynos_pm_syscore_suspend(void)
 		pr_info("%s %s: Enter CP Call scenario. (mode_idx = %d)\n",
 				EXYNOS_PM_PREFIX, __func__, pm_info->cp_call_mode_idx);
 	} else {
+#if defined(CONFIG_SOC_EXYNOS8895)
 		if (vts_is_on())
 			exynos_prepare_sys_powerdown(SLEEP_VTS_ON);
 		else
+#endif
 			exynos_prepare_sys_powerdown(pm_info->suspend_mode_idx);
 
 		pr_info("%s %s: Enter Suspend scenario. (mode_idx = %d)\n",
@@ -259,9 +261,11 @@ static void exynos_pm_syscore_resume(void)
 	if (pm_info->is_cp_call || pm_dbg->test_cp_call)
 		exynos_wakeup_sys_powerdown(pm_info->cp_call_mode_idx, pm_info->is_early_wakeup);
 	else {
+#if defined(CONFIG_SOC_EXYNOS8895)
 		if (vts_is_on())
 			exynos_wakeup_sys_powerdown(SLEEP_VTS_ON, pm_info->is_early_wakeup);
 		else
+#endif
 			exynos_wakeup_sys_powerdown(pm_info->suspend_mode_idx, pm_info->is_early_wakeup);
 	}
 

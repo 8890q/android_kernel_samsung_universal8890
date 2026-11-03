@@ -72,36 +72,52 @@ static struct exynos_powermode_info *pm_info;
 
 static void cpu_enable(unsigned int cpu)
 {
+#if defined(CONFIG_SOC_EXYNOS8890)
+	exynos_cpu.power_up(cpu);
+#else
 	unsigned int mpidr = cpu_logical_map(cpu);
 	unsigned int phycpu = linear_phycpu(mpidr);
 
 	cal_cpu_enable(phycpu);
+#endif
 }
 
 static void cpu_disable(unsigned int cpu)
 {
+#if defined(CONFIG_SOC_EXYNOS8890)
+	exynos_cpu.power_down(cpu);
+#else
 	unsigned int mpidr = cpu_logical_map(cpu);
 	unsigned int phycpu = linear_phycpu(mpidr);
 
 	cal_cpu_disable(phycpu);
+#endif
 }
 
 static void cluster_enable(unsigned int cpu)
 {
+#if defined(CONFIG_SOC_EXYNOS8890)
+	exynos_cpu.cluster_up(cpu);
+#else
 	unsigned int mpidr = cpu_logical_map(cpu);
 	unsigned int phycluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
 	cal_cluster_enable(phycluster);
 	mngs_reset_control(1);
+#endif
 }
 
 static void cluster_disable(unsigned int cpu)
 {
+#if defined(CONFIG_SOC_EXYNOS8890)
+	exynos_cpu.cluster_down(cpu);
+#else
 	unsigned int mpidr = cpu_logical_map(cpu);
 	unsigned int phycluster = MPIDR_AFFINITY_LEVEL(mpidr, 1);
 
 	mngs_reset_control(0);
 	cal_cluster_disable(phycluster);
+#endif
 }
 
 #ifdef CONFIG_ARM64_EXYNOS_CPUIDLE

@@ -28,6 +28,7 @@
 #include <linux/ktime.h>
 #include <linux/printk.h>
 #include <linux/exynos-ss.h>
+#include <linux/smc.h>
 #include <soc/samsung/exynos-condbg.h>
 #include <linux/kallsyms.h>
 #include <linux/platform_device.h>

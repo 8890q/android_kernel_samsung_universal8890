@@ -187,7 +187,7 @@ extern void exynos_ss_get_softlockup_info(unsigned int cpu, void *info);
 #define exynos_ss_irq_exit(a,b)		do { } while(0)
 #define exynos_ss_irqs_disabled(a)	do { } while(0)
 #define exynos_ss_spinlock(a,b)		do { } while(0)
-#define exynos_ss_clk(a,b,c)		do { } while(0)
+#define exynos_ss_clk(a,b,c,d)		do { } while(0)
 #define exynos_ss_freq(a,b,c,d)		do { } while(0)
 #define exynos_ss_irq_exit_var(v)	do { v = 0; } while(0)
 #define exynos_ss_reg(a,b,c,d)		do { } while(0)

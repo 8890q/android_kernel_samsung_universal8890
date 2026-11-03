@@ -310,8 +310,13 @@ static int build_dyn_power_table(struct gpufreq_cooling_device *gpufreq_device,
 static int build_static_power_table(struct gpufreq_cooling_device *gpufreq_device)
 {
 	int i, j;
+#if defined(CONFIG_SOC_EXYNOS8890)
+	int ratio = cal_asv_get_ids_info(PWRCAL_IDS_G3D);
+	int asv_group = cal_asv_get_grp(PWRCAL_ASV_G3D, 0);
+#else
 	int ratio = cal_asv_get_ids_info(ACPM_DVFS_G3D);
 	int asv_group = cal_asv_get_grp(ACPM_DVFS_G3D);
+#endif
 	void *gen_block;
 	struct ect_gen_param_table *volt_temp_param, *asv_param;
 	int ratio_table[16] = { 0, 25, 29, 35, 41, 48, 57, 67, 79, 94, 110, 130, 151, 162, 162, 162};
@@ -319,7 +324,7 @@ static int build_static_power_table(struct gpufreq_cooling_device *gpufreq_devic
 	if (asv_group < 0 || asv_group > 15)
 		asv_group = 0;
 
-	if (!ratio)
+	if (ratio <= 0)
 		ratio = ratio_table[asv_group];
 
 	gen_block = ect_get_block("GEN");

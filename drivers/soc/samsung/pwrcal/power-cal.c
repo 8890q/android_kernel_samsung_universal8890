@@ -304,7 +304,7 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 		goto out;
 	}
 
-	exynos_ss_clk(vclk, name, ESS_FLAG_IN);
+	exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_IN);
 
 	if (dfs->table->private_trans)
 		ret = dfs->table->private_trans(vclk->vfreq, rate, dfs->table);
@@ -315,9 +315,9 @@ int cal_dfs_set_rate(unsigned int id, unsigned long rate)
 
 	if (!ret) {
 		vclk->vfreq = rate;
-		exynos_ss_clk(vclk, name, ESS_FLAG_OUT);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_OUT);
 	} else
-		exynos_ss_clk(vclk, name, ESS_FLAG_ON);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_ON);
 out:
 	spin_unlock_irqrestore(dfs->lock, flag);
 	return ret;
@@ -374,17 +374,17 @@ unsigned long cal_dfs_cached_get_rate(unsigned int id)
 
 	spin_lock_irqsave(dfs->lock, flag);
 
-	exynos_ss_clk(vclk, name, ESS_FLAG_IN);
+	exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_IN);
 
 	if (!vclk->ref_count) {
 		pr_err("%s : %s reference count is zero \n", __func__, vclk->name);
-		exynos_ss_clk(vclk, name, ESS_FLAG_ON);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_ON);
 		goto out;
 	}
 
 	ret = vclk->vfreq;
 
-	exynos_ss_clk(vclk, name, ESS_FLAG_OUT);
+	exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_OUT);
 out:
 	spin_unlock_irqrestore(dfs->lock, flag);
 	return ret;
@@ -407,11 +407,11 @@ unsigned long cal_dfs_get_rate(unsigned int id)
 
 	spin_lock_irqsave(dfs->lock, flag);
 
-	exynos_ss_clk(vclk, name, ESS_FLAG_IN);
+	exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_IN);
 
 	if (!vclk->ref_count) {
 		pr_err("%s : %s reference count is zero \n", __func__, vclk->name);
-		exynos_ss_clk(vclk, name, ESS_FLAG_ON);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_ON);
 		goto out;
 	}
 
@@ -422,9 +422,9 @@ unsigned long cal_dfs_get_rate(unsigned int id)
 
 	if (ret > 0) {
 		vclk->vfreq = (unsigned long)ret;
-		exynos_ss_clk(vclk, name, ESS_FLAG_OUT);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_OUT);
 	} else
-		exynos_ss_clk(vclk, name, ESS_FLAG_ON);
+		exynos_ss_clk(vclk, name, vclk->vfreq, ESS_FLAG_ON);
 out:
 	spin_unlock_irqrestore(dfs->lock, flag);
 	return ret;
@@ -450,6 +450,34 @@ int cal_dfs_get_rate_table(unsigned int id, unsigned long *table)
 		if (dfsops->get_rate_table)
 			return dfsops->get_rate_table(table);
 
+	return 0;
+}
+
+unsigned int cal_dfs_get_lv_num(unsigned int id)
+{
+	struct vclk *vclk = cal_get_vclk(id);
+	struct dfs_table *table;
+
+	if (!vclk || (vclk->type & vclk_group_mask) != vclk_group_dfs)
+		return 0;
+
+	table = to_dfs(vclk)->table;
+	return table ? table->num_of_lv : 0;
+}
+
+unsigned int cal_dfs_get_boot_freq(unsigned int id)
+{
+	return (unsigned int)cal_dfs_get_rate(id);
+}
+
+unsigned int cal_dfs_get_resume_freq(unsigned int id)
+{
+	return (unsigned int)cal_dfs_get_rate(id);
+}
+
+int cal_dfs_get_bigturbo_max_freq(unsigned int *table)
+{
+	(void)table;
 	return 0;
 }
 
