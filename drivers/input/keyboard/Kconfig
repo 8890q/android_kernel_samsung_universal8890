@@ -725,6 +725,14 @@ config KEYBOARD_BCM
 	  To compile this driver as a module, choose M here: the
 	  module will be called bcm-keypad.
 
+config KEYBOARD_ABOV_FT16XX_TOUCH
+	tristate "Abov FT16XX touchkey"
+	depends on I2C
+	help
+	  Support the ABOV MC96FT16XX capacitive keys used on herolte.
+
+source "drivers/input/keyboard/cypress/Kconfig"
+
 config KEYBOARD_ABOV_TOUCH_A96TA316
 	tristate "Abov T316 touchkey"
 	depends on I2C
