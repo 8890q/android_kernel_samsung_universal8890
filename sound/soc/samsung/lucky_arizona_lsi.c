@@ -1115,29 +1115,11 @@ static const struct snd_soc_pcm_stream dsm_params = {
 };
 #endif
 
+/* Keep this order aligned with the DT phandle arrays and userspace PCM IDs. */
 static struct snd_soc_dai_link lucky_cs47l91_dai[] = {
 	{ /* playback & recording */
 		.name = "playback-pri",
 		.stream_name = "i2s0-pri",
-		.codec_dai_name = "moon-aif1",
-		.ops = &lucky_aif1_ops,
-	},
-#if 0
-	{ /* bluetooth sco */
-		.name = "bluetooth sco",
-		.stream_name = "lucky-ext bluetooth sco",
-		.cpu_dai_name = "lucky-ext bluetooth sco",
-		.platform_name = "snd-soc-dummy",
-		.codec_dai_name = "moon-aif3",
-		.ops = &lucky_aif3_ops,
-		.ignore_suspend = 1,
-	},
-#endif
-	{ /* deep buffer playback */
-		.name = "playback-sec",
-		.stream_name = "i2s0-sec",
-		.cpu_dai_name = "samsung-i2s-sec",
-		.platform_name = "samsung-i2s-sec",
 		.codec_dai_name = "moon-aif1",
 		.ops = &lucky_aif1_ops,
 	},
@@ -1150,7 +1132,23 @@ static struct snd_soc_dai_link lucky_cs47l91_dai[] = {
 		.ops = &lucky_aif2_ops,
 		.ignore_suspend = 1,
 	},
-#if 0
+	{ /* bluetooth sco */
+		.name = "bluetooth sco",
+		.stream_name = "lucky-ext bluetooth sco",
+		.cpu_dai_name = "lucky-ext bluetooth sco",
+		.platform_name = "snd-soc-dummy",
+		.codec_dai_name = "moon-aif3",
+		.ops = &lucky_aif3_ops,
+		.ignore_suspend = 1,
+	},
+	{ /* deep buffer playback */
+		.name = "playback-sec",
+		.stream_name = "i2s0-sec",
+		.cpu_dai_name = "samsung-i2s-sec",
+		.platform_name = "samsung-i2s-sec",
+		.codec_dai_name = "moon-aif1",
+		.ops = &lucky_aif1_ops,
+	},
 	{
 		.name = "CPU-DSP Voice Control",
 		.stream_name = "CPU-DSP Voice Control",
@@ -1167,7 +1165,6 @@ static struct snd_soc_dai_link lucky_cs47l91_dai[] = {
 		.codec_dai_name = "moon-dsp-trace",
 		.codec_name = "moon-codec",
 	},
-#endif
 	{ /* eax0 playback */
 		.name = "playback-eax0",
 		.stream_name = "eax0",
