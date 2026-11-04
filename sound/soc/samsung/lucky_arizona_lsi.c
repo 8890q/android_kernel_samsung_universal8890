@@ -994,7 +994,6 @@ static struct snd_soc_ops lucky_aif2_ops = {
 	.hw_free = lucky_aif2_hw_free,
 };
 
-#if 0
 static int lucky_aif3_hw_params(struct snd_pcm_substream *substream,
 	struct snd_pcm_hw_params *params)
 {
@@ -1030,14 +1029,11 @@ static int lucky_aif3_hw_params(struct snd_pcm_substream *substream,
 
 	return 0;
 }
-#endif
 
-/*
 static struct snd_soc_ops lucky_aif3_ops = {
 	.shutdown = lucky_aif_shutdown,
 	.hw_params = lucky_aif3_hw_params,
 };
-*/
 
 static struct snd_soc_dai_driver lucky_ext_dai[] = {
 	{
