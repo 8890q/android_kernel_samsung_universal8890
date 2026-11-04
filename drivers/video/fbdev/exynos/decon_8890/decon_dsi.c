@@ -629,12 +629,29 @@ int decon_f_create_vsync_thread(struct decon_device *decon)
 		dev_info(decon->dev, "vsync attribute: /sys%s/vsync\n", path);
 		kfree(path);
 	}
+	/* Keep the 3.18 sysfs ABI used by the herolte graphics HAL. */
+	if (decon->dev->parent == &platform_bus) {
+		ret = sysfs_create_link(platform_bus.kobj.parent,
+				&decon->dev->kobj, dev_name(decon->dev));
+		if (ret) {
+			dev_err(decon->dev, "failed to create legacy sysfs link: %d\n",
+				ret);
+			device_remove_file(decon->dev, &dev_attr_vsync);
+			return ret;
+		}
+		dev_info(decon->dev, "legacy vsync: /sys/devices/%s/vsync\n",
+			 dev_name(decon->dev));
+	}
 
 	decon->vsync_info.thread = kthread_run(decon_wait_for_vsync_thread,
 			decon, "s3c-fb-vsync");
-	if (decon->vsync_info.thread == ERR_PTR(-ENOMEM)) {
-		decon_err("failed to run vsync thread\n");
+	if (IS_ERR(decon->vsync_info.thread)) {
+		ret = PTR_ERR(decon->vsync_info.thread);
+		decon_err("failed to run vsync thread: %d\n", ret);
 		decon->vsync_info.thread = NULL;
+		if (decon->dev->parent == &platform_bus)
+			sysfs_remove_link(platform_bus.kobj.parent, dev_name(decon->dev));
+		device_remove_file(decon->dev, &dev_attr_vsync);
 	}
 
 	return ret;
@@ -655,6 +672,8 @@ int decon_f_create_psr_thread(struct decon_device *decon)
 
 void decon_f_destroy_vsync_thread(struct decon_device *decon)
 {
+	if (decon->dev->parent == &platform_bus)
+		sysfs_remove_link(platform_bus.kobj.parent, dev_name(decon->dev));
 	device_remove_file(decon->dev, &dev_attr_vsync);
 }
 
