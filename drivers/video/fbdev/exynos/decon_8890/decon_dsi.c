@@ -617,11 +617,17 @@ static DEVICE_ATTR(psr_info, S_IRUGO, decon_psr_info, NULL);
 int decon_f_create_vsync_thread(struct decon_device *decon)
 {
 	int ret = 0;
+	char *path;
 
 	ret = device_create_file(decon->dev, &dev_attr_vsync);
 	if (ret) {
 		decon_err("failed to create vsync file\n");
 		return ret;
+	}
+	path = kobject_get_path(&decon->dev->kobj, GFP_KERNEL);
+	if (path) {
+		dev_info(decon->dev, "vsync attribute: /sys%s/vsync\n", path);
+		kfree(path);
 	}
 
 	decon->vsync_info.thread = kthread_run(decon_wait_for_vsync_thread,

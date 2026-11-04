@@ -3125,6 +3125,9 @@ static int moon_probe(struct platform_device *pdev)
 	int i, ret;
 
 	BUILD_BUG_ON(ARRAY_SIZE(moon_dai) > ARIZONA_MAX_DAI);
+	dev_info(&pdev->dev, "probing Moon codec, parent %s node %s\n",
+		 dev_name(arizona->dev), arizona->dev->of_node ?
+		 arizona->dev->of_node->full_name : "none");
 
 	moon = devm_kzalloc(&pdev->dev, sizeof(struct moon_priv),
 			      GFP_KERNEL);
@@ -3222,6 +3225,9 @@ static int moon_probe(struct platform_device *pdev)
 		snd_soc_unregister_platform(&pdev->dev);
 		goto error;
 	}
+	dev_info(&pdev->dev, "registered %zu Moon DAIs on node %s\n",
+		 ARRAY_SIZE(moon_dai), pdev->dev.of_node ?
+		 pdev->dev.of_node->full_name : "none");
 
 	return ret;
 
