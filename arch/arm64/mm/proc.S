@@ -144,7 +144,16 @@ ENTRY(cpu_do_switch_mm)
 	bfi	x0, x1, #48, #16		// set the ASID field in TTBR0
 #endif
 	bfi	x2, x1, #48, #16		// set the ASID
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Exynos M1 requires TLBI ordering around the TTBR1 ASID change. */
+	tlbi	vae1, xzr
+	dsb	nsh
+	tlbi	vae1, xzr
+#endif
 	msr	ttbr1_el1, x2			// in TTBR1 (since TCR.A1 is set)
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vae1, xzr
+#endif
 	isb
 	msr	ttbr0_el1, x0			// now update TTBR0
 	isb

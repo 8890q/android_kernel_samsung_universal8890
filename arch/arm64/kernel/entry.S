@@ -86,7 +86,30 @@ alternative_if ARM64_UNMAP_KERNEL_AT_EL0
 alternative_else_nop_endif
 #endif
 
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Invalidate the incoming stack translation before the first store. */
+	.if	\el == 0
+	msr	cntp_cval_el0, x0
+	mov	x0, sp
+	lsr	x0, x0, #12
+	tlbi	vaae1, x0
+	dsb	nsh
+	mrs	x0, cntp_cval_el0
+	.endif
+#endif
+
 	sub	sp, sp, #S_FRAME_SIZE
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Preserve the original exception state across entry-stack accesses. */
+	.if	\el == 0
+	stp	x0, x1, [sp, #16 * 0]
+	stp	x2, x3, [sp, #16 * 1]
+	mrs	x0, elr_el1
+	mrs	x1, esr_el1
+	mrs	x2, spsr_el1
+	mrs	x3, far_el1
+	.endif
+#endif
 	b	el\()\el\()_\label
 	.endm
 
@@ -96,6 +119,16 @@ alternative_else_nop_endif
 	.endm
 
 	.macro	kernel_entry, el, regsize = 64
+#ifdef CONFIG_SOC_EXYNOS8890
+	.if	\el == 0
+	msr	elr_el1, x0
+	msr	esr_el1, x1
+	msr	spsr_el1, x2
+	msr	far_el1, x3
+	ldp	x0, x1, [sp, #16 * 0]
+	ldp	x2, x3, [sp, #16 * 1]
+	.endif
+#endif
 	.if	\regsize == 32
 	mov	w0, w0				// zero upper 32 bits of x0
 	.endif
@@ -1056,7 +1089,17 @@ __ni_sys_trace:
 	mrs	\tmp, ttbr1_el1
 	sub	\tmp, \tmp, #(SWAPPER_DIR_SIZE + RESERVED_TTBR0_SIZE)
 	bic	\tmp, \tmp, #USER_ASID_FLAG
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Exynos M1 TLB conflict workaround from the herolte kernel. */
+	tlbi	vae1, xzr
+	dsb	nsh
+	tlbi	vae1, xzr
+#endif
 	msr	ttbr1_el1, \tmp
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vae1, xzr
+	isb
+#endif
 #ifdef CONFIG_ARCH_MSM8996
 	/* ASID already in \tmp[63:48] */
 	movk	\tmp, #:abs_g2_nc:(TRAMP_VALIAS >> 12)
@@ -1073,7 +1116,16 @@ __ni_sys_trace:
 	mrs	\tmp, ttbr1_el1
 	add	\tmp, \tmp, #(SWAPPER_DIR_SIZE + RESERVED_TTBR0_SIZE)
 	orr	\tmp, \tmp, #USER_ASID_FLAG
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vae1, xzr
+	dsb	nsh
+	tlbi	vae1, xzr
+#endif
 	msr	ttbr1_el1, \tmp
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vae1, xzr
+	isb
+#endif
 	/*
 	 * We avoid running the post_ttbr_update_workaround here because the
 	 * user and kernel ASIDs don't have conflicting mappings, so any
