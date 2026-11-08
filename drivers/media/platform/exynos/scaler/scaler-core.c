@@ -2683,6 +2683,14 @@ static int sc_run_next_job(struct sc_dev *sc)
 		}
 	}
 #ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+#ifdef CONFIG_SOC_EXYNOS8890
+	if (sc->cfw) {
+		ret = exynos_smc(MC_FC_SET_CFW_PROT, MC_FC_DRM_SET_CFW_PROT,
+				SC_SMC_PROTECTION_ID(sc->dev_id), 0);
+		if (ret != SMC_TZPC_OK)
+			dev_err(sc->dev, "fail to set cfw protection (%d)\n", ret);
+	}
+#endif
 	if (ctx->cp_enabled) {
 		ret = sc_ctrl_protection(sc, ctx, true);
 		if (!ret)
@@ -3530,21 +3538,30 @@ static int sc_runtime_resume(struct device *dev)
 	if (sc->qosreq_int_level > 0)
 		pm_qos_update_request(&sc->qosreq_int, sc->qosreq_int_level);
 
+#if defined(CONFIG_SOC_EXYNOS8890) && defined(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION)
+	{
+		int ret = exynos_smc(MC_FC_SET_CFW_PROT, MC_FC_DRM_SET_CFW_PROT,
+				SC_SMC_PROTECTION_ID(sc->dev_id), 0);
+		if (ret != SMC_TZPC_OK)
+			dev_err(sc->dev, "fail to set cfw protection (%d)\n", ret);
+	}
+#endif
 	return 0;
 }
 
 static int sc_runtime_suspend(struct device *dev)
 {
 	struct sc_dev *sc = dev_get_drvdata(dev);
-	const int *ptr = sc->q_reg;
 	int i, idx;
 
-	idx = sc->dbg_idx % SC_DEBUG_MAX_NUM;
-	sc->qch_dbg[idx].time = sched_clock();
-	for (i = 0; i < G2D_QCH_NUM; i++)
-		sc->qch_dbg[idx].log[i] = ptr[i];
-
-	sc->dbg_idx++;
+	/* The G2D Q-channel debug registers exist only on Exynos8895. */
+	if (sc->q_reg && sc->qch_dbg) {
+		idx = sc->dbg_idx % SC_DEBUG_MAX_NUM;
+		sc->qch_dbg[idx].time = sched_clock();
+		for (i = 0; i < G2D_QCH_NUM; i++)
+			sc->qch_dbg[idx].log[i] = readl(sc->q_reg + i * sizeof(u32));
+		sc->dbg_idx++;
+	}
 
 	if (sc->qosreq_int_level > 0)
 		pm_qos_update_request(&sc->qosreq_int, 0);
@@ -3690,6 +3707,7 @@ static int sc_probe(struct platform_device *pdev)
 		}
 	}
 
+#ifdef CONFIG_SOC_EXYNOS8895
 	sc->q_reg = ioremap(0x13a07000, 0x100);
 	if (sc->q_reg == NULL) {
 		dev_err(&pdev->dev, "failed to ioremap address region\n");
@@ -3702,6 +3720,7 @@ static int sc_probe(struct platform_device *pdev)
 		ret = -ENOENT;
 		goto err_qch_dbg;
 	}
+#endif
 
 	sc->version = SCALER_VERSION(2, 0, 0);
 
@@ -3734,11 +3753,13 @@ static int sc_probe(struct platform_device *pdev)
 		hwver, sc->version);
 
 	return 0;
+#ifdef CONFIG_SOC_EXYNOS8895
 err_qch_dbg:
 	iounmap(sc->q_reg);
 err_qch_reg:
 	if (!IS_ERR(sc->aclk))
 		clk_disable_unprepare(sc->aclk);
+#endif
 err_ver_aclk_get:
 	if (!IS_ERR(sc->pclk))
 		clk_disable_unprepare(sc->pclk);
