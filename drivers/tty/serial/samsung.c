@@ -2251,6 +2251,19 @@ static int s3c24xx_serial_probe(struct platform_device *pdev)
 		ourport->uart_local_buf.index = 0;
 	}
 
+	/* Herolte names the active BT state "btdefault", not "default". */
+	if (IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
+			port_index == BLUETOOTH_UART_PORT_LINE) {
+		struct pinctrl *bt_uart_pinctrl;
+
+		bt_uart_pinctrl = devm_pinctrl_get_select(&pdev->dev, "btdefault");
+		if (IS_ERR(bt_uart_pinctrl)) {
+			ret = PTR_ERR(bt_uart_pinctrl);
+			dev_err(&pdev->dev, "could not select BT UART pins: %d\n", ret);
+			return ret;
+		}
+	}
+
 	dbg("%s: adding port\n", __func__);
 	uart_add_one_port(&s3c24xx_uart_drv, &ourport->port);
 	platform_set_drvdata(pdev, &ourport->port);
