@@ -2551,7 +2551,8 @@
 	};
 
 	iommu-domain_smfc{
-		compatible = "samsung,exynos-iommu-bus";
+		/* Allow the 4.4 OF core to populate the JPEG child. */
+		compatible = "samsung,exynos-iommu-bus", "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <1>;
 		ranges;
