@@ -51,12 +51,6 @@
 
 #define I2S_DEFAULT_SLOT_NUM	2 /* stereo default */
 
-#if 1
-#define QUIRK_SUPPORTS_LOW_RFS 0
-#define QUIRK_ESA_DMA 1
-#define QUIRK_SEC_DAI_COMPR 2
-#endif
-
 enum samsung_dai_type {
 	TYPE_PRI,
 	TYPE_SEC,

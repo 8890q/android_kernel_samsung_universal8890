@@ -28,6 +28,11 @@ struct samsung_i2s {
 #define QUIRK_NEED_RSTCLR	(1 << 3)
 #define QUIRK_SUPPORTS_TDM	(1 << 4)
 #define QUIRK_SUPPORTS_IDMA	(1 << 5)
+/* Exynos5430 and later use the expanded I2SMOD register layout. */
+#define QUIRK_SUPPORTS_LOW_RFS	(1 << 6)
+/* DMA routing and compressed secondary DAI must not alias channel flags. */
+#define QUIRK_ESA_DMA		(1 << 7)
+#define QUIRK_SEC_DAI_COMPR	(1 << 8)
 	/* Quirks of the I2S controller */
 	u32 quirks;
 	dma_addr_t idma_addr;
