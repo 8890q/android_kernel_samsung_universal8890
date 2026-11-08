@@ -36,6 +36,17 @@ enum {
 #define SEC_INPUT_VOLTAGE_5V	5
 #define SEC_INPUT_VOLTAGE_9V	9
 
+#if defined(CONFIG_CHARGING_VZWCONCEPT)
+static unsigned int STORE_MODE_CHARGING_MAX = 35;
+static unsigned int STORE_MODE_CHARGING_MIN = 30;
+#else
+static unsigned int STORE_MODE_CHARGING_MAX = 75;
+static unsigned int STORE_MODE_CHARGING_MIN = 25;
+#endif
+
+module_param_named(store_mode_max, STORE_MODE_CHARGING_MAX, uint, S_IWUSR | S_IRUGO);
+module_param_named(store_mode_min, STORE_MODE_CHARGING_MIN, uint, S_IWUSR | S_IRUGO);
+
 bool sleep_mode = false;
 
 static struct device_attribute sec_battery_attrs[] = {
@@ -5028,25 +5039,7 @@ ssize_t sec_bat_store_attrs(
 		break;
 	case STORE_MODE:
 		if (sscanf(buf, "%d\n", &x) == 1) {
-#if !defined(CONFIG_SEC_FACTORY)
-			if (x) {
-				if (!battery->store_mode) {
-					battery->pdata->wpc_high_temp -= 30;
-					battery->pdata->wpc_high_temp_recovery -= 30;
-					battery->pdata->wpc_skip_check_capacity = 0;
-					battery->pdata->wpc_skip_check_time = 0;
-				}	
-				battery->store_mode = true;
-				if(battery->capacity <= 5) {
-					battery->ignore_store_mode = true;
-				} else {
-					if(battery->cable_type == POWER_SUPPLY_TYPE_HV_MAINS || \
-						battery->cable_type == POWER_SUPPLY_TYPE_HV_MAINS_12V ||
-						battery->cable_type == POWER_SUPPLY_TYPE_HV_ERR)
-						sec_bat_set_charging_current(battery);
-				}
-			}
-#endif
+			battery->store_mode = x ? true : false;
 			ret = count;
 		}
 		break;
@@ -5911,14 +5904,7 @@ static int sec_bat_get_property(struct power_supply *psy,
 					return 0;
 				}
 			}
-#if defined(CONFIG_STORE_MODE)
-			if (battery->store_mode && !lpcharge &&
-					battery->cable_type != POWER_SUPPLY_TYPE_BATTERY &&
-					battery->status == POWER_SUPPLY_STATUS_DISCHARGING) {
-				val->intval = POWER_SUPPLY_STATUS_CHARGING;
-			} else
-#endif
-				val->intval = battery->status;
+			val->intval = battery->status;
 		}
 		break;
 	case POWER_SUPPLY_PROP_CHARGE_TYPE:
@@ -7888,6 +7874,7 @@ static int sec_battery_probe(struct platform_device *pdev)
 	battery->cable_type = POWER_SUPPLY_TYPE_BATTERY;
 	battery->test_mode = 0;
 	battery->factory_mode = false;
+	/* Userspace enables store mode through sysfs when requested. */
 	battery->store_mode = false;
 	battery->ignore_store_mode = false;
 	battery->slate_mode = false;
@@ -8067,17 +8054,6 @@ static int sec_battery_probe(struct platform_device *pdev)
 	value.intval = 0;
 	psy_do_property(battery->pdata->wireless_charger_name, set,
 					POWER_SUPPLY_PROP_CHARGE_TYPE, value);
-
-#if defined(CONFIG_STORE_MODE) && !defined(CONFIG_SEC_FACTORY)
-	battery->store_mode = true;
-	if (battery->capacity <= 5)
-		battery->ignore_store_mode = true;
-
-	battery->pdata->wpc_high_temp -= 30;
-	battery->pdata->wpc_high_temp_recovery -= 30;
-	battery->pdata->wpc_skip_check_capacity = 0;
-	battery->pdata->wpc_skip_check_time = 0;
-#endif
 
 #if defined(CONFIG_MUIC_NOTIFIER)
 	muic_notifier_register(&battery->batt_nb,
