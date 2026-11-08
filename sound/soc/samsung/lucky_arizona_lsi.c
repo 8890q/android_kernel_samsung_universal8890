@@ -1481,11 +1481,19 @@ static int lucky_late_probe(struct snd_soc_card *card)
 			       ARIZONA_CLK_ASYNCCLK, 0, 0);
 	snd_soc_dai_set_sysclk(card->rtd[2].codec_dai,
 			       ARIZONA_CLK_SYSCLK_2, 0, 0);
-	if (1)
-		pr_err("[ERROR] Temporarily skip offload set_sysclk\n");
-	else
-		snd_soc_dai_set_sysclk(card->rtd[10].cpu_dai,
-				       ARIZONA_CLK_ASYNCCLK_2, 0, 0);
+	/* DSP5 and its ASRC output use ASYNCCLK rate 2.  Tie the
+	 * codec-to-codec speaker link to that clock so DAPM powers it.
+	 */
+	for (i = 0; i < card->num_rtd; i++) {
+		if (strcmp(card->rtd[i].dai_link->name, "codec-dsm"))
+			continue;
+		ret = snd_soc_dai_set_sysclk(card->rtd[i].cpu_dai,
+					 ARIZONA_CLK_ASYNCCLK_2, 0, 0);
+		if (ret < 0) {
+			dev_err(card->dev, "Failed to set speaker ASYNCCLK: %d\n", ret);
+			return ret;
+		}
+	}
 
 	wake_lock_init(&priv->wake_lock, WAKE_LOCK_SUSPEND,
 				"lucky-voicewakeup");
