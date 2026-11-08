@@ -13,6 +13,7 @@
 #include <linux/slab.h>
 #include <linux/irq.h>
 #include <linux/interrupt.h>
+#include <linux/isp_cooling.h>
 #include <linux/delay.h>
 #include <linux/version.h>
 #include <linux/gpio.h>
@@ -409,6 +410,7 @@ static int fimc_is_tmu_notifier(struct notifier_block *nb,
 {
 #ifdef CONFIG_EXYNOS_THERMAL
 	int ret = 0;
+	unsigned long fps;
 	struct fimc_is_resourcemgr *resourcemgr;
 #ifdef CONFIG_EXYNOS_SNAPSHOT_THERMAL
 	char *cooling_device_name = "ISP";
@@ -423,6 +425,27 @@ static int fimc_is_tmu_notifier(struct notifier_block *nb,
 	case ISP_COLD:
 		resourcemgr->tmu_state = ISP_COLD;
 		resourcemgr->limited_fps = 0;
+		break;
+	case ISP_THROTTLING:
+		if (!data)
+			return NOTIFY_BAD;
+
+		/* The 4.4 cooling notifier passes a level, not an FPS value. */
+		fps = isp_cooling_get_fps(0, *(unsigned long *)data);
+		if (!fps || fps == ISP_FPS_INVALID) {
+			err("[RSC] invalid ISP cooling level(%lu)",
+				*(unsigned long *)data);
+			return NOTIFY_BAD;
+		}
+
+		resourcemgr->tmu_state = ISP_THROTTLING;
+		/* The legacy 8890 table uses 60..63 for unlimited operation. */
+		resourcemgr->limited_fps = fps >= 60 ? 0 : fps;
+		if (resourcemgr->limited_fps)
+			warn("[RSC] THROTTLING : Limited %uFPS",
+				resourcemgr->limited_fps);
+		else
+			warn("[RSC] THROTTLING : Unlimited FPS");
 		break;
 	case ISP_THROTTLING1:
 		resourcemgr->tmu_state = ISP_THROTTLING1;
