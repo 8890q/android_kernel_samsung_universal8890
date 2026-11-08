@@ -70,7 +70,7 @@
  * Moved from videodev.h
  */
 #define VIDEO_MAX_FRAME               32
-#define VIDEO_MAX_PLANES              17
+#define VIDEO_MAX_PLANES               8
 
 /*
  *	M I S C E L L A N E O U S
