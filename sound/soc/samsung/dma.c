@@ -616,7 +616,14 @@ static int preallocate_dma_buffer_of(struct snd_pcm *pcm, int stream,
 					sram_info[1]);
 				return -EINVAL;
 			}
-			sram_rx_buf->area = ioremap(sram_rx_buf->addr, sram_rx_buf->bytes);
+			/*
+			 * ALSA 4.4 clears the DMA buffer with ordinary memset().
+			 * This is byte-addressable SRAM, not device registers:
+			 * map it Normal-NC, matching dma_mmap_writecombine().
+			 * DC ZVA on the old Device mapping stalls on Exynos8890.
+			 */
+			sram_rx_buf->area = ioremap_wc(sram_rx_buf->addr,
+						      sram_rx_buf->bytes);
 			if (!sram_rx_buf->area) {
 				pr_info("Failed to map RX-SRAM into kernel virtual\n");
 				return -ENOMEM;
