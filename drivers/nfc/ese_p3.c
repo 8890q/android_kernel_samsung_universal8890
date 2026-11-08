@@ -139,7 +139,7 @@ static void p3_pinctrl_config(struct device *dev, bool onoff)
 #ifdef CONFIG_ESE_SECURE
 static int p3_suspend(void)
 {
-	u64 r0 = 0, r1 = 0, r2 = 0, r3 = 0;
+	u64 r0 = 0, r1 = IS_ENABLED(CONFIG_SOC_EXYNOS8890), r2 = 0, r3 = 0;
 	int ret = 0;
 
 	r0 = (0x83000032);
@@ -153,7 +153,7 @@ static int p3_suspend(void)
 
 static int p3_resume(void)
 {
-	u64 r0 = 0, r1 = 0, r2 = 0, r3 = 0;
+	u64 r0 = 0, r1 = IS_ENABLED(CONFIG_SOC_EXYNOS8890), r2 = 0, r3 = 0;
 	int ret = 0;
 
 	r0 = (0x83000033);
@@ -191,25 +191,19 @@ static int p3_clk_control(struct p3_data *data, bool onoff)
 
 static int p3_clk_setup(struct device *dev, struct p3_data *data)
 {
-	data->ese_spi_pclk = clk_get(dev, "pclk");
+	data->ese_spi_pclk = devm_clk_get(dev, "pclk");
 	if (IS_ERR(data->ese_spi_pclk)) {
 		P3_ERR_MSG("Can't get %s\n", "pclk");
-		data->ese_spi_pclk = NULL;
-		goto err_pclk_get;
+		return PTR_ERR(data->ese_spi_pclk);
 	}
 
-	data->ese_spi_sclk = clk_get(dev, "sclk");
+	data->ese_spi_sclk = devm_clk_get(dev, "sclk");
 	if (IS_ERR(data->ese_spi_sclk)) {
 		P3_ERR_MSG("Can't get %s\n", "sclk");
-		data->ese_spi_sclk = NULL;
-		goto err_sclk_get;
+		return PTR_ERR(data->ese_spi_sclk);
 	}
 
 	return 0;
-err_sclk_get:
-	clk_put(data->ese_spi_pclk);
-err_pclk_get:
-	return -EPERM;
 }
 #endif
 
@@ -666,7 +660,7 @@ static int spip3_probe(struct spi_device *spi)
 	ret = p3_clk_setup(&spi->dev, data);
 	if (ret) {
 		P3_ERR_MSG("%s - Failed to do clk_setup\n", __func__);
-		goto p3_parse_dt_failed;
+		goto err_regulator;
 	}
 #else
 	spi->bits_per_word = 8;
@@ -675,7 +669,7 @@ static int spip3_probe(struct spi_device *spi)
 	ret = spi_setup(spi);
 	if (ret < 0) {
 		P3_ERR_MSG("failed to do spi_setup()\n");
-		goto p3_parse_dt_failed;
+		goto err_regulator;
 	}
 #endif
 	data->speed = SPI_DEFAULT_SPEED;
@@ -730,6 +724,8 @@ err_misc_regi:
 	wake_lock_destroy(&data->ese_lock);
 #endif
 	mutex_destroy(&data->buffer_mutex);
+err_regulator:
+	p3_regulator_onoff(data, 0);
 p3_parse_dt_failed:
 	kfree(data);
 err_exit:

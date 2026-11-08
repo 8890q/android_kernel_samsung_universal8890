@@ -2871,6 +2871,8 @@
 		ese_spi@0 {
 			compatible = "ese_p3";
 			reg = <0>;
+			clocks = <&clock 271>, <&clock 279>;
+			clock-names = "pclk", "sclk";
 			spi-max-frequency = <13000000>;
 
 			gpio-controller;
