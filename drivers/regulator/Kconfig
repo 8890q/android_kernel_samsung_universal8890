@@ -442,6 +442,14 @@ config REGULATOR_MAX77802
 	  Exynos5420/Exynos5800 SoCs to control various voltages.
 	  It includes support for control of voltage and ramp speed.
 
+config REGULATOR_MAX77838
+	tristate "Maxim MAX77838 regulator"
+	depends on I2C
+	select REGMAP_I2C
+	help
+	  Support the four LDOs and buck regulator in the Maxim MAX77838.
+	  Herolte uses this chip for display and heart-rate sensor supplies.
+
 config REGULATOR_MC13XXX_CORE
 	tristate
 
