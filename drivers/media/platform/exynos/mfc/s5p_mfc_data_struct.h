@@ -21,7 +21,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-fh.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 
 /*
  * CONFIG_MFC_USE_BUS_DEVFREQ might be defined in exynos-mfc.h.
@@ -161,7 +161,7 @@ struct s5p_mfc_extra_buf;
  *
  */
 struct s5p_mfc_buf {
-	struct vb2_buffer vb;
+	struct vb2_v4l2_buffer vb;
 	struct list_head list;
 	union {
 		dma_addr_t raw[3];

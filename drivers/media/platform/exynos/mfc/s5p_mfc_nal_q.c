@@ -63,7 +63,7 @@ int s5p_mfc_nal_q_check_last_frame(struct s5p_mfc_ctx *ctx)
 	temp_vb = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 
-	if (temp_vb->vb.v4l2_buf.reserved2 & FLAG_LAST_FRAME)
+	if (to_vb2_v4l2_buffer(&temp_vb->vb.vb2_buf)->reserved2 & FLAG_LAST_FRAME)
 		return 1;
 	return 0;
 }
@@ -362,7 +362,7 @@ void s5p_mfc_nal_q_cleanup_queue(struct s5p_mfc_dev *dev)
 			list_del(&src_buf->list);
 			ctx->src_queue_cnt_nal_q--;
 			mfc_debug(2, "NAL Q: cleanup, src_queue_nal_q -> src_queue, index:%d\n",
-					src_buf->vb.v4l2_buf.index);
+					src_buf->vb.vb2_buf.index);
 			list_add(&src_buf->list, &ctx->src_queue);
 			ctx->src_queue_cnt++;
 		}
@@ -373,7 +373,7 @@ void s5p_mfc_nal_q_cleanup_queue(struct s5p_mfc_dev *dev)
 			list_del(&dst_buf->list);
 			ctx->dst_queue_cnt_nal_q--;
 			mfc_debug(2, "NAL Q: cleanup, dst_queue_nal_q -> dst_queue, index:%d\n",
-					dst_buf->vb.v4l2_buf.index);
+					dst_buf->vb.vb2_buf.index);
 			list_add(&dst_buf->list, &ctx->dst_queue);
 			ctx->dst_queue_cnt++;
 		}
@@ -495,7 +495,7 @@ int s5p_mfc_nal_q_set_in_buf_enc(struct s5p_mfc_ctx *ctx, EncoderInputStr *pInSt
 	src_buf->used = 1;
 
 	for (i = 0; i < raw->num_planes; i++) {
-		src_addr[i] = s5p_mfc_mem_plane_addr(ctx, &src_buf->vb, i);
+		src_addr[i] = s5p_mfc_mem_plane_addr(ctx, &src_buf->vb.vb2_buf, i);
 		mfc_debug(2, "NAL Q: enc src[%d] addr: 0x%08lx\n",
 				i, (unsigned long)src_addr[i]);
 	}
@@ -505,19 +505,19 @@ int s5p_mfc_nal_q_set_in_buf_enc(struct s5p_mfc_ctx *ctx, EncoderInputStr *pInSt
 
 	dst_buf = list_entry(ctx->dst_queue.next, struct s5p_mfc_buf, list);
 	dst_buf->used = 1;
-	s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb, 0);
+	s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb.vb2_buf, 0);
 
-	pInStr->StreamBufferAddr = s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb, 0);
-	pInStr->StreamBufferSize = (unsigned int)vb2_plane_size(&dst_buf->vb, 0);
+	pInStr->StreamBufferAddr = s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb.vb2_buf, 0);
+	pInStr->StreamBufferSize = (unsigned int)vb2_plane_size(&dst_buf->vb.vb2_buf, 0);
 
-	index = src_buf->vb.v4l2_buf.index;
+	index = src_buf->vb.vb2_buf.index;
 	if (call_cop(ctx, set_buf_ctrls_val_nal_q, ctx, &ctx->src_ctrls[index], pInStr) < 0)
 		mfc_err_ctx("NAL Q: failed in set_buf_ctrals_val in nal q\n");
 
 	mfc_debug(2, "NAL Q: input queue, src_queue -> src_queue_nal_q, index:%d\n",
-			src_buf->vb.v4l2_buf.index);
+			src_buf->vb.vb2_buf.index);
 	mfc_debug(2, "NAL Q: input queue, dst_queue -> dst_queue_nal_q, index:%d\n",
-			dst_buf->vb.v4l2_buf.index);
+			dst_buf->vb.vb2_buf.index);
 
 	pInStr->InstanceId = ctx->inst_no;
 	s5p_mfc_nal_q_set_slice_mode(ctx, pInStr);
@@ -607,41 +607,41 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 		/* at least one more dest. buffers exist always  */
 		dst_buf = list_entry(ctx->dst_queue_nal_q.next, struct s5p_mfc_buf, list);
 
-		dst_buf->vb.v4l2_buf.flags &=
+		to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags &=
 			~(V4L2_BUF_FLAG_KEYFRAME |
 			  V4L2_BUF_FLAG_PFRAME |
 			  V4L2_BUF_FLAG_BFRAME);
 
 		switch (slice_type) {
 		case S5P_FIMV_ENCODED_TYPE_I:
-			dst_buf->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_KEYFRAME;
 				break;
 		case S5P_FIMV_ENCODED_TYPE_P:
-			dst_buf->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_PFRAME;
 			break;
 		case S5P_FIMV_ENCODED_TYPE_B:
-			dst_buf->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_BFRAME;
 			break;
 		default:
-			dst_buf->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_KEYFRAME;
 			break;
 		}
-		mfc_debug(2, "NAL Q: Slice type : %d\n", dst_buf->vb.v4l2_buf.flags);
+		mfc_debug(2, "NAL Q: Slice type : %d\n", to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags);
 
 		list_del(&dst_buf->list);
 		ctx->dst_queue_cnt_nal_q--;
-		vb2_set_plane_payload(&dst_buf->vb, 0, strm_size);
+		vb2_set_plane_payload(&dst_buf->vb.vb2_buf, 0, strm_size);
 
-		index = dst_buf->vb.v4l2_buf.index;
+		index = dst_buf->vb.vb2_buf.index;
 		if (call_cop(ctx, get_buf_ctrls_val_nal_q, ctx,
 				&ctx->dst_ctrls[index], pOutStr) < 0)
 			mfc_err_ctx("NAL Q: failed in get_buf_ctrls_val in nal q\n");
 
-		vb2_buffer_done(&dst_buf->vb, VB2_BUF_STATE_DONE);
+		vb2_buffer_done(&dst_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 	}
 
 	if (slice_type >= 0) {
@@ -660,7 +660,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 						&ctx->src_queue_nal_q, list) {
 			for (i = 0; i < raw->num_planes; i++) {
 				mb_addr[i] = s5p_mfc_mem_plane_addr(ctx,
-							&src_buf->vb, i);
+							&src_buf->vb.vb2_buf, i);
 				mfc_debug(2, "NAL Q: enc src[%d] addr: 0x%08lx\n", i,
 						(unsigned long)mb_addr[i]);
 			}
@@ -669,7 +669,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 				list_del(&src_buf->list);
 				ctx->src_queue_cnt_nal_q--;
 
-				vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 				break;
 			}
 		}
@@ -677,7 +677,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 		list_for_each_entry(ref_buf, &enc->ref_queue, list) {
 			for (i = 0; i < raw->num_planes; i++) {
 				mb_addr[i] = s5p_mfc_mem_plane_addr(ctx,
-						&ref_buf->vb, i);
+						&ref_buf->vb.vb2_buf, i);
 				mfc_debug(2, "enc ref[%d] addr: 0x%08lx\n", i,
 						(unsigned long)mb_addr[i]);
 			}
@@ -686,7 +686,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 				list_del(&ref_buf->list);
 				enc->ref_queue_cnt--;
 
-				vb2_buffer_done(&ref_buf->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&ref_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 				break;
 			}
 		}
@@ -699,7 +699,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 			list_add_tail(&src_buf->list, &enc->ref_queue);
 			enc->ref_queue_cnt++;
 			mfc_debug(2, "NAL Q: no output, src_queue_nal_q -> ref_queue, index:%d\n",
-					src_buf->vb.v4l2_buf.index);
+					src_buf->vb.vb2_buf.index);
 		}
 		/* slice_type = 4 && strm_size = 0, skipped enable
 		   should be considered */
@@ -713,7 +713,7 @@ void s5p_mfc_nal_q_post_frame_enc(struct s5p_mfc_ctx *ctx, EncoderOutputStr *pOu
 			list_add(&dst_buf->list, &ctx->dst_queue);
 			ctx->dst_queue_cnt++;
 			mfc_debug(2, "NAL Q: no output, dst_queue_nal_q -> dst_queue, index:%d\n",
-					dst_buf->vb.v4l2_buf.index);
+					dst_buf->vb.vb2_buf.index);
 		}
 
 		mfc_debug(2, "NAL Q: slice_type: %d, ctx->state: %d\n", slice_type, ctx->state);

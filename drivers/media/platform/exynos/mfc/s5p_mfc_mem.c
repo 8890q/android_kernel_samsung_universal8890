@@ -11,7 +11,7 @@
  */
 
 #include <linux/dma-mapping.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-memops.h>
 #include <asm/cacheflush.h>
 #include <linux/firmware.h>
@@ -51,7 +51,7 @@ int s5p_mfc_mem_clean_vb(struct vb2_buffer *vb, u32 num_planes)
 		if (!cookie)
 			continue;
 
-		size = vb->v4l2_planes[i].length;
+		size = vb->planes[i].length;
 		vb2_ion_sync_for_device(cookie, 0, size, DMA_TO_DEVICE);
 	}
 
@@ -69,7 +69,7 @@ int s5p_mfc_mem_inv_vb(struct vb2_buffer *vb, u32 num_planes)
 		if (!cookie)
 			continue;
 
-		size = vb->v4l2_planes[i].length;
+		size = vb->planes[i].length;
 		vb2_ion_sync_for_device(cookie, 0, size, DMA_FROM_DEVICE);
 	}
 
@@ -83,7 +83,7 @@ int s5p_mfc_mem_flush_vb(struct vb2_buffer *vb, u32 num_planes)
 	enum dma_data_direction dir;
 	size_t size;
 
-	dir = V4L2_TYPE_IS_OUTPUT(vb->v4l2_buf.type) ?
+	dir = V4L2_TYPE_IS_OUTPUT(vb->type) ?
 					DMA_TO_DEVICE : DMA_FROM_DEVICE;
 
 	for (i = 0; i < num_planes; i++) {
@@ -91,7 +91,7 @@ int s5p_mfc_mem_flush_vb(struct vb2_buffer *vb, u32 num_planes)
 		if (!cookie)
 			continue;
 
-		size = vb->v4l2_planes[i].length;
+		size = vb->planes[i].length;
 		vb2_ion_sync_for_device(cookie, 0, size, dir);
 	}
 

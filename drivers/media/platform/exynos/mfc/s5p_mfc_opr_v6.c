@@ -411,7 +411,7 @@ static int mfc_set_dynamic_dpb(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *dst_
 	int dst_index;
 	int i;
 
-	dst_index = dst_vb->vb.v4l2_buf.index;
+	dst_index = dst_vb->vb.vb2_buf.index;
 	dst_vb->used = 1;
 	set_bit(dst_index, &dec->dpb_status);
 	dec->dynamic_set = 1 << dst_index;
@@ -479,7 +479,7 @@ static inline int s5p_mfc_run_dec_last_frames(struct s5p_mfc_ctx *ctx)
 
 		/* decoder src buffer CFW PROT */
 		if (ctx->is_drm) {
-			int index = temp_vb->vb.v4l2_buf.index;
+			int index = temp_vb->vb.vb2_buf.index;
 
 			if (!test_bit(index, &ctx->stream_protect_flag)) {
 				if (s5p_mfc_stream_buf_prot(ctx, temp_vb, true))
@@ -526,7 +526,7 @@ static struct s5p_mfc_buf *search_for_DPB(struct s5p_mfc_ctx *ctx)
 	mfc_debug(2, "Failed to find non-referenced DPB\n");
 
 	list_for_each_entry(dst_vb, &dec->ref_queue, list) {
-		temp_index = dst_vb->vb.v4l2_buf.index;
+		temp_index = dst_vb->vb.vb2_buf.index;
 		if ((dec->dynamic_used & (1 << temp_index)) == 0) {
 			found = 1;
 			break;
@@ -620,12 +620,12 @@ static inline int s5p_mfc_run_dec_frame(struct s5p_mfc_ctx *ctx)
 	temp_vb->used = 1;
 	mfc_debug(2, "Temp vb: %p\n", temp_vb);
 	mfc_debug(2, "Src Addr: 0x%08lx\n",
-		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &temp_vb->vb, 0));
+		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &temp_vb->vb.vb2_buf, 0));
 
 	/* decoder src buffer CFW PROT */
 	if (ctx->is_drm) {
 		if (!dec->consumed && !temp_vb->consumed) {
-			index = temp_vb->vb.v4l2_buf.index;
+			index = temp_vb->vb.vb2_buf.index;
 			if (!test_bit(index, &ctx->stream_protect_flag)) {
 				if (s5p_mfc_stream_buf_prot(ctx, temp_vb, true))
 					mfc_err_ctx("failed to CFW_PROT\n");
@@ -637,20 +637,20 @@ static inline int s5p_mfc_run_dec_frame(struct s5p_mfc_ctx *ctx)
 		}
 	}
 
-	if (temp_vb->vb.v4l2_buf.reserved2 & FLAG_EMPTY_DATA)
-		temp_vb->vb.v4l2_planes[0].bytesused = 0;
+	if (to_vb2_v4l2_buffer(&temp_vb->vb.vb2_buf)->reserved2 & FLAG_EMPTY_DATA)
+		temp_vb->vb.vb2_buf.planes[0].bytesused = 0;
 
 	if (dec->consumed) {
 		s5p_mfc_set_dec_stream_buffer(ctx, temp_vb, dec->consumed, dec->remained_size);
 	} else {
 		if (temp_vb->consumed)
-			size = temp_vb->vb.v4l2_planes[0].bytesused - temp_vb->consumed;
+			size = temp_vb->vb.vb2_buf.planes[0].bytesused - temp_vb->consumed;
 		else
-			size = temp_vb->vb.v4l2_planes[0].bytesused;
+			size = temp_vb->vb.vb2_buf.planes[0].bytesused;
 		s5p_mfc_set_dec_stream_buffer(ctx, temp_vb, temp_vb->consumed, size);
 	}
 
-	index = temp_vb->vb.v4l2_buf.index;
+	index = temp_vb->vb.vb2_buf.index;
 	if (call_cop(ctx, set_buf_ctrls_val, ctx, &ctx->src_ctrls[index]) < 0)
 		mfc_err_ctx("failed in set_buf_ctrls_val\n");
 
@@ -660,7 +660,7 @@ static inline int s5p_mfc_run_dec_frame(struct s5p_mfc_ctx *ctx)
 
 			/* Try to use the non-referenced DPB on dst-queue */
 			list_for_each_entry(dst_vb, &ctx->dst_queue, list) {
-				temp_index = dst_vb->vb.v4l2_buf.index;
+				temp_index = dst_vb->vb.vb2_buf.index;
 				if ((dec->dynamic_used & (1 << temp_index)) == 0) {
 					found = 1;
 					break;
@@ -686,7 +686,7 @@ static inline int s5p_mfc_run_dec_frame(struct s5p_mfc_ctx *ctx)
 
 	s5p_mfc_clean_ctx_int_flags(ctx);
 
-	if (temp_vb->vb.v4l2_buf.reserved2 & FLAG_LAST_FRAME) {
+	if (to_vb2_v4l2_buffer(&temp_vb->vb.vb2_buf)->reserved2 & FLAG_LAST_FRAME) {
 		last_frame = 1;
 		mfc_debug(2, "Setting ctx->state to FINISHING\n");
 		s5p_mfc_change_state(ctx, MFCINST_FINISHING);
@@ -728,7 +728,7 @@ static inline int s5p_mfc_run_enc_last_frames(struct s5p_mfc_ctx *ctx)
 
 	/* encoder dst buffer CFW PROT */
 	if (ctx->is_drm) {
-		int index = dst_mb->vb.v4l2_buf.index;
+		int index = dst_mb->vb.vb2_buf.index;
 
 		if (!test_bit(index, &ctx->stream_protect_flag)) {
 			if (s5p_mfc_stream_buf_prot(ctx, dst_mb, true))
@@ -779,7 +779,7 @@ static inline int s5p_mfc_run_enc_frame(struct s5p_mfc_ctx *ctx)
 	src_mb = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
 	src_mb->used = 1;
 
-	if (src_mb->vb.v4l2_buf.reserved2 & FLAG_LAST_FRAME) {
+	if (to_vb2_v4l2_buffer(&src_mb->vb.vb2_buf)->reserved2 & FLAG_LAST_FRAME) {
 		last_frame = 1;
 		mfc_debug(2, "Setting ctx->state to FINISHING\n");
 		s5p_mfc_change_state(ctx, MFCINST_FINISHING);
@@ -789,12 +789,12 @@ static inline int s5p_mfc_run_enc_frame(struct s5p_mfc_ctx *ctx)
 		src_addr[i] = src_mb->planes.raw[i];
 		mfc_debug(2, "enc src[%d] addr: 0x%08llx\n", i, src_addr[i]);
 	}
-	if (src_mb->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &src_mb->vb, 0))
+	if (src_mb->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &src_mb->vb.vb2_buf, 0))
 		mfc_err_ctx("enc src yaddr: 0x%08llx != vb2 yaddr: 0x%08llx\n",
 				src_mb->planes.raw[i],
-				s5p_mfc_mem_plane_addr(ctx, &src_mb->vb, i));
+				s5p_mfc_mem_plane_addr(ctx, &src_mb->vb.vb2_buf, i));
 
-	index = src_mb->vb.v4l2_buf.index;
+	index = src_mb->vb.vb2_buf.index;
 
 	/* encoder src buffer CFW PROT */
 	if (ctx->is_drm) {
@@ -815,7 +815,7 @@ static inline int s5p_mfc_run_enc_frame(struct s5p_mfc_ctx *ctx)
 
 	/* encoder dst buffer CFW PROT */
 	if (ctx->is_drm) {
-		i = dst_mb->vb.v4l2_buf.index;
+		i = dst_mb->vb.vb2_buf.index;
 		if (!test_bit(i, &ctx->stream_protect_flag)) {
 			if (s5p_mfc_stream_buf_prot(ctx, dst_mb, true))
 				mfc_err_ctx("failed to CFW_PROT\n");
@@ -826,9 +826,9 @@ static inline int s5p_mfc_run_enc_frame(struct s5p_mfc_ctx *ctx)
 				i, ctx->stream_protect_flag);
 	}
 	mfc_debug(2, "nal start : src index from src_queue:%d\n",
-		src_mb->vb.v4l2_buf.index);
+		src_mb->vb.vb2_buf.index);
 	mfc_debug(2, "nal start : dst index from dst_queue:%d\n",
-		dst_mb->vb.v4l2_buf.index);
+		dst_mb->vb.vb2_buf.index);
 
 	s5p_mfc_set_enc_stream_buffer(ctx, dst_mb);
 
@@ -872,16 +872,16 @@ static inline int s5p_mfc_run_init_dec(struct s5p_mfc_ctx *ctx)
 	mfc_debug(2, "Preparing to init decoding.\n");
 	temp_vb = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
 	mfc_debug(2, "Header size: %d, (offset: %d)\n",
-		temp_vb->vb.v4l2_planes[0].bytesused, temp_vb->consumed);
+		temp_vb->vb.vb2_buf.planes[0].bytesused, temp_vb->consumed);
 
 
 	if (temp_vb->consumed) {
 		s5p_mfc_set_dec_stream_buffer(ctx, temp_vb, temp_vb->consumed,
-			temp_vb->vb.v4l2_planes[0].bytesused - temp_vb->consumed);
+			temp_vb->vb.vb2_buf.planes[0].bytesused - temp_vb->consumed);
 	} else {
 		/* decoder src buffer CFW PROT */
 		if (ctx->is_drm) {
-			int index = temp_vb->vb.v4l2_buf.index;
+			int index = temp_vb->vb.vb2_buf.index;
 
 			if (!test_bit(index, &ctx->stream_protect_flag)) {
 				if (s5p_mfc_stream_buf_prot(ctx, temp_vb, true))
@@ -894,12 +894,12 @@ static inline int s5p_mfc_run_init_dec(struct s5p_mfc_ctx *ctx)
 		}
 
 		s5p_mfc_set_dec_stream_buffer(ctx, temp_vb,
-			0, temp_vb->vb.v4l2_planes[0].bytesused);
+			0, temp_vb->vb.vb2_buf.planes[0].bytesused);
 	}
 
 	spin_unlock_irqrestore(&dev->irqlock, flags);
 	mfc_debug(2, "Header addr: 0x%08lx\n",
-		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &temp_vb->vb, 0));
+		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &temp_vb->vb.vb2_buf, 0));
 	s5p_mfc_clean_ctx_int_flags(ctx);
 	s5p_mfc_init_decode(ctx);
 
@@ -924,7 +924,7 @@ static inline int s5p_mfc_run_init_enc(struct s5p_mfc_ctx *ctx)
 	dst_mb = list_entry(ctx->dst_queue.next, struct s5p_mfc_buf, list);
 	/* encoder dst buffer CFW PROT */
 	if (ctx->is_drm) {
-		int index = dst_mb->vb.v4l2_buf.index;
+		int index = dst_mb->vb.vb2_buf.index;
 
 		if (!test_bit(index, &ctx->stream_protect_flag)) {
 			if (s5p_mfc_stream_buf_prot(ctx, dst_mb, true))
@@ -942,7 +942,7 @@ static inline int s5p_mfc_run_init_enc(struct s5p_mfc_ctx *ctx)
 	s5p_mfc_set_stride_enc(ctx);
 
 	mfc_debug(2, "Header addr: 0x%08lx\n",
-		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &dst_mb->vb, 0));
+		(unsigned long)s5p_mfc_mem_plane_addr(ctx, &dst_mb->vb.vb2_buf, 0));
 	s5p_mfc_clean_ctx_int_flags(ctx);
 
 	ret = s5p_mfc_init_encode(ctx);

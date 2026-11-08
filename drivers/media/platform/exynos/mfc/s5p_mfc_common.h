@@ -72,7 +72,7 @@
 #define MFC_CONCEAL_COLOR	0x8020000
 
 #define vb_to_mfc_buf(x)	\
-	container_of(x, struct s5p_mfc_buf, vb)
+	container_of(to_vb2_v4l2_buffer(x), struct s5p_mfc_buf, vb)
 
 #define	MFC_CTRL_TYPE_GET	(MFC_CTRL_TYPE_GET_SRC | MFC_CTRL_TYPE_GET_DST)
 #define	MFC_CTRL_TYPE_SRC	(MFC_CTRL_TYPE_SET | MFC_CTRL_TYPE_GET_SRC)

@@ -19,7 +19,7 @@
 #include <linux/version.h>
 #include <linux/workqueue.h>
 #include <linux/videodev2.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 #include <linux/v4l2-controls.h>
 
 #include "s5p_mfc_enc.h"
@@ -1092,7 +1092,7 @@ static void cleanup_ref_queue(struct s5p_mfc_ctx *ctx)
 		mb_entry = list_entry((&enc->ref_queue)->next, struct s5p_mfc_buf, list);
 
 		mfc_debug(2, "enc ref addr: 0x%08llx",
-			s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb, 0));
+			s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb.vb2_buf, 0));
 		for (i = 0; i < ctx->raw_buf.num_planes; i++)
 			mfc_debug(2, "ref plane[%d] addr: 0x%08llx",
 					i, mb_entry->planes.raw[i]);
@@ -1146,12 +1146,12 @@ static int enc_post_seq_start(struct s5p_mfc_ctx *ctx)
 		list_del(&dst_mb->list);
 		ctx->dst_queue_cnt--;
 
-		vb2_set_plane_payload(&dst_mb->vb, 0, s5p_mfc_get_enc_strm_size());
-		vb2_buffer_done(&dst_mb->vb, VB2_BUF_STATE_DONE);
+		vb2_set_plane_payload(&dst_mb->vb.vb2_buf, 0, s5p_mfc_get_enc_strm_size());
+		vb2_buffer_done(&dst_mb->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 		/* encoder dst buffer CFW UNPROT */
 		if (ctx->is_drm) {
-			int index = dst_mb->vb.v4l2_buf.index;
+			int index = dst_mb->vb.vb2_buf.index;
 
 			if (test_bit(index, &ctx->stream_protect_flag)) {
 				if (s5p_mfc_stream_buf_prot(ctx, dst_mb, false))
@@ -1205,10 +1205,10 @@ static int enc_pre_frame_start(struct s5p_mfc_ctx *ctx)
 		src_addr[i] = src_mb->planes.raw[i];
 		mfc_debug(2, "enc src[%d] addr: 0x%08llx\n", i, src_addr[i]);
 	}
-	if (src_mb->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &src_mb->vb, 0))
+	if (src_mb->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &src_mb->vb.vb2_buf, 0))
 		mfc_err_ctx("enc src yaddr: 0x%08llx != vb2 yaddr: 0x%08llx\n",
 				src_mb->planes.raw[i],
-				s5p_mfc_mem_plane_addr(ctx, &src_mb->vb, i));
+				s5p_mfc_mem_plane_addr(ctx, &src_mb->vb.vb2_buf, i));
 
 	s5p_mfc_set_enc_frame_buffer(ctx, &src_addr[0], raw->num_planes);
 
@@ -1315,36 +1315,36 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 		/* at least one more dest. buffers exist always  */
 		mb_entry = list_entry(ctx->dst_queue.next, struct s5p_mfc_buf, list);
 
-		mb_entry->vb.v4l2_buf.flags &=
+		to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags &=
 			~(V4L2_BUF_FLAG_KEYFRAME |
 			  V4L2_BUF_FLAG_PFRAME |
 			  V4L2_BUF_FLAG_BFRAME);
 
 		switch (slice_type) {
 		case S5P_FIMV_ENCODED_TYPE_I:
-			mb_entry->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_KEYFRAME;
 			break;
 		case S5P_FIMV_ENCODED_TYPE_P:
-			mb_entry->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_PFRAME;
 			break;
 		case S5P_FIMV_ENCODED_TYPE_B:
-			mb_entry->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_BFRAME;
 			break;
 		default:
-			mb_entry->vb.v4l2_buf.flags |=
+			to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags |=
 				V4L2_BUF_FLAG_KEYFRAME;
 			break;
 		}
-		mfc_debug(2, "Slice type : %d\n", mb_entry->vb.v4l2_buf.flags);
+		mfc_debug(2, "Slice type : %d\n", to_vb2_v4l2_buffer(&mb_entry->vb.vb2_buf)->flags);
 
 		list_del(&mb_entry->list);
 		ctx->dst_queue_cnt--;
-		vb2_set_plane_payload(&mb_entry->vb, 0, strm_size);
+		vb2_set_plane_payload(&mb_entry->vb.vb2_buf, 0, strm_size);
 
-		index = mb_entry->vb.v4l2_buf.index;
+		index = mb_entry->vb.vb2_buf.index;
 		if (call_cop(ctx, get_buf_ctrls_val, ctx, &ctx->dst_ctrls[index]) < 0)
 			mfc_err_ctx("failed in get_buf_ctrls_val\n");
 
@@ -1354,7 +1354,7 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 				V4L2_CID_MPEG_MFC51_VIDEO_FRAME_TAG,
 				enc->stored_tag);
 
-		vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
+		vb2_buffer_done(&mb_entry->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 		/* encoder dst buffer CFW UNPROT */
 		if (ctx->is_drm) {
@@ -1400,13 +1400,13 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 				mfc_debug(2, "enc src[%d] addr: 0x%08llx\n",
 						i, mb_addr[i]);
 			}
-			if (mb_entry->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb, 0))
+			if (mb_entry->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb.vb2_buf, 0))
 				mfc_err_ctx("enc src yaddr: 0x%08llx != vb2 yaddr: 0x%08llx\n",
 						mb_entry->planes.raw[i],
-						s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb, i));
+						s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb.vb2_buf, i));
 
 			if (enc_addr[0] == mb_addr[0]) {
-				index = mb_entry->vb.v4l2_buf.index;
+				index = mb_entry->vb.vb2_buf.index;
 				if (call_cop(ctx, recover_buf_ctrls_val, ctx,
 						&ctx->src_ctrls[index]) < 0)
 					mfc_err_ctx("failed in recover_buf_ctrls_val\n");
@@ -1414,7 +1414,7 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 				list_del(&mb_entry->list);
 				ctx->src_queue_cnt--;
 
-				vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&mb_entry->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 				/* encoder src buffer CFW UNPROT */
 				if (ctx->is_drm) {
@@ -1437,20 +1437,20 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 				mfc_debug(2, "enc ref[%d] addr: 0x%08llx\n",
 							i, mb_addr[i]);
 			}
-			if (mb_entry->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb, 0))
+			if (mb_entry->planes.raw[0] != s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb.vb2_buf, 0))
 				mfc_err_ctx("enc ref yaddr: 0x%08llx != vb2 yaddr: 0x%08llx\n",
 						mb_entry->planes.raw[i],
-						s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb, i));
+						s5p_mfc_mem_plane_addr(ctx, &mb_entry->vb.vb2_buf, i));
 
 			if (enc_addr[0] == mb_addr[0]) {
 				list_del(&mb_entry->list);
 				enc->ref_queue_cnt--;
 
-				vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&mb_entry->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 				/* encoder src buffer CFW UNPROT */
 				if (ctx->is_drm) {
-					index = mb_entry->vb.v4l2_buf.index;
+					index = mb_entry->vb.vb2_buf.index;
 					if (test_bit(index, &ctx->raw_protect_flag)) {
 						if (s5p_mfc_raw_buf_prot(ctx, mb_entry, false))
 							mfc_err_ctx("failed to CFW_PROT\n");
@@ -1469,11 +1469,11 @@ static int enc_post_frame_start(struct s5p_mfc_ctx *ctx)
 		list_del(&mb_entry->list);
 		ctx->src_queue_cnt--;
 
-		vb2_buffer_done(&mb_entry->vb, VB2_BUF_STATE_DONE);
+		vb2_buffer_done(&mb_entry->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 		/* encoder src buffer CFW UNPROT */
 		if (ctx->is_drm) {
-			index = mb_entry->vb.v4l2_buf.index;
+			index = mb_entry->vb.vb2_buf.index;
 			if (test_bit(index, &ctx->raw_protect_flag)) {
 				if (s5p_mfc_raw_buf_prot(ctx, mb_entry, false))
 					mfc_err_ctx("failed to CFW_PROT\n");
@@ -3303,7 +3303,7 @@ static const struct v4l2_ioctl_ops s5p_mfc_enc_ioctl_ops = {
 };
 
 static int s5p_mfc_queue_setup(struct vb2_queue *vq,
-				const struct v4l2_format *fmt,
+				const void *parg,
 				unsigned int *buf_count, unsigned int *plane_count,
 				unsigned int psize[], void *allocators[])
 {
@@ -3419,7 +3419,7 @@ static int s5p_mfc_buf_init(struct vb2_buffer *vb)
 		buf->planes.stream = s5p_mfc_mem_plane_addr(ctx, vb, 0);
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_DST,
-					vb->v4l2_buf.index) < 0)
+					vb->index) < 0)
 			mfc_err_ctx("failed in init_buf_ctrls\n");
 
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
@@ -3451,7 +3451,7 @@ static int s5p_mfc_buf_init(struct vb2_buffer *vb)
 		}
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_SRC,
-					vb->v4l2_buf.index) < 0)
+					vb->index) < 0)
 			mfc_err_ctx("failed in init_buf_ctrls\n");
 
 	} else {
@@ -3470,7 +3470,7 @@ static int s5p_mfc_buf_prepare(struct vb2_buffer *vb)
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
 	struct s5p_mfc_enc *enc = ctx->enc_priv;
 	struct s5p_mfc_raw_info *raw;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 	int ret, i;
 
 	mfc_debug_enter();
@@ -3531,7 +3531,7 @@ static void s5p_mfc_buf_finish(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 
 
 	if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
@@ -3549,7 +3549,7 @@ static void s5p_mfc_buf_cleanup(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 
 	mfc_debug_enter();
 
@@ -3659,7 +3659,7 @@ static void s5p_mfc_stop_streaming(struct vb2_queue *q)
 			mfc_debug(2, "stream_protect_flag(%#lx) will be released\n",
 					ctx->stream_protect_flag);
 			list_for_each_entry(dst_buf, &ctx->dst_queue, list) {
-				i = dst_buf->vb.v4l2_buf.index;
+				i = dst_buf->vb.vb2_buf.index;
 				if (test_bit(i, &ctx->stream_protect_flag)) {
 					if (s5p_mfc_stream_buf_prot(ctx, dst_buf, false))
 						mfc_err_ctx("failed to CFW_UNPROT\n");
@@ -3689,7 +3689,7 @@ static void s5p_mfc_stop_streaming(struct vb2_queue *q)
 			mfc_debug(2, "raw_protect_flag(%#lx) will be released\n",
 					ctx->raw_protect_flag);
 			list_for_each_entry(src_buf, &ctx->src_queue, list) {
-				i = src_buf->vb.v4l2_buf.index;
+				i = src_buf->vb.vb2_buf.index;
 				if (test_bit(i, &ctx->raw_protect_flag)) {
 					if (s5p_mfc_raw_buf_prot(ctx, src_buf, false))
 						mfc_err_ctx("failed to CFW_UNPROT\n");

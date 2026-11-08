@@ -68,9 +68,9 @@ void s5p_mfc_cleanup_queue(struct list_head *lh)
 
 	while (!list_empty(lh)) {
 		b = list_entry(lh->next, struct s5p_mfc_buf, list);
-		for (i = 0; i < b->vb.num_planes; i++)
-			vb2_set_plane_payload(&b->vb, i, 0);
-		vb2_buffer_done(&b->vb, VB2_BUF_STATE_ERROR);
+		for (i = 0; i < b->vb.vb2_buf.num_planes; i++)
+			vb2_set_plane_payload(&b->vb.vb2_buf, i, 0);
+		vb2_buffer_done(&b->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		list_del(&b->list);
 	}
 }
@@ -97,7 +97,7 @@ int check_vb_with_fmt(struct s5p_mfc_fmt *fmt, struct vb2_buffer *vb)
 		}
 
 		mfc_debug(2, "index: %d, plane[%d] cookie: 0x%08llx\n",
-				vb->v4l2_buf.index, i,
+				vb->index, i,
 				s5p_mfc_mem_plane_addr(ctx, vb, i));
 	}
 
@@ -126,7 +126,7 @@ int s5p_mfc_stream_buf_prot(struct s5p_mfc_ctx *ctx,
 	else
 		cmd_id = SMC_DRM_SECBUF_CFW_UNPROT;
 
-	cookie = vb2_plane_cookie(&buf->vb, 0);
+	cookie = vb2_plane_cookie(&buf->vb.vb2_buf, 0);
 	addr = s5p_mfc_mem_phys_addr(cookie);
 
 	if (ctx->type == MFCINST_DECODER) {
@@ -194,7 +194,7 @@ int s5p_mfc_raw_buf_prot(struct s5p_mfc_ctx *ctx,
 		cmd_id = SMC_DRM_SECBUF_CFW_UNPROT;
 
 	for (i = 0; i < num_planes; i++) {
-		cookie = vb2_plane_cookie(&buf->vb, i);
+		cookie = vb2_plane_cookie(&buf->vb.vb2_buf, i);
 		addr = s5p_mfc_mem_phys_addr(cookie);
 		if (num_planes == 1) {
 			ret = exynos_smc(cmd_id, addr, raw->total_plane_size, dev->id);

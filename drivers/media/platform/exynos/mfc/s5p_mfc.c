@@ -23,7 +23,7 @@
 #include <linux/videodev2.h>
 #include <linux/proc_fs.h>
 #include <video/videonode.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 #include <linux/of.h>
 #include <linux/exynos_iovmm.h>
 #include <linux/exynos_ion.h>
@@ -248,7 +248,7 @@ int get_interval(struct list_head *head, struct list_head *entry)
 }
 
 static inline int dec_add_timestamp(struct s5p_mfc_ctx *ctx,
-			struct v4l2_buffer *buf, struct list_head *entry)
+			struct vb2_v4l2_buffer *buf, struct list_head *entry)
 {
 	int replace_entry = 0;
 	struct mfc_timestamp *curr_ts = &ctx->ts_array[ctx->ts_count];
@@ -277,7 +277,7 @@ static inline int dec_add_timestamp(struct s5p_mfc_ctx *ctx,
 	return 0;
 }
 
-int get_framerate_by_timestamp(struct s5p_mfc_ctx *ctx, struct v4l2_buffer *buf)
+int get_framerate_by_timestamp(struct s5p_mfc_ctx *ctx, struct vb2_v4l2_buffer *buf)
 {
 	struct mfc_timestamp *temp_ts;
 	int found;
@@ -478,26 +478,26 @@ static void s5p_mfc_handle_frame_all_extracted(struct s5p_mfc_ctx *ctx)
 		dst_buf = list_entry(ctx->dst_queue.next,
 				     struct s5p_mfc_buf, list);
 		mfc_debug(2, "Cleaning up buffer: %d\n",
-					  dst_buf->vb.v4l2_buf.index);
+					  dst_buf->vb.vb2_buf.index);
 		if (interlaced_cond(ctx))
 			is_interlace = s5p_mfc_is_interlace_picture();
 		for (i = 0; i < ctx->dst_fmt->mem_planes; i++)
-			vb2_set_plane_payload(&dst_buf->vb, i, 0);
+			vb2_set_plane_payload(&dst_buf->vb.vb2_buf, i, 0);
 		list_del(&dst_buf->list);
 		ctx->dst_queue_cnt--;
-		dst_buf->vb.v4l2_buf.sequence = (ctx->sequence++);
+		to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->sequence = (ctx->sequence++);
 		if (is_interlace) {
 			interlace_type = s5p_mfc_get_interlace_type();
 			if (interlace_type)
-				dst_buf->vb.v4l2_buf.field = V4L2_FIELD_INTERLACED_TB;
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_INTERLACED_TB;
 			else
-				dst_buf->vb.v4l2_buf.field = V4L2_FIELD_INTERLACED_BT;
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_INTERLACED_BT;
 		}
 		else
-			dst_buf->vb.v4l2_buf.field = V4L2_FIELD_NONE;
-		clear_bit(dst_buf->vb.v4l2_buf.index, &dec->dpb_status);
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_NONE;
+		clear_bit(dst_buf->vb.vb2_buf.index, &dec->dpb_status);
 
-		index = dst_buf->vb.v4l2_buf.index;
+		index = dst_buf->vb.vb2_buf.index;
 		if (call_cop(ctx, get_buf_ctrls_val, ctx, &ctx->dst_ctrls[index]) < 0)
 			mfc_err_ctx("failed in get_buf_ctrls_val\n");
 
@@ -518,7 +518,7 @@ static void s5p_mfc_handle_frame_all_extracted(struct s5p_mfc_ctx *ctx)
 				0);
 		}
 
-		vb2_buffer_done(&dst_buf->vb, VB2_BUF_STATE_DONE);
+		vb2_buffer_done(&dst_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 		/* decoder dst buffer CFW UNPROT */
 		if (ctx->is_drm) {
@@ -533,7 +533,7 @@ static void s5p_mfc_handle_frame_all_extracted(struct s5p_mfc_ctx *ctx)
 		}
 
 		mfc_debug(2, "Cleaned up buffer: %d\n",
-			  dst_buf->vb.v4l2_buf.index);
+			  dst_buf->vb.vb2_buf.index);
 	}
 	if (ctx->state != MFCINST_ABORT && ctx->state != MFCINST_HEAD_PARSED &&
 			ctx->state != MFCINST_RES_CHANGE_FLUSH)
@@ -555,7 +555,7 @@ static void mfc_check_ref_frame(struct s5p_mfc_ctx *ctx,
 	int found = 0;
 
 	list_for_each_entry_safe(ref_buf, tmp_buf, ref_list, list) {
-		index = ref_buf->vb.v4l2_buf.index;
+		index = ref_buf->vb.vb2_buf.index;
 		if (index == ref_index) {
 			list_del(&ref_buf->list);
 			dec->ref_queue_cnt--;
@@ -564,7 +564,7 @@ static void mfc_check_ref_frame(struct s5p_mfc_ctx *ctx,
 			ctx->dst_queue_cnt++;
 
 			dec->assigned_fd[index] =
-					ref_buf->vb.v4l2_planes[0].m.fd;
+					ref_buf->vb.vb2_buf.planes[0].m.fd;
 			clear_bit(index, &dec->dpb_status);
 			mfc_debug(2, "Move buffer[%d], fd[%d] to dst queue\n",
 					index, dec->assigned_fd[index]);
@@ -576,10 +576,10 @@ static void mfc_check_ref_frame(struct s5p_mfc_ctx *ctx,
 	if (is_h264(ctx) && !found) {
 		dst_list = &ctx->dst_queue;
 		list_for_each_entry_safe(ref_buf, tmp_buf, dst_list, list) {
-			index = ref_buf->vb.v4l2_buf.index;
+			index = ref_buf->vb.vb2_buf.index;
 			if (index == ref_index && ref_buf->already) {
 				dec->assigned_fd[index] =
-					ref_buf->vb.v4l2_planes[0].m.fd;
+					ref_buf->vb.vb2_buf.planes[0].m.fd;
 				clear_bit(index, &dec->dpb_status);
 				mfc_debug(2, "re-assigned buffer[%d], fd[%d] for H264\n",
 						index, dec->assigned_fd[index]);
@@ -650,10 +650,10 @@ static void s5p_mfc_handle_frame_copy_timestamp(struct s5p_mfc_ctx *ctx)
 	/* Copy timestamp from consumed src buffer to decoded dst buffer */
 	src_buf = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
 	list_for_each_entry(dst_buf, dst_queue_addr, list) {
-		if (s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb, 0) ==
+		if (s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb.vb2_buf, 0) ==
 								dec_y_addr) {
-			memcpy(&dst_buf->vb.v4l2_buf.timestamp,
-					&src_buf->vb.v4l2_buf.timestamp,
+			memcpy(&to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->timestamp,
+					&to_vb2_v4l2_buffer(&src_buf->vb.vb2_buf)->timestamp,
 					sizeof(struct timeval));
 			break;
 		}
@@ -770,14 +770,14 @@ static void s5p_mfc_handle_frame_new(struct s5p_mfc_ctx *ctx, unsigned int err)
 	}
 
 	list_for_each_entry(dst_buf, dst_queue_addr, list) {
-		mfc_debug(2, "Listing: %d\n", dst_buf->vb.v4l2_buf.index);
+		mfc_debug(2, "Listing: %d\n", dst_buf->vb.vb2_buf.index);
 		/* Check if this is the buffer we're looking for */
 		mfc_debug(2, "0x%08llx, 0x%08llx\n",
 			(unsigned long long)s5p_mfc_mem_plane_addr(ctx,
-			&dst_buf->vb, 0),(unsigned long long)dspl_y_addr);
-		if (s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb, 0)
+			&dst_buf->vb.vb2_buf, 0),(unsigned long long)dspl_y_addr);
+		if (s5p_mfc_mem_plane_addr(ctx, &dst_buf->vb.vb2_buf, 0)
 							== dspl_y_addr) {
-			index = dst_buf->vb.v4l2_buf.index;
+			index = dst_buf->vb.vb2_buf.index;
 			if ((ctx->codec_mode == S5P_FIMV_CODEC_VC1RCV_DEC &&
 					s5p_mfc_err_dspl(err) == S5P_FIMV_ERR_SYNC_POINT_NOT_RECEIVED) ||
 					(s5p_mfc_err_dspl(err) == S5P_FIMV_ERR_BROKEN_LINK)) {
@@ -806,56 +806,56 @@ static void s5p_mfc_handle_frame_new(struct s5p_mfc_ctx *ctx, unsigned int err)
 			else
 				ctx->dst_queue_cnt--;
 
-			dst_buf->vb.v4l2_buf.sequence = ctx->sequence;
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->sequence = ctx->sequence;
 
 			if (is_interlace) {
 				interlace_type = s5p_mfc_get_interlace_type();
 				if (interlace_type)
-					dst_buf->vb.v4l2_buf.field = V4L2_FIELD_INTERLACED_TB;
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_INTERLACED_TB;
 				else
-					dst_buf->vb.v4l2_buf.field = V4L2_FIELD_INTERLACED_BT;
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_INTERLACED_BT;
 			}
 			else
-				dst_buf->vb.v4l2_buf.field = V4L2_FIELD_NONE;
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->field = V4L2_FIELD_NONE;
 			mfc_debug(2, "is_interlace : %d interlace_type : %d\n",
 				is_interlace, interlace_type);
 
 			/* Set reserved2 bits in order to inform SEI information */
-			dst_buf->vb.v4l2_buf.reserved2 = 0;
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 = 0;
 			if (is_content_light) {
-				dst_buf->vb.v4l2_buf.reserved2 |= (1 << 0);
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 |= (1 << 0);
 				mfc_debug(2, "content light level parsed\n");
 			}
 			if (is_display_colour) {
-				dst_buf->vb.v4l2_buf.reserved2 |= (1 << 1);
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 |= (1 << 1);
 				mfc_debug(2, "mastering display colour parsed\n");
 			}
 			if (is_video_signal_type) {
-				dst_buf->vb.v4l2_buf.reserved2 |= (1 << 4);
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 |= (1 << 4);
 				mfc_debug(2, "video signal type parsed\n");
 				if (is_colour_description) {
-					dst_buf->vb.v4l2_buf.reserved2 |= (1 << 2);
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 |= (1 << 2);
 					mfc_debug(2, "matrix coefficients parsed\n");
-					dst_buf->vb.v4l2_buf.reserved2 |= (1 << 3);
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->reserved2 |= (1 << 3);
 					mfc_debug(2, "colour description parsed\n");
 				}
 			}
 
 			if (ctx->src_fmt->mem_planes == 1) {
-				vb2_set_plane_payload(&dst_buf->vb, 0,
+				vb2_set_plane_payload(&dst_buf->vb.vb2_buf, 0,
 							raw->total_plane_size);
 				mfc_debug(5, "single plane payload: %d\n",
 							raw->total_plane_size);
 			} else {
 				for (i = 0; i < ctx->src_fmt->mem_planes; i++) {
-					vb2_set_plane_payload(&dst_buf->vb, i,
+					vb2_set_plane_payload(&dst_buf->vb.vb2_buf, i,
 							raw->plane_size[i]);
 				}
 			}
 
 			clear_bit(index, &dec->dpb_status);
 
-			dst_buf->vb.v4l2_buf.flags &=
+			to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags &=
 					~(V4L2_BUF_FLAG_KEYFRAME |
 					V4L2_BUF_FLAG_PFRAME |
 					V4L2_BUF_FLAG_BFRAME |
@@ -863,15 +863,15 @@ static void s5p_mfc_handle_frame_new(struct s5p_mfc_ctx *ctx, unsigned int err)
 
 			switch (frame_type) {
 			case S5P_FIMV_DISPLAY_FRAME_I:
-				dst_buf->vb.v4l2_buf.flags |=
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 					V4L2_BUF_FLAG_KEYFRAME;
 				break;
 			case S5P_FIMV_DISPLAY_FRAME_P:
-				dst_buf->vb.v4l2_buf.flags |=
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 					V4L2_BUF_FLAG_PFRAME;
 				break;
 			case S5P_FIMV_DISPLAY_FRAME_B:
-				dst_buf->vb.v4l2_buf.flags |=
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 					V4L2_BUF_FLAG_BFRAME;
 				break;
 			default:
@@ -881,7 +881,7 @@ static void s5p_mfc_handle_frame_new(struct s5p_mfc_ctx *ctx, unsigned int err)
 			if (s5p_mfc_err_dspl(err)) {
 				mfc_err_ctx("Warning for displayed frame: %d\n",
 							s5p_mfc_err_dspl(err));
-				dst_buf->vb.v4l2_buf.flags |=
+				to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->flags |=
 					V4L2_BUF_FLAG_ERROR;
 			}
 
@@ -929,28 +929,28 @@ static void s5p_mfc_handle_frame_new(struct s5p_mfc_ctx *ctx, unsigned int err)
 
 			if (no_order && !dec->is_dts_mode) {
 				mfc_debug(7, "timestamp: %ld %ld\n",
-					dst_buf->vb.v4l2_buf.timestamp.tv_sec,
-					dst_buf->vb.v4l2_buf.timestamp.tv_usec);
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->timestamp.tv_sec,
+					to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->timestamp.tv_usec);
 				mfc_debug(7, "qos ratio: %d\n", ctx->qos_ratio);
 				ctx->last_framerate =
 					(ctx->qos_ratio * get_framerate(
-						&dst_buf->vb.v4l2_buf.timestamp,
+						&to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->timestamp,
 						&ctx->last_timestamp)) / 100;
 
 				memcpy(&ctx->last_timestamp,
-					&dst_buf->vb.v4l2_buf.timestamp,
+					&to_vb2_v4l2_buffer(&dst_buf->vb.vb2_buf)->timestamp,
 					sizeof(struct timeval));
 			}
 
 			if (!no_order) {
 				ctx->last_framerate =
 					get_framerate_by_timestamp(
-						ctx, &dst_buf->vb.v4l2_buf);
+						ctx, &dst_buf->vb);
 				ctx->last_framerate =
 					(ctx->qos_ratio * ctx->last_framerate) / 100;
 			}
 
-			vb2_buffer_done(&dst_buf->vb,
+			vb2_buffer_done(&dst_buf->vb.vb2_buf,
 				s5p_mfc_err_dspl(err) ?
 				VB2_BUF_STATE_ERROR : VB2_BUF_STATE_DONE);
 
@@ -1019,7 +1019,7 @@ static void s5p_mfc_handle_frame_error(struct s5p_mfc_ctx *ctx,
 	spin_lock_irqsave(&dev->irqlock, flags);
 	if (!list_empty(&ctx->src_queue)) {
 		src_buf = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
-		index = src_buf->vb.v4l2_buf.index;
+		index = src_buf->vb.vb2_buf.index;
 		if (call_cop(ctx, recover_buf_ctrls_val, ctx, &ctx->src_ctrls[index]) < 0)
 			mfc_err_ctx("failed in recover_buf_ctrls_val\n");
 
@@ -1043,7 +1043,7 @@ static void s5p_mfc_handle_frame_error(struct s5p_mfc_ctx *ctx,
 					index, ctx->stream_protect_flag);
 		}
 
-		vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 	}
 
 	mfc_debug(2, "Assesing whether this context should be run again.\n");
@@ -1061,7 +1061,7 @@ static void s5p_mfc_handle_ref_frame(struct s5p_mfc_ctx *ctx)
 	dec_buf = list_entry(ctx->dst_queue.next, struct s5p_mfc_buf, list);
 
 	dec_addr = (dma_addr_t)s5p_mfc_get_dec_y_addr();
-	buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb, 0);
+	buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb.vb2_buf, 0);
 
 	if ((buf_addr == dec_addr) && (dec_buf->used == 1)) {
 		mfc_debug(2, "Find dec buffer y = 0x%llx\n",
@@ -1078,7 +1078,7 @@ static void s5p_mfc_handle_ref_frame(struct s5p_mfc_ctx *ctx)
 
 		/* Try to search decoded address in whole dst queue */
 		list_for_each_entry(dec_buf, &ctx->dst_queue, list) {
-			buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb, 0);
+			buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb.vb2_buf, 0);
 			mfc_debug(2, "dec buf: 0x%llx, dst buf: 0x%llx, used: %d\n",
 					dec_addr, buf_addr, dec_buf->used);
 			if ((buf_addr == dec_addr) && (dec_buf->used == 1)) {
@@ -1088,7 +1088,7 @@ static void s5p_mfc_handle_ref_frame(struct s5p_mfc_ctx *ctx)
 		}
 
 		if (found) {
-			buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb, 0);
+			buf_addr = s5p_mfc_mem_plane_addr(ctx, &dec_buf->vb.vb2_buf, 0);
 			mfc_debug(2, "Found in dst queue = 0x%llx, buf = 0x%llx\n",
 				(unsigned long long)dec_addr,
 				(unsigned long long)buf_addr);
@@ -1119,7 +1119,7 @@ static void s5p_mfc_move_reuse_buffer(struct s5p_mfc_ctx *ctx, int release_index
 	int index;
 
 	list_for_each_entry_safe(ref_mb, tmp_mb, &dec->ref_queue, list) {
-		index = ref_mb->vb.v4l2_buf.index;
+		index = ref_mb->vb.vb2_buf.index;
 		if (index == release_index) {
 			if (ctx->is_drm) {
 				if (test_bit(index, &ctx->raw_protect_flag)) {
@@ -1343,21 +1343,21 @@ static void s5p_mfc_handle_frame(struct s5p_mfc_ctx *ctx,
 		src_buf = list_entry(ctx->src_queue.next, struct s5p_mfc_buf,
 								list);
 		mfc_debug(2, "Packed PB test. Size:%d, prev offset: %ld, this run:"
-			" %d\n", src_buf->vb.v4l2_planes[0].bytesused,
+			" %d\n", src_buf->vb.vb2_buf.planes[0].bytesused,
 			dec->consumed, s5p_mfc_get_consumed_stream());
 		prev_offset = dec->consumed;
 		dec->consumed += s5p_mfc_get_consumed_stream();
-		remained = (unsigned int)(src_buf->vb.v4l2_planes[0].bytesused - dec->consumed);
+		remained = (unsigned int)(src_buf->vb.vb2_buf.planes[0].bytesused - dec->consumed);
 
 		if ((dec->consumed > 0) && (remained > STUFF_BYTE) && (err == 0) &&
-				(src_buf->vb.v4l2_planes[0].bytesused > dec->consumed)) {
+				(src_buf->vb.vb2_buf.planes[0].bytesused > dec->consumed)) {
 			/* Run MFC again on the same buffer */
 			mfc_debug(2, "Running again the same buffer.\n");
 
 			if (dec->is_packedpb)
 				dec->y_addr_for_pb = (dma_addr_t)s5p_mfc_get_dec_y_addr();
 
-			dec->remained_size = src_buf->vb.v4l2_planes[0].bytesused -
+			dec->remained_size = src_buf->vb.vb2_buf.planes[0].bytesused -
 							dec->consumed;
 			/* Do not move src buffer to done_list */
 		} else if (s5p_mfc_err_dec(err) == S5P_FIMV_ERR_NON_PAIRED_FIELD) {
@@ -1367,7 +1367,7 @@ static void s5p_mfc_handle_frame(struct s5p_mfc_ctx *ctx,
 			 */
 			mfc_debug(2, "Not paired field. Running again the same buffer.\n");
 		} else {
-			index = src_buf->vb.v4l2_buf.index;
+			index = src_buf->vb.vb2_buf.index;
 			if (call_cop(ctx, recover_buf_ctrls_val, ctx, &ctx->src_ctrls[index]) < 0)
 				mfc_err_ctx("failed in recover_buf_ctrls_val\n");
 
@@ -1392,7 +1392,7 @@ static void s5p_mfc_handle_frame(struct s5p_mfc_ctx *ctx,
 						index, ctx->stream_protect_flag);
 			}
 
-			vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
+			vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 		}
 	}
 
@@ -1436,7 +1436,7 @@ static inline void s5p_mfc_handle_error(struct s5p_mfc_ctx *ctx,
 			if (!list_empty(&ctx->src_queue)) {
 				src_buf = list_entry(ctx->src_queue.next,
 						struct s5p_mfc_buf, list);
-				index = src_buf->vb.v4l2_buf.index;
+				index = src_buf->vb.vb2_buf.index;
 				list_del(&src_buf->list);
 				ctx->src_queue_cnt--;
 				/* decoder src buffer CFW UNPROT */
@@ -1450,7 +1450,7 @@ static inline void s5p_mfc_handle_error(struct s5p_mfc_ctx *ctx,
 					mfc_debug(2, "[%d] dec src buf un-prot_flag: %#lx\n",
 							index, ctx->stream_protect_flag);
 				}
-				vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 			}
 		} else if (err == S5P_FIMV_ERR_HEADER_NOT_FOUND) {
 			if (!ctx->is_drm) {
@@ -1461,7 +1461,7 @@ static inline void s5p_mfc_handle_error(struct s5p_mfc_ctx *ctx,
 					src_buf = list_entry(ctx->src_queue.next,
 							struct s5p_mfc_buf, list);
 					stream_vir = src_buf->vir_addr;
-					strm_size = src_buf->vb.v4l2_planes[0].bytesused;
+					strm_size = src_buf->vb.vb2_buf.planes[0].bytesused;
 					if (strm_size > 32)
 						strm_size = 32;
 				}
@@ -1474,7 +1474,7 @@ static inline void s5p_mfc_handle_error(struct s5p_mfc_ctx *ctx,
 			if (!list_empty(&ctx->src_queue)) {
 				src_buf = list_entry(ctx->src_queue.next,
 						struct s5p_mfc_buf, list);
-				index = src_buf->vb.v4l2_buf.index;
+				index = src_buf->vb.vb2_buf.index;
 				list_del(&src_buf->list);
 				ctx->src_queue_cnt--;
 				/* decoder src buffer CFW UNPROT */
@@ -1488,7 +1488,7 @@ static inline void s5p_mfc_handle_error(struct s5p_mfc_ctx *ctx,
 					mfc_debug(2, "[%d] dec src buf un-prot_flag: %#lx\n",
 							index, ctx->stream_protect_flag);
 				}
-				vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
+				vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 			}
 		}
 	case MFCINST_RES_CHANGE_END:
@@ -1751,9 +1751,9 @@ static irqreturn_t s5p_mfc_irq(int irq, void *priv)
 				mfc_debug(2, "Check consumed size of header. ");
 				mfc_debug(2, "source : %d, consumed : %d\n",
 						s5p_mfc_get_consumed_stream(),
-						src_buf->vb.v4l2_planes[0].bytesused);
+						src_buf->vb.vb2_buf.planes[0].bytesused);
 				if (s5p_mfc_get_consumed_stream() <
-						src_buf->vb.v4l2_planes[0].bytesused) {
+						src_buf->vb.vb2_buf.planes[0].bytesused) {
 					dec->remained = 1;
 					src_buf->consumed += s5p_mfc_get_consumed_stream();
 				}
@@ -1800,7 +1800,7 @@ static irqreturn_t s5p_mfc_irq(int irq, void *priv)
 								struct s5p_mfc_buf, list);
 						list_del(&src_buf->list);
 						ctx->src_queue_cnt--;
-						vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_DONE);
+						vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 					}
 					spin_unlock_irqrestore(&dev->irqlock, flags);
 				} else {
@@ -2806,7 +2806,7 @@ static int s5p_mfc_probe(struct platform_device *pdev)
 	INIT_WORK(&dev->sched_work, mfc_sched_worker);
 
 #ifdef CONFIG_ION_EXYNOS
-	dev->mfc_ion_client = ion_client_create(ion_exynos, "mfc");
+	dev->mfc_ion_client = exynos_ion_client_create("mfc");
 	if (IS_ERR(dev->mfc_ion_client)) {
 		dev_err(&pdev->dev, "failed to ion_client_create\n");
 		goto err_ion_client;
@@ -3001,7 +3001,7 @@ static int s5p_mfc_resume(struct device *dev)
 }
 #endif
 
-#ifdef CONFIG_PM_RUNTIME
+#ifdef CONFIG_PM
 static int s5p_mfc_runtime_suspend(struct device *dev)
 {
 	struct s5p_mfc_dev *m_dev = platform_get_drvdata(to_platform_device(dev));

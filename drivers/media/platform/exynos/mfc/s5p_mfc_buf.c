@@ -1026,7 +1026,7 @@ int s5p_mfc_set_dec_stream_buffer(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *m
 	}
 
 	if (mfc_buf)
-		addr = s5p_mfc_mem_plane_addr(ctx, &mfc_buf->vb, 0);
+		addr = s5p_mfc_mem_plane_addr(ctx, &mfc_buf->vb.vb2_buf, 0);
 	else
 		addr = 0;
 
@@ -1037,7 +1037,7 @@ int s5p_mfc_set_dec_stream_buffer(struct s5p_mfc_ctx *ctx, struct s5p_mfc_buf *m
 				strm_size, set_strm_size_max(cpb_buf_size), CPB_GAP);
 		strm_size = set_strm_size_max(cpb_buf_size);
 		if (mfc_buf)
-			mfc_buf->vb.v4l2_planes[0].bytesused = strm_size;
+			mfc_buf->vb.vb2_buf.planes[0].bytesused = strm_size;
 	}
 
 	mfc_debug(2, "inst_no: %d, buf_addr: 0x%08llx\n", ctx->inst_no,
@@ -1080,8 +1080,8 @@ int s5p_mfc_set_enc_stream_buffer(struct s5p_mfc_ctx *ctx,
 	dma_addr_t addr;
 	unsigned int size;
 
-	addr = s5p_mfc_mem_plane_addr(ctx, &mfc_buf->vb, 0);
-	size = (unsigned int)vb2_plane_size(&mfc_buf->vb, 0);
+	addr = s5p_mfc_mem_plane_addr(ctx, &mfc_buf->vb.vb2_buf, 0);
+	size = (unsigned int)vb2_plane_size(&mfc_buf->vb.vb2_buf, 0);
 	size = ALIGN(size, 512);
 
 	MFC_WRITEL(addr, S5P_FIMV_E_STREAM_BUFFER_ADDR); /* 16B align */
@@ -1397,7 +1397,7 @@ int s5p_mfc_set_dec_frame_buffer(struct s5p_mfc_ctx *ctx)
 			}
 
 			if ((num_dpb == 0) && (!ctx->is_drm))
-				mfc_fill_dynamic_dpb(ctx, &buf->vb);
+				mfc_fill_dynamic_dpb(ctx, &buf->vb.vb2_buf);
 			num_dpb++;
 		}
 	}

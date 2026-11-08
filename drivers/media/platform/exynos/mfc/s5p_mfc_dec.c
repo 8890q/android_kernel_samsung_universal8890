@@ -19,7 +19,7 @@
 #include <linux/version.h>
 #include <linux/workqueue.h>
 #include <linux/videodev2.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 
 #include "s5p_mfc_dec.h"
 #include "s5p_mfc_dec_internal.h"
@@ -1832,7 +1832,7 @@ static const struct v4l2_ioctl_ops s5p_mfc_dec_ioctl_ops = {
 };
 
 static int s5p_mfc_queue_setup(struct vb2_queue *vq,
-				const struct v4l2_format *fmt,
+				const void *parg,
 				unsigned int *buf_count, unsigned int *plane_count,
 				unsigned int psize[], void *allocators[])
 {
@@ -2043,7 +2043,7 @@ static int s5p_mfc_buf_init(struct vb2_buffer *vb)
 		spin_unlock_irqrestore(&dev->irqlock, flags);
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_DST,
-					vb->v4l2_buf.index) < 0)
+					vb->index) < 0)
 			mfc_err_ctx("failed in init_buf_ctrls\n");
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		ret = check_vb_with_fmt(ctx->src_fmt, vb);
@@ -2053,7 +2053,7 @@ static int s5p_mfc_buf_init(struct vb2_buffer *vb)
 		buf->planes.stream = s5p_mfc_mem_plane_addr(ctx, vb, 0);
 
 		if (call_cop(ctx, init_buf_ctrls, ctx, MFC_CTRL_TYPE_SRC,
-					vb->v4l2_buf.index) < 0)
+					vb->index) < 0)
 			mfc_err_ctx("failed in init_buf_ctrls\n");
 	} else {
 		mfc_err_ctx("s5p_mfc_buf_init: unknown queue type.\n");
@@ -2071,7 +2071,7 @@ static int s5p_mfc_buf_prepare(struct vb2_buffer *vb)
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
 	struct s5p_mfc_dec *dec;
 	struct s5p_mfc_raw_info *raw;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 	int i;
 
 	if (!ctx) {
@@ -2127,7 +2127,7 @@ static void s5p_mfc_buf_finish(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 
 	if (!ctx) {
 		mfc_err("no mfc context to run\n");
@@ -2149,7 +2149,7 @@ static void s5p_mfc_buf_cleanup(struct vb2_buffer *vb)
 {
 	struct vb2_queue *vq = vb->vb2_queue;
 	struct s5p_mfc_ctx *ctx = vq->drv_priv;
-	unsigned int index = vb->v4l2_buf.index;
+	unsigned int index = vb->index;
 
 	mfc_debug_enter();
 	if (!ctx) {
@@ -2339,8 +2339,8 @@ static void s5p_mfc_stop_streaming(struct vb2_queue *q)
 			int index, csd, condition = 0;
 
 			src_buf = list_entry(ctx->src_queue.next, struct s5p_mfc_buf, list);
-			index = src_buf->vb.v4l2_buf.index;
-			csd = src_buf->vb.v4l2_buf.reserved2 & FLAG_CSD ? 1 : 0;
+			index = src_buf->vb.vb2_buf.index;
+			csd = to_vb2_v4l2_buffer(&src_buf->vb.vb2_buf)->reserved2 & FLAG_CSD ? 1 : 0;
 
 			if (csd) {
 				spin_unlock_irqrestore(&dev->irqlock, flags);
@@ -2376,8 +2376,8 @@ static void s5p_mfc_stop_streaming(struct vb2_queue *q)
 				mfc_debug(2, "[%d] dec src buf un-prot flag: %#lx\n",
 						index, ctx->stream_protect_flag);
 			}
-			vb2_set_plane_payload(&src_buf->vb, 0, 0);
-			vb2_buffer_done(&src_buf->vb, VB2_BUF_STATE_ERROR);
+			vb2_set_plane_payload(&src_buf->vb.vb2_buf, 0, 0);
+			vb2_buffer_done(&src_buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 			list_del(&src_buf->list);
 		}
 
@@ -2486,7 +2486,7 @@ static void s5p_mfc_buf_queue(struct vb2_buffer *vb)
 	} else if (vq->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		buf->used = 0;
 		buf->already = 0;
-		index = vb->v4l2_buf.index;
+		index = vb->index;
 		mfc_debug(2, "Dst queue: %p\n", &ctx->dst_queue);
 		mfc_debug(2, "Adding to dst: %p (0x%08llx)\n", vb,
 				s5p_mfc_mem_plane_addr(ctx, vb, 0));
@@ -2514,7 +2514,7 @@ static void s5p_mfc_buf_queue(struct vb2_buffer *vb)
 			}
 		}
 		if (dec->is_dynamic_dpb) {
-			dec->assigned_fd[index] = vb->v4l2_planes[0].m.fd;
+			dec->assigned_fd[index] = vb->planes[0].m.fd;
 			mfc_debug(2, "Assigned FD[%d] = %d\n", index,
 						dec->assigned_fd[index]);
 			if (dec->dynamic_used & (1 << index)) {
