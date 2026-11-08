@@ -235,6 +235,47 @@ static int __ion_secure_protect_buffer(struct exynos_ion_platform_heap *pdata,
 	return ret;
 }
 
+#ifdef CONFIG_SOC_EXYNOS8890
+/* Exynos8890 firmware implements SECBUF, without the 8895 secure IOVA ABI. */
+static int exynos8890_ion_secure_buffer(struct exynos_ion_platform_heap *pdata,
+				      struct ion_buffer *buffer, bool protect)
+{
+	ion_phys_addr_t addr;
+	size_t len;
+	int ret;
+
+	if (pdata->reusable) {
+		if (!buffer->heap->ops->phys ||
+		    buffer->heap->ops->phys(buffer->heap, buffer, &addr, &len))
+			return -EFAULT;
+	} else {
+		addr = pdata->rmem->base;
+		len = pdata->rmem->size;
+		if (protect) {
+			if (atomic_inc_return(&pdata->secure_ref) > 1)
+				return 0;
+		} else if (!atomic_dec_and_test(&pdata->secure_ref)) {
+			return 0;
+		}
+	}
+
+	ret = exynos_smc(protect ? SMC_DRM_SECBUF_PROT : SMC_DRM_SECBUF_UNPROT,
+			 addr, len, pdata->id);
+	if (ret != DRMDRV_OK) {
+		pr_crit("%s: %s heap %s failed, err=%d\n", __func__,
+			protect ? "protect" : "unprotect", buffer->heap->name, ret);
+		if (!pdata->reusable) {
+			if (protect)
+				atomic_dec(&pdata->secure_ref);
+			else
+				atomic_inc(&pdata->secure_ref);
+		}
+		return -EFAULT;
+	}
+	return 0;
+}
+#endif
+
 int ion_secure_protect(struct ion_buffer *buffer)
 {
 	struct ion_heap *heap = buffer->heap;
@@ -258,7 +299,11 @@ int ion_secure_protect(struct ion_buffer *buffer)
 	if (pdata->noprot)
 		return 0;
 
-	return	__ion_secure_protect_buffer(pdata, buffer);
+#ifdef CONFIG_SOC_EXYNOS8890
+	return exynos8890_ion_secure_buffer(pdata, buffer, true);
+#else
+	return __ion_secure_protect_buffer(pdata, buffer);
+#endif
 }
 
 static int __ion_secure_unprotect_buffer(struct exynos_ion_platform_heap *pdata,
@@ -301,7 +346,11 @@ int ion_secure_unprotect(struct ion_buffer *buffer)
 	if (pdata->noprot)
 		return 0;
 
+#ifdef CONFIG_SOC_EXYNOS8890
+	return exynos8890_ion_secure_buffer(pdata, buffer, false);
+#else
 	return __ion_secure_unprotect_buffer(pdata, buffer);
+#endif
 }
 #endif
 

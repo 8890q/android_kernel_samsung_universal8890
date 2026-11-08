@@ -2720,7 +2720,9 @@ dma_addr_t ion_iovmm_map(struct dma_buf_attachment *attachment,
 
 	BUG_ON(dmabuf->ops != &dma_buf_ops);
 
+	/* 8890 protects physical buffers and retains normal IOVMM mappings. */
 	if (IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION) &&
+			!IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
 			buffer->flags & ION_FLAG_PROTECTED) {
 		struct ion_buffer_info *info = buffer->priv_virt;
 
@@ -2771,7 +2773,9 @@ void ion_iovmm_unmap(struct dma_buf_attachment *attachment, dma_addr_t iova)
 
 	BUG_ON(dmabuf->ops != &dma_buf_ops);
 
+	/* 8890 protects physical buffers and retains normal IOVMM mappings. */
 	if (IS_ENABLED(CONFIG_EXYNOS_CONTENT_PATH_PROTECTION) &&
+			!IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
 			buffer->flags & ION_FLAG_PROTECTED)
 		return;
 
