@@ -579,6 +579,7 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 	size_t firmware_size;
 	void *alloc_ctx;
 	struct s5p_mfc_buf_size_v6 *buf_size;
+	int ret = -EIO;
 
 	mfc_debug_enter();
 
@@ -610,10 +611,7 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 	if (dev->fw_buf.daddr & ((1 << base_align) - 1)) {
 		mfc_err_dev("The base memory is not aligned to %dBytes.\n",
 				(1 << base_align));
-		s5p_mfc_mem_free(dev->fw_buf.alloc);
-		dev->fw_buf.daddr = 0;
-		dev->fw_buf.alloc = NULL;
-		return -EIO;
+		goto err_free_fw;
 	}
 
 	dev->fw_buf.vaddr =
@@ -622,10 +620,7 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 			(long unsigned int)dev->fw_buf.vaddr);
 	if (!dev->fw_buf.vaddr) {
 		mfc_err_dev("Bitprocessor memory remap failed\n");
-		s5p_mfc_mem_free(dev->fw_buf.alloc);
-		dev->fw_buf.daddr = 0;
-		dev->fw_buf.alloc = NULL;
-		return -EIO;
+		goto err_free_fw;
 	}
 
 	mfc_debug(2, "FW: 0x%08llx size: %08zu\n",
@@ -636,23 +631,19 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 
 	dev->drm_fw_buf.alloc = s5p_mfc_mem_alloc(alloc_ctx, dev->fw.size);
 	if (IS_ERR_OR_NULL(dev->drm_fw_buf.alloc)) {
-		/* Release normal F/W buffer */
-		dev->fw_buf.daddr = 0;
-		dev->fw_buf.alloc = NULL;
+		dev->drm_fw_buf.alloc = NULL;
+		dev->drm_fw_buf.daddr = 0;
+		dev->drm_fw_buf.vaddr = NULL;
 		mfc_err_dev("Allocating bitprocessor buffer failed\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto err_free_fw;
 	}
 
 	dev->drm_fw_buf.daddr = s5p_mfc_mem_get_daddr(dev->drm_fw_buf.alloc);
 	if (dev->drm_fw_buf.daddr & ((1 << base_align) - 1)) {
 		mfc_err_dev("The base memory is not aligned to %dBytes.\n",
 				(1 << base_align));
-		s5p_mfc_mem_free(dev->drm_fw_buf.alloc);
-		/* Release normal F/W buffer */
-		s5p_mfc_mem_free(dev->fw_buf.alloc);
-		dev->fw_buf.daddr = 0;
-		dev->fw_buf.alloc = NULL;
-		return -EIO;
+		goto err_free_drm_fw;
 	}
 
 	dev->drm_fw_buf.vaddr =
@@ -661,12 +652,7 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 			(long unsigned int)dev->drm_fw_buf.vaddr);
 	if (!dev->drm_fw_buf.vaddr) {
 		mfc_err_dev("Bitprocessor memory remap failed\n");
-		s5p_mfc_mem_free(dev->drm_fw_buf.alloc);
-		/* Release normal F/W buffer */
-		s5p_mfc_mem_free(dev->fw_buf.alloc);
-		dev->fw_buf.daddr = 0;
-		dev->fw_buf.alloc = NULL;
-		return -EIO;
+		goto err_free_drm_fw;
 	}
 
 	mfc_info_dev("Port for DRM F/W : 0x%08llx\n", dev->drm_fw_buf.daddr);
@@ -675,6 +661,20 @@ int s5p_mfc_alloc_firmware(struct s5p_mfc_dev *dev)
 	mfc_debug_leave();
 
 	return 0;
+
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+err_free_drm_fw:
+	s5p_mfc_mem_free(dev->drm_fw_buf.alloc);
+	dev->drm_fw_buf.alloc = NULL;
+	dev->drm_fw_buf.daddr = 0;
+	dev->drm_fw_buf.vaddr = NULL;
+#endif
+err_free_fw:
+	s5p_mfc_mem_free(dev->fw_buf.alloc);
+	dev->fw_buf.alloc = NULL;
+	dev->fw_buf.daddr = 0;
+	dev->fw_buf.vaddr = NULL;
+	return ret;
 }
 
 /* Load firmware to MFC */
