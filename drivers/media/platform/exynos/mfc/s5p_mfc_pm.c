@@ -25,12 +25,11 @@ int s5p_mfc_init_pm(struct s5p_mfc_dev *dev)
 {
 	int ret = 0;
 
-	dev->pm.clock = clk_get(dev->device, "aclk_mfc");
+	dev->pm.clock = devm_clk_get(dev->device, "aclk_mfc");
 
 	if (IS_ERR(dev->pm.clock)) {
 		printk(KERN_ERR "failed to get parent clock\n");
-		ret = -ENOENT;
-		goto err_p_clk;
+		return PTR_ERR(dev->pm.clock);
 	}
 
 	ret = clk_prepare(dev->pm.clock);
@@ -48,21 +47,13 @@ int s5p_mfc_init_pm(struct s5p_mfc_dev *dev)
 	dev->pm.clock_off_steps = 0;
 	pm_runtime_enable(dev->pm.device);
 
-	clk_put(dev->pm.clock);
-
 	return 0;
-
-err_p_clk:
-	clk_put(dev->pm.clock);
-
-	return ret;
 }
 
 void s5p_mfc_final_pm(struct s5p_mfc_dev *dev)
 {
-	clk_put(dev->pm.clock);
-
 	pm_runtime_disable(dev->pm.device);
+	clk_unprepare(dev->pm.clock);
 }
 
 int s5p_mfc_clock_on(struct s5p_mfc_dev *dev)
