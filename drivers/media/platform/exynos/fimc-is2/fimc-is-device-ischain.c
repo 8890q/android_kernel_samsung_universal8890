@@ -1187,7 +1187,8 @@ static int fimc_is_ischain_config_secure(struct fimc_is_device_ischain *device)
 {
 	int ret = 0;
 
-#ifdef CONFIG_ARM_TRUSTZONE
+/* 4.4 removed ARM_TRUSTZONE; 8890 still needs the secure ISP GIC setup. */
+#if defined(CONFIG_ARM_TRUSTZONE) || defined(CONFIG_SOC_EXYNOS8890)
 	u32 i;
 
 	exynos_smc(SMC_CMD_REG, SMC_REG_ID_SFR_W(PA_FIMC_IS_GIC_C + 0x4), 0x000000FF, 0);
