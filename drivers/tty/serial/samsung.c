@@ -31,6 +31,7 @@
 #include <linux/module.h>
 #include <linux/ioport.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/platform_device.h>
 #include <linux/init.h>
 #include <linux/sysrq.h>
@@ -1798,32 +1799,36 @@ static void s3c24xx_serial_rx_fifo_wait(struct s3c24xx_uart_port *ourport)
 {
 	struct uart_port *port = &ourport->port;
 	unsigned int fifo_stat;
-	unsigned long wait_time;
 	unsigned int fifo_count;
 	unsigned long flags;
+	int ret;
 
-	fifo_count = 0;
+	/* Unopened ports have their clocks gated by the serial core. */
+	if (!port->state || port->state->pm_state != UART_PM_STATE_ON)
+		return;
 
 	spin_lock_irqsave(&port->lock, flags);
-
 	fifo_stat = rd_regl(port, S3C2410_UFSTAT);
 	fifo_count = s3c24xx_serial_rx_fifocnt(ourport, fifo_stat);
 	if (fifo_count) {
 		__clear_bit(S3C64XX_UINTM_RXD, portaddrl(port, S3C64XX_UINTM));
 		rx_enabled(port) = 1;
-
-		wait_time = jiffies + HZ;
-		do {
-			port = &ourport->port;
-			fifo_stat = rd_regl(port, S3C2410_UFSTAT);
-			cpu_relax();
-		} while (s3c24xx_serial_rx_fifocnt(ourport, fifo_stat) && time_before(jiffies, wait_time));
 	}
-
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	if (rx_enabled(port))
-		s3c24xx_serial_stop_rx(port);
+	/* Let the RX interrupt take port->lock and empty the FIFO. */
+	if (fifo_count) {
+		ret = readl_poll_timeout(portaddrl(port, S3C2410_UFSTAT),
+				fifo_stat,
+				!s3c24xx_serial_rx_fifocnt(ourport, fifo_stat),
+				100, USEC_PER_SEC);
+		if (ret)
+			dev_warn(port->dev, "RX FIFO did not drain before suspend\n");
+	}
+
+	spin_lock_irqsave(&port->lock, flags);
+	s3c24xx_serial_stop_rx(port);
+	spin_unlock_irqrestore(&port->lock, flags);
 }
 
 void s3c24xx_serial_fifo_wait(void)
