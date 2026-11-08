@@ -1942,7 +1942,7 @@ static ssize_t show_kernel_sysfs_gpu_temp(struct kobject *kobj, struct kobj_attr
 	gpu_temp = gpu_temp * MCELSIUS;
 
 	gpu_temp_int = gpu_temp / 1000;
-	gpu_temp_point = gpu_temp % gpu_temp_int;
+	gpu_temp_point = gpu_temp % 1000;
 	ret += snprintf(buf+ret, PAGE_SIZE-ret, "%d.%d", gpu_temp_int, gpu_temp_point);
 
 	if (ret < PAGE_SIZE - 1) {
