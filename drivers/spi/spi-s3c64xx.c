@@ -14,6 +14,7 @@
  */
 
 #include <linux/init.h>
+#include <linux/io.h>
 #include <linux/module.h>
 #include <linux/workqueue.h>
 #include <linux/interrupt.h>
@@ -392,6 +393,8 @@ static int acquire_dma(struct s3c64xx_spi_driver_data *sdd)
 {
 	struct samsung_dma_req req;
 	struct device *dev = &sdd->pdev->dev;
+	const char *rx_name = sdd->use_secure_dma ? "rx-s" : "rx";
+	const char *tx_name = sdd->use_secure_dma ? "tx-s" : "tx";
 
 	sdd->ops = samsung_dma_get_ops();
 
@@ -400,10 +403,10 @@ static int acquire_dma(struct s3c64xx_spi_driver_data *sdd)
 
 	if (sdd->rx_dma.ch == NULL)
 		sdd->rx_dma.ch = (void *)sdd->ops->request(sdd->rx_dma.dmach,
-							&req, dev, "rx");
+							&req, dev, rx_name);
 	if (sdd->tx_dma.ch == NULL)
 		sdd->tx_dma.ch = (void *)sdd->ops->request(sdd->tx_dma.dmach,
-							&req, dev, "tx");
+							&req, dev, tx_name);
 
 	return 1;
 }
@@ -1543,6 +1546,25 @@ static int s3c64xx_spi_probe(struct platform_device *pdev)
 	}
 
 	sdd->cur_bpw = 8;
+
+	/* Match the 3.18 request wiring on fused Exynos8890 devices. */
+	if (IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
+	    of_property_read_bool(pdev->dev.of_node, "check-fusing-bit")) {
+		void __iomem *sd_info;
+		u32 fusing;
+
+		sd_info = ioremap(0x10000004, sizeof(fusing));
+		if (!sd_info) {
+			ret = -ENOMEM;
+			goto err0;
+		}
+		fusing = readl(sd_info);
+		iounmap(sd_info);
+		sdd->use_secure_dma = !!(fusing & 0xc0000000);
+		dev_info(&pdev->dev, "SD_INFO=%#x, DMA requests %s/%s\n",
+			 fusing, sdd->use_secure_dma ? "tx-s" : "tx",
+			 sdd->use_secure_dma ? "rx-s" : "rx");
+	}
 
 	if (sci->dma_mode == DMA_MODE) {
 		if (!sdd->pdev->dev.of_node) {

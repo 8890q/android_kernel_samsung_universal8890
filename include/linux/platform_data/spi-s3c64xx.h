@@ -141,6 +141,9 @@ struct s3c64xx_spi_driver_data {
 	struct pinctrl_state		*pin_def;
 	struct pinctrl_state		*pin_idle;
 
+	/* Exynos8890 SD_INFO selects the alternate DT DMA request pair. */
+	bool use_secure_dma;
+
 	int is_probed;
 	int spi_clkoff_time;
 	int idle_ip_index;
