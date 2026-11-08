@@ -84,9 +84,6 @@ ssize_t debug_generic_read(struct file *file, char __user *user_buf,
 			   int (*function)(struct kasnprintf_buf *buf));
 int debug_generic_release(struct inode *inode, struct file *file);
 
-static inline int kref_read(struct kref *kref)
-{
-	return atomic_read(&kref->refcount);
-}
+
 
 #endif /* _MC_MAIN_H_ */
