@@ -2585,7 +2585,8 @@
 	};
 
 	iommu-domain_mscl {
-		compatible = "samsung,exynos-iommu-bus";
+		/* Populate the nested scaler devices with the 4.4 OF core. */
+		compatible = "samsung,exynos-iommu-bus", "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <1>;
 		ranges;
