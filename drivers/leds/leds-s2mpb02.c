@@ -326,8 +326,10 @@ ssize_t s2mpb02_store(struct device *dev,
 		global_led_datas[S2MPB02_TORCH_LED_1]->data->brightness = LED_OFF;
 		led_set(global_led_datas[S2MPB02_TORCH_LED_1], S2MPB02_LED_TURN_WAY_GPIO);
 	} else if (value == 1) {
-		/* Turn on Torch */
-		global_led_datas[S2MPB02_TORCH_LED_1]->data->brightness = S2MPB02_TORCH_OUT_I_240MA;
+		/* Herolte's normal torch setting is 60 mA, as in 3.18. */
+		global_led_datas[S2MPB02_TORCH_LED_1]->data->brightness =
+			IS_ENABLED(CONFIG_SOC_EXYNOS8890) ?
+			S2MPB02_TORCH_OUT_I_60MA : S2MPB02_TORCH_OUT_I_240MA;
 		led_set(global_led_datas[S2MPB02_TORCH_LED_1], S2MPB02_LED_TURN_WAY_GPIO);
 	} else if (value == 100) {
 		/* Factory mode Turn on Torch */

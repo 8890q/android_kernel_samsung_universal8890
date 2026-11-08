@@ -926,8 +926,8 @@
 			};
 
 			torch {
-				torch1-gpio = "gpc0-3";
-				flash1-gpio = "gpc0-2";
+				torch1-gpio = <&gpc0 3 0>;
+				flash1-gpio = <&gpc0 2 0>;
 
 				status = "okay";
 
@@ -943,6 +943,9 @@
 
 				leds2 {
 					ledname = "torch-sec1";
+					/* Preserve herolte's 1001..1010 = 20..200 mA ABI. */
+					torch_table_enable = <1>;
+					torch_table = <1 2 3 4 5 6 7 8 9 10>;
 					/* S2MPB02_TORCH_LED_1 */
 					id = <1>;
 					/* S2MPB02_TORCH_CURRENT */
