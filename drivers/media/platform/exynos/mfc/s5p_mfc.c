@@ -41,6 +41,20 @@
 #include "s5p_mfc_buf.h"
 #include "s5p_mfc_mem.h"
 
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+static int s5p_mfc_fw_protect(struct s5p_mfc_dev *dev, bool protect)
+{
+#ifdef CONFIG_SOC_EXYNOS8890
+	return exynos_smc(protect ? SMC_DRM_SECBUF_PROT : SMC_DRM_SECBUF_UNPROT,
+			s5p_mfc_mem_get_paddr(dev->drm_fw_buf.alloc), dev->fw.size,
+			ION_EXYNOS_HEAP_ID_VIDEO_FW);
+#else
+	return exynos_smc(protect ? SMC_DRM_PPMP_MFCFW_PROT :
+			SMC_DRM_PPMP_MFCFW_UNPROT, dev->drm_fw_buf.daddr, 0, 0);
+#endif
+}
+#endif
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/mfc.h>
 
@@ -479,8 +493,7 @@ static int s5p_mfc_open(struct file *file)
 			dev->fw.drm_status = 0;
 		} else {
 			/* Request buffer protection for DRM F/W */
-			ret = exynos_smc(SMC_DRM_PPMP_MFCFW_PROT,
-					dev->drm_fw_buf.daddr, 0, 0);
+			ret = s5p_mfc_fw_protect(dev, true);
 			if (ret != DRMDRV_OK) {
 				mfc_err_ctx("failed MFC DRM F/W prot(%#x)\n", ret);
 				dev->fw.drm_status = 0;
@@ -557,8 +570,7 @@ err_context_alloc:
 		int smc_ret = 0;
 		dev->fw.drm_status = 0;
 		/* Request buffer unprotection for DRM F/W */
-		smc_ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					dev->drm_fw_buf.daddr, 0, 0);
+		smc_ret = s5p_mfc_fw_protect(dev, false);
 		if (smc_ret != DRMDRV_OK)
 			mfc_err_ctx("failed MFC DRM F/W unprot(%#x)\n", smc_ret);
 	}
@@ -722,8 +734,7 @@ static int s5p_mfc_release(struct file *file)
 		if (dev->fw.drm_status) {
 			dev->fw.drm_status = 0;
 			/* Request buffer unprotection for DRM F/W */
-			ret = exynos_smc(SMC_DRM_PPMP_MFCFW_UNPROT,
-					dev->drm_fw_buf.daddr, 0, 0);
+			ret = s5p_mfc_fw_protect(dev, false);
 			if (ret != DRMDRV_OK)
 				mfc_err_ctx("failed MFC DRM F/W unprot(%#x)\n", ret);
 		}
