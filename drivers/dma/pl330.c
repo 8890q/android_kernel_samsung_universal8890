@@ -2426,7 +2426,16 @@ static void pl330_free_chan_resources(struct dma_chan *chan)
 
 	spin_unlock_irqrestore(&pl330->lock, flags);
 	pm_runtime_mark_last_busy(pch->dmac->ddma.dev);
-	pm_runtime_put_autosuspend(pch->dmac->ddma.dev);
+	/*
+	 * LPASS can power off the audio domain as soon as its client
+	 * releases this channel. Finish suspending the AMBA clock here;
+	 * a delayed autosuspend would access CMU_AUD after power-off.
+	 */
+	if (of_property_read_bool(pl330->ddma.dev->of_node,
+				  "samsung,lpass-subip"))
+		pm_runtime_put_sync_suspend(pl330->ddma.dev);
+	else
+		pm_runtime_put_autosuspend(pl330->ddma.dev);
 }
 
 static int pl330_get_current_xferred_count(struct dma_pl330_chan *pch,
