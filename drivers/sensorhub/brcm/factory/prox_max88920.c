@@ -145,7 +145,7 @@ static int proximity_open_lcd_ldi(struct ssp_data *data)
 		goto exit;
 	}
 
-	iRet = cancel_filp->f_op->read(cancel_filp,
+	iRet = vfs_read(cancel_filp,
 		(u8 *)data->chLcdLdi, sizeof(u8) * 2, &cancel_filp->f_pos);
 	if (iRet != (sizeof(u8) * 2)) {
 		pr_err("[SSP]: %s - Can't read the lcd ldi data\n", __func__);
@@ -212,7 +212,7 @@ int proximity_open_calibration(struct ssp_data *data)
 		goto exit;
 	}
 
-	iRet = cancel_filp->f_op->read(cancel_filp,
+	iRet = vfs_read(cancel_filp,
 		(u8 *)&data->uProxCanc, sizeof(unsigned int), &cancel_filp->f_pos);
 	if (iRet != sizeof(u8)) {
 		pr_err("[SSP]: %s - Can't read the cancel data\n", __func__);
@@ -293,7 +293,7 @@ static int proximity_store_cancelation(struct ssp_data *data, int iCalCMD)
 		return iRet;
 	}
 
-	iRet = cancel_filp->f_op->write(cancel_filp, (u8 *)&data->uProxCanc,
+	iRet = vfs_write(cancel_filp, (u8 *)&data->uProxCanc,
 		sizeof(unsigned int), &cancel_filp->f_pos);
 	if (iRet != sizeof(unsigned int)) {
 		pr_err("%s: Can't write the cancel data to file\n", __func__);

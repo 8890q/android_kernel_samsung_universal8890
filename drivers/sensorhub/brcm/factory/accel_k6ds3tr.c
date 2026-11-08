@@ -75,7 +75,7 @@ int accel_open_calibration(struct ssp_data *data)
 		return iRet;
 	}
 
-	iRet = cal_filp->f_op->read(cal_filp, (char *)&data->accelcal,
+	iRet = vfs_read(cal_filp, (char *)&data->accelcal,
 		3 * sizeof(int), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(int))
 		iRet = -EIO;
@@ -221,7 +221,7 @@ static int accel_do_calibrate(struct ssp_data *data, int iEnable)
 		return iRet;
 	}
 
-	iRet = cal_filp->f_op->write(cal_filp, (char *)&data->accelcal,
+	iRet = vfs_write(cal_filp, (char *)&data->accelcal,
 		3 * sizeof(int), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(int)) {
 		pr_err("[SSP]: %s - Can't write the accelcal to file\n",

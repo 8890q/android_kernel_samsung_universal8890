@@ -147,7 +147,7 @@ static int sx9320_sub_check_hallic_state(char *file_path,
 		goto exit;
 	}
 
-	iRet = filep->f_op->read(filep, hall_sysfs,
+	iRet = vfs_read(filep, hall_sysfs,
 		sizeof(hall_sysfs), &filep->f_pos);
 
 	if (iRet != sizeof(hall_sysfs))

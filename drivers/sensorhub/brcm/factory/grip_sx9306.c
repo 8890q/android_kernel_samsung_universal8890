@@ -97,7 +97,7 @@ static int get_temp(void)
 		return TEMP_ERROR;
 	}
 
-	ret = filp->f_op->read(filp, temp_raw, sizeof(temp_raw), &filp->f_pos);
+	ret = vfs_read(filp, temp_raw, sizeof(temp_raw), &filp->f_pos);
 	if (ret <= 0) {
 		pr_err("[SSP]: %s - Can't read the temp from file\n",
 			__func__);
@@ -241,7 +241,7 @@ void open_grip_caldata(struct ssp_data *data)
 		goto slope;
 	}
 
-	ret = cal_filp->f_op->read(cal_filp, (char *)&data->gripcal,
+	ret = vfs_read(cal_filp, (char *)&data->gripcal,
 		len, &cal_filp->f_pos);
 	if (ret != len) {
 		pr_err("[SSP]: %s - Can't read the cal data from file\n",
@@ -278,7 +278,7 @@ slope:
 		goto temp;
 	}
 
-	ret = cal_filp->f_op->read(cal_filp, (char *)&data->gripcal.slope,
+	ret = vfs_read(cal_filp, (char *)&data->gripcal.slope,
 		sizeof(data->gripcal.slope), &cal_filp->f_pos);
 	if (ret != sizeof(data->gripcal.slope)) {
 		pr_err("[SSP]: %s - Can't read the slope from file\n",
@@ -313,7 +313,7 @@ temp:
 		goto exit;
 	}
 
-	ret = cal_filp->f_op->read(cal_filp, (char *)&data->gripcal.temp_cal,
+	ret = vfs_read(cal_filp, (char *)&data->gripcal.temp_cal,
 		sizeof(data->gripcal.temp_cal), &cal_filp->f_pos);
 	if (ret != sizeof(data->gripcal.temp_cal)) {
 		pr_err("[SSP]: %s - Can't read the temp_cal from file\n",
@@ -451,7 +451,7 @@ static int get_grip_calibration(struct ssp_data *data)
 		goto exit;
 	}
 
-	ret = cal_filp->f_op->write(cal_filp, (char *)&data->gripcal.temp,
+	ret = vfs_write(cal_filp, (char *)&data->gripcal.temp,
 		sizeof(data->gripcal.temp), &cal_filp->f_pos);
 	if (ret != sizeof(data->gripcal.temp)) {
 		pr_err("[SSP]: %s - Can't write the temp_cal to file\n",
@@ -640,7 +640,7 @@ static int save_caldata(struct ssp_data *data)
 		return ret;
 	}
 
-	ret = cal_filp->f_op->write(cal_filp, (char *)&data->gripcal,
+	ret = vfs_write(cal_filp, (char *)&data->gripcal,
 		len, &cal_filp->f_pos);
 	if (ret != len) {
 		pr_err("[SSP]: %s - Can't write the cal data to file\n",
@@ -943,7 +943,7 @@ static ssize_t slope_store(struct device *dev,
 		return -EIO;
 	}
 
-	ret = cal_filp->f_op->write(cal_filp, (char *)&slope,
+	ret = vfs_write(cal_filp, (char *)&slope,
 		sizeof(slope), &cal_filp->f_pos);
 	if (ret != sizeof(slope)) {
 		pr_err("[SSP]: %s - Can't write the slope data to file\n",

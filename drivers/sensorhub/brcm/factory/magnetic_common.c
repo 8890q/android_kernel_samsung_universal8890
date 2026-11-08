@@ -518,7 +518,7 @@ int mag_open_hwoffset(struct ssp_data *data)
 		return iRet;
 	}
 
-	iRet = cal_filp->f_op->read(cal_filp, (char *)&data->magoffset,
+	iRet = vfs_read(cal_filp, (char *)&data->magoffset,
 		3 * sizeof(char), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(char)) {
 		pr_err("[SSP] %s: filp_open failed\n", __func__);
@@ -562,7 +562,7 @@ int mag_store_hwoffset(struct ssp_data *data)
 			iRet = PTR_ERR(cal_filp);
 			return iRet;
 		}
-		iRet = cal_filp->f_op->write(cal_filp,
+		iRet = vfs_write(cal_filp,
 			(char *)&data->magoffset,
 			3 * sizeof(char), &cal_filp->f_pos);
 		if (iRet != 3 * sizeof(char)) {

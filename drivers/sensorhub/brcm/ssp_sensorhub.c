@@ -592,7 +592,7 @@ void ssp_pcm_dump_task(struct work_struct *work)
 			break;
 		}
 
-		ret = voice_filp->f_op->write(voice_filp, (char __user *)buff,
+		ret = vfs_write(voice_filp, (char __user *)buff,
 			buf_len, &voice_filp->f_pos);
 		if (ret < 0) {
 			sensorhub_err("write pcm dump to file err(%d)", ret);

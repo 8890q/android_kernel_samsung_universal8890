@@ -64,7 +64,7 @@ int pressure_open_calibration(struct ssp_data *data)
 		set_fs(old_fs);
 		return iErr;
 	}
-	iErr = cal_filp->f_op->read(cal_filp,
+	iErr = vfs_read(cal_filp,
 		chBuf, 10 * sizeof(char), &cal_filp->f_pos);
 	if (iErr < 0) {
 		pr_err("[SSP]: %s - Can't read the cal data from file (%d)\n",

@@ -83,7 +83,7 @@ int gyro_open_calibration(struct ssp_data *data)
 		return iRet;
 	}
 
-	iRet = cal_filp->f_op->read(cal_filp, (char *)&data->gyrocal,
+	iRet = vfs_read(cal_filp, (char *)&data->gyrocal,
 		3 * sizeof(int), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(int)) {
 		pr_err("[SSP]: %s - Can't read gyro cal to file\n", __func__);
@@ -123,7 +123,7 @@ int save_gyro_caldata(struct ssp_data *data, s16 *iCalData)
 		return -EIO;
 	}
 
-	iRet = cal_filp->f_op->write(cal_filp, (char *)&data->gyrocal,
+	iRet = vfs_write(cal_filp, (char *)&data->gyrocal,
 		3 * sizeof(int), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(int)) {
 		pr_err("[SSP]: %s - Can't write gyro cal to file\n", __func__);
@@ -161,7 +161,7 @@ int save_gyro_caldata(struct ssp_data *data, s32 *iCalData)
 		return -EIO;
 	}
 
-	iRet = cal_filp->f_op->write(cal_filp, (char *)&data->gyrocal,
+	iRet = vfs_write(cal_filp, (char *)&data->gyrocal,
 		3 * sizeof(int), &cal_filp->f_pos);
 	if (iRet != 3 * sizeof(int)) {
 		pr_err("[SSP]: %s - Can't write gyro cal to file\n", __func__);
