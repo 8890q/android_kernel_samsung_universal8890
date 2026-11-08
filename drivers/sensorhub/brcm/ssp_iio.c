@@ -146,6 +146,11 @@ void report_meta_data(struct ssp_data *data, struct sensor_value *s)
 void report_iio_data(struct ssp_data *data, int type, struct sensor_value *sensor_data)
 {
 	memcpy(&data->buf[type], sensor_data, sensors_info[type].get_data_len);
+	/* Older MCU packets lack the HAL's magnetic overflow byte. */
+	if ((type == GEOMAGNETIC_SENSOR || type == GEOMAGNETIC_UNCALIB_SENSOR) &&
+	    sensors_info[type].report_data_len > sensors_info[type].get_data_len)
+		memset((u8 *)&data->buf[type] + sensors_info[type].get_data_len, 0,
+		       sensors_info[type].report_data_len - sensors_info[type].get_data_len);
 	ssp_push_iio_buffer(data->indio_dev[type], sensor_data->timestamp, (u8 *)(&data->buf[type]), sensors_info[type].report_data_len);
 }
 

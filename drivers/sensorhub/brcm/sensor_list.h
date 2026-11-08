@@ -26,6 +26,12 @@
     #define MAGNETIC_SIZE           7
 #endif
 
+/* The Android sensor HAL always consumes an overflow byte, even when
+ * the MCU firmware omits it. Keep wire lengths separate from report lengths.
+ */
+#define MAGNETIC_REPORT_SIZE        8
+#define UNCAL_MAGNETIC_REPORT_SIZE  13
+
 /* SENSOR_TYPE */
 enum {
 	ACCELEROMETER_SENSOR = 0,
@@ -96,9 +102,9 @@ struct sensor_info {
 
 #define SENSOR_INFO_UNKNOWN			{"", -1, false,	REPORT_MODE_UNKNOWN, 0, 0}
 #define SENSOR_INFO_ACCELEROMETER		{"accelerometer_sensor", ACCELEROMETER_SENSOR, true, REPORT_MODE_CONTINUOUS, 6, 6}
-#define SENSOR_INFO_GEOMAGNETIC			{"geomagnetic_sensor", GEOMAGNETIC_SENSOR, true, REPORT_MODE_CONTINUOUS, MAGNETIC_SIZE, MAGNETIC_SIZE}
+#define SENSOR_INFO_GEOMAGNETIC			{"geomagnetic_sensor", GEOMAGNETIC_SENSOR, true, REPORT_MODE_CONTINUOUS, MAGNETIC_SIZE, MAGNETIC_REPORT_SIZE}
 #define SENSOR_INFO_GEOMAGNETIC_POWER		{"geomagnetic_power", GEOMAGNETIC_RAW, false, REPORT_MODE_CONTINUOUS, 6, 0}
-#define SENSOR_INFO_GEOMAGNETIC_UNCAL		{"uncal_geomagnetic_sensor", GEOMAGNETIC_UNCALIB_SENSOR, true, REPORT_MODE_CONTINUOUS, UNCAL_MAGNETIC_SIZE, UNCAL_MAGNETIC_SIZE}
+#define SENSOR_INFO_GEOMAGNETIC_UNCAL		{"uncal_geomagnetic_sensor", GEOMAGNETIC_UNCALIB_SENSOR, true, REPORT_MODE_CONTINUOUS, UNCAL_MAGNETIC_SIZE, UNCAL_MAGNETIC_REPORT_SIZE}
 #define SENSOR_INFO_GYRO			{"gyro_sensor", GYROSCOPE_SENSOR, true, REPORT_MODE_CONTINUOUS, 12, 12}
 #define SENSOR_INFO_GYRO_UNCALIBRATED		{"uncal_gyro_sensor", GYRO_UNCALIB_SENSOR, true, REPORT_MODE_CONTINUOUS, 24, 24}
 #define SENSOR_INFO_INTERRUPT_GYRO		{"interrupt_gyro_sensor", INTERRUPT_GYRO_SENSOR, true, REPORT_MODE_ON_CHANGE, 12, 12}
