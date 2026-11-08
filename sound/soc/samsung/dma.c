@@ -213,7 +213,7 @@ static int dma_hw_params(struct snd_pcm_substream *substream,
 	struct s3c_dma_params *dma =
 		snd_soc_dai_get_dma_data(rtd->cpu_dai, substream);
 	struct samsung_dma_req req;
-	struct samsung_dma_config config;
+	struct samsung_dma_config config = { .maxburst = 1 };
 
 	pr_debug("Entered %s\n", __func__);
 
@@ -245,7 +245,6 @@ static int dma_hw_params(struct snd_pcm_substream *substream,
 			(substream->stream == SNDRV_PCM_STREAM_PLAYBACK
 			? DMA_MEM_TO_DEV : DMA_DEV_TO_MEM);
 		config.width = prtd->params->dma_size;
-		/* config.maxburst = 1; */
 		config.fifo = prtd->params->dma_addr;
 		if (prtd->params->compr_dma) {
 			pr_info("%s: %d\n", __func__, __LINE__);
