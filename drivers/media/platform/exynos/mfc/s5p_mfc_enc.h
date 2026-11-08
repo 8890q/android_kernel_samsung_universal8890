@@ -1,7 +1,7 @@
 /*
  * drivers/media/platform/exynos/mfc/s5p_mfc_enc.h
  *
- * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2010 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com/
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,6 +15,14 @@
 
 #include "s5p_mfc_common.h"
 
-const struct v4l2_ioctl_ops *s5p_mfc_get_enc_v4l2_ioctl_ops(void);
+#define ENC_HIGH_FPS	(70000)
+#define ENC_DEFAULT_FPS	(30000)
+#define ENC_MAX_FPS	(120000)
+#define ENC_AVG_FRAMES	(10)
+
+const struct v4l2_ioctl_ops *get_enc_v4l2_ioctl_ops(void);
+int s5p_mfc_init_enc_ctx(struct s5p_mfc_ctx *ctx);
+int enc_cleanup_user_shared_handle(struct s5p_mfc_ctx *ctx,
+				struct mfc_user_shared_handle *handle);
 
 #endif /* __S5P_MFC_ENC_H */

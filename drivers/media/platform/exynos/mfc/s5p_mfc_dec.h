@@ -1,7 +1,7 @@
 /*
  * drivers/media/platform/exynos/mfc/s5p_mfc_dec.h
  *
- * Copyright (c) 2016 Samsung Electronics Co., Ltd.
+ * Copyright (c) 2010 Samsung Electronics Co., Ltd.
  *		http://www.samsung.com/
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,6 +15,13 @@
 
 #include "s5p_mfc_common.h"
 
-const struct v4l2_ioctl_ops *s5p_mfc_get_dec_v4l2_ioctl_ops(void);
+#define DEFAULT_TAG		(0xE05)
+#define DEC_MAX_FPS		(240000)
+
+const struct v4l2_ioctl_ops *get_dec_v4l2_ioctl_ops(void);
+int s5p_mfc_init_dec_ctx(struct s5p_mfc_ctx *ctx);
+void s5p_mfc_dec_store_crop_info(struct s5p_mfc_ctx *ctx);
+int dec_cleanup_user_shared_handle(struct s5p_mfc_ctx *ctx);
+void cleanup_assigned_dpb(struct s5p_mfc_ctx *ctx);
 
 #endif /* __S5P_MFC_DEC_H */
