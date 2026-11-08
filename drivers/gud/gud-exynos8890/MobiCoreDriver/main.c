@@ -116,19 +116,22 @@ ssize_t debug_generic_read(struct file *file, char __user *user_buf,
 		struct kasnprintf_buf *buf, *old_buf;
 		int ret;
 
-		buf = kzalloc(GFP_KERNEL, sizeof(*buf));
+		buf = kzalloc(sizeof(*buf), GFP_KERNEL);
 		if (!buf)
 			return -ENOMEM;
 
 		buf->gfp = GFP_KERNEL;
 		ret = function(buf);
 		if (ret < 0) {
+			kfree(buf->buf);
 			kfree(buf);
 			return ret;
 		}
 
 		old_buf = file->private_data;
 		file->private_data = buf;
+		if (old_buf)
+			kfree(old_buf->buf);
 		kfree(old_buf);
 	}
 
@@ -146,8 +149,10 @@ int debug_generic_release(struct inode *inode, struct file *file)
 {
 	struct kasnprintf_buf *buf = file->private_data;
 
-	kfree(buf->buf);
-	kfree(buf);
+	if (buf) {
+		kfree(buf->buf);
+		kfree(buf);
+	}
 	return 0;
 }
 
