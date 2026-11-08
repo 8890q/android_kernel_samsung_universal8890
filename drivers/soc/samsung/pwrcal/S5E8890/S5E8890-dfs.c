@@ -1119,12 +1119,74 @@ static int dfsint_asv_voltage_table(unsigned int *table)
 	return i;
 }
 
+static int dfsint_mfc_lock;
+#define set_value(_table, _level, _member) \
+	(*(_table->rate_table + (_table->num_of_members * _level + _member)))
+
+static unsigned int mfc_mux_table[32];
+static unsigned int mfc_div_table[32];
+
+DEFINE_SPINLOCK(dfs_int_spinlock);
+
+static int dfsint_rate_lock(unsigned int para)
+{
+	unsigned long flag = 0;
+	struct dfs_table *table;
+	unsigned int vfreq;
+	int i;
+
+	table = vclk_dvfs_int.table;
+	if (!table || table->num_of_lv > ARRAY_SIZE(mfc_mux_table) ||
+	    table->num_of_members <= 37)
+		return -EINVAL;
+
+	if (!dfsint_mfc_lock && para) {
+		spin_lock_irqsave(&dfs_int_spinlock, flag);
+		for (i = 0; i < dfsint_table.num_of_lv; i++) {
+			mfc_mux_table[i] = get_value(table, i, 9);
+			mfc_div_table[i] = get_value(table, i, 37);
+			set_value(table, i, 9) = 1;
+			set_value(table, i, 37) = 3;
+		}
+
+		pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_MFC_600), 4);
+		pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_MFC_600), 1);
+		dfsint_mfc_lock = para;
+		spin_unlock_irqrestore(&dfs_int_spinlock, flag);
+		pr_info("[%s] MFC Locked", __func__);
+	} else if (dfsint_mfc_lock && !para) {
+		spin_lock_irqsave(&dfs_int_spinlock, flag);
+		for (i = 0; i < dfsint_table.num_of_lv; i++) {
+			set_value(table, i, 9) = mfc_mux_table[i];
+			set_value(table, i, 37) = mfc_div_table[i];
+		}
+		vfreq = vclk_dvfs_int.vclk.vfreq;
+
+		for (i = 0; i < dfsint_table.num_of_lv; i++)
+			if (vfreq == get_value(table, i, 0))
+				break;
+
+		if (i == dfsint_table.num_of_lv) {
+			spin_unlock_irqrestore(&dfs_int_spinlock, flag);
+			return -EINVAL;
+		}
+		pwrcal_mux_set_src(CLK(TOP_MUX_ACLK_MFC_600), get_value(table, i, 9));
+		pwrcal_div_set_ratio(CLK(TOP_DIV_ACLK_MFC_600), get_value(table, i, 37) + 1);
+		dfsint_mfc_lock = para;
+		spin_unlock_irqrestore(&dfs_int_spinlock, flag);
+		pr_info("[%s] MFC UnLocked", __func__);
+	}
+
+	return 0;
+}
+
 static struct vclk_dfs_ops dfsint_dfsops = {
 	.set_ema = dfsint_set_ema,
 	.get_target_rate = dfsint_get_target_rate,
 	.get_rate_table = dfsint_get_rate_table,
 	.get_asv_table = dfsint_asv_voltage_table,
 	.get_margin_param = common_get_margin_param,
+	.rate_lock = dfsint_rate_lock,
 };
 
 static int dfscam_set_ema(unsigned int volt)

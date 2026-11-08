@@ -583,6 +583,10 @@ int cal_dfs_ext_ctrl(unsigned int id,
 			if (dfsops->ctrl_clk_gate)
 				return dfsops->ctrl_clk_gate(para);
 			break;
+		case cal_dfs_rate_lock:
+			if (dfsops->rate_lock)
+				return dfsops->rate_lock(para);
+			break;
 		default:
 			return -1;
 		}

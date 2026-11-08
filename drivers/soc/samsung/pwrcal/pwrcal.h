@@ -73,6 +73,7 @@ enum cal_dfs_ext_ops {
 	cal_dfs_cpu_idle_clock_down = 60,
 
 	cal_dfs_ctrl_clk_gate	= 70,
+	cal_dfs_rate_lock	= 80,
 };
 
 extern int cal_dfs_ext_ctrl(unsigned int id,
