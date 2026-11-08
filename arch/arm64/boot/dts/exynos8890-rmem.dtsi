@@ -22,16 +22,16 @@
 
 		crypto {
 			compatible = "exynos8890-ion,crypto";
-			reusable;
+			ion,reusable;
 			reg = <0x0 0xC0000000 0x800000>;
 			id = <1>;
 		};
 
 		video_fw {
 			compatible = "exynos8890-ion,vfw";
-			secure;
-			reusable;
-			noprot;
+			ion,secure;
+			ion,reusable;
+			ion,noprot;
 			reg = <0x0 0xC0800000 0x400000>;
 			id = <2>;
 			compat-id = <24>;
@@ -39,7 +39,7 @@
 
 		video_nfw {
 			compatible = "exynos8890-ion,vnfw";
-			reusable;
+			ion,reusable;
 			reg = <0x0 0xC0C00000 0x400000>;
 			id = <7>;
 			compat-id = <20>;
@@ -47,8 +47,8 @@
 
 		video_stream {
 			compatible = "exynos8890-ion,vstream";
-			secure;
-			reusable;
+			ion,secure;
+			ion,reusable;
 			reg = <0x0 0xC1000000 0x1400000>;
 			id = <3>;
 			compat-id = <25 31>;
@@ -56,8 +56,8 @@
 
 		video_frame {
 			compatible = "exynos8890-ion,vframe";
-			secure;
-			reusable;
+			ion,secure;
+			ion,reusable;
 			reg = <0x0 0xC2400000 0x6400000>;
 			id = <5>;
 			compat-id = <26 29>;
@@ -65,8 +65,8 @@
 
 		video_scaler {
 			compatible = "exynos8890-ion,vscaler";
-			secure;
-			reusable;
+			ion,secure;
+			ion,reusable;
 			reg = <0x0 0xC8800000 0x4800000>;
 			id = <6>;
 			compat-id = <28>;
@@ -74,15 +74,15 @@
 
 		gpu_crc {
 			compatible = "exynos8890-ion,gpu_crc";
-			secure;
+			ion,secure;
 			reg = <0x0 0xCD000000 0x800000>;
 			id = <8>;
 		};
 
 		gpu_buffer {
 			compatible = "exynos8890-ion,gpu_buffer";
-			secure;
-			reusable;
+			ion,secure;
+			ion,reusable;
 			reg = <0x0 0xCD800000 0x3000000>;
 			id = <9>;
 		};
@@ -90,13 +90,13 @@
 		camera {
 			compatible = "exynos8890-ion,camera";
 			reg = <0x0 0xD0800000 0xE400000>;
-			recyclable;
+			ion,recyclable;
 			id = <10>;
 		};
 
 		secure_camera {
 			compatible = "exynos8890-ion,secure_camera";
-			secure;
+			ion,secure;
 			reg = <0x0 0xFC000000 0x1C00000>;
 			id = <11>;
 		};
