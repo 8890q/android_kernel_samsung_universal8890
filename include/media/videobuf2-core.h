@@ -20,7 +20,7 @@
 #include "../../drivers/staging/android/sw_sync.h"
 
 #define VB2_MAX_FRAME	(32)
-#define VB2_MAX_PLANES	(17)
+#define VB2_MAX_PLANES	(8)
 
 enum vb2_memory {
 	VB2_MEMORY_UNKNOWN	= 0,
