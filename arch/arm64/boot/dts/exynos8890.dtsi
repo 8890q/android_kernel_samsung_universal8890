@@ -3389,4 +3389,9 @@
 		}; // Input Booster -
 		/* If you need to add new key type, add it this position */
 	};
+	/* 3.18 uses GIC interrupt ID 255: SPI number 223. */
+	tee {
+		compatible = "samsung,exynos-tee";
+		interrupts = <0 223 1>;
+	};
 };

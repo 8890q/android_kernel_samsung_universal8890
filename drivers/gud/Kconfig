@@ -5,3 +5,7 @@
 if SOC_EXYNOS8895
 source "drivers/gud/gud-exynos8895_kinibi400/Kconfig"
 endif
+
+if SOC_EXYNOS8890
+source "drivers/gud/gud-exynos8890/Kconfig"
+endif
