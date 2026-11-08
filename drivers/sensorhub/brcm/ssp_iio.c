@@ -110,12 +110,12 @@ void report_meta_data(struct ssp_data *data, struct sensor_value *s)
 		memset(uncal_gyro_buf, 0, sizeof(uncal_gyro_buf));
 		ssp_push_iio_buffer(data->indio_dev[GYRO_UNCALIB_SENSOR], 0, (u8 *)uncal_gyro_buf, sizeof(uncal_gyro_buf));
 	} else if (s->meta_data.sensor == GEOMAGNETIC_SENSOR) {
-		u8 mag_buf[MAGNETIC_SIZE];
+		u8 mag_buf[MAGNETIC_REPORT_SIZE];
 
 		memset(mag_buf, 0, sizeof(mag_buf));
 		ssp_push_iio_buffer(data->indio_dev[GEOMAGNETIC_SENSOR], 0, (u8 *)mag_buf, sizeof(mag_buf));
 	} else if (s->meta_data.sensor == GEOMAGNETIC_UNCALIB_SENSOR) {
-		u8 uncal_mag_buf[UNCAL_MAGNETIC_SIZE];
+		u8 uncal_mag_buf[UNCAL_MAGNETIC_REPORT_SIZE];
 
 		memset(uncal_mag_buf, 0, sizeof(uncal_mag_buf));
 		ssp_push_iio_buffer(data->indio_dev[GEOMAGNETIC_UNCALIB_SENSOR], 0, (u8 *)uncal_mag_buf, sizeof(uncal_mag_buf));
