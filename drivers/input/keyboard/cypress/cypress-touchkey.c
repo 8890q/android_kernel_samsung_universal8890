@@ -2794,7 +2794,7 @@ static int i2c_touchkey_probe(struct i2c_client *client,
 	}
 
 	ret = request_threaded_irq(tkey_i2c->irq, NULL, touchkey_interrupt,
-			IRQF_DISABLED | IRQF_TRIGGER_FALLING |
+			IRQF_TRIGGER_FALLING |
 			IRQF_ONESHOT, tkey_i2c->name, tkey_i2c);
 	if (ret < 0) {
 		input_err(true, &client->dev, "Failed to request irq(%d) - %d\n",
