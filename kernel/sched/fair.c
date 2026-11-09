@@ -11312,11 +11312,23 @@ static bool need_big_normal(struct sched_entity *se)
 	int big_nr_running;
 	int cpu = raw_smp_processor_id();
 
-	/* Do not consider big task */
+	big_nr_running = hmp_domain_sum_nr_running(hmp_faster_domain(0));
+
+	/*
+	 * HMP boost can place all runnable work on the online big cores.
+	 * Leave frequency-boost mode when that work exceeds their capacity;
+	 * waiting for a heavy LITTLE task can otherwise strand the other
+	 * big cores offline indefinitely.
+	 */
+	if (big_nr_running > hpgov_default_level()) {
+		trace_sched_hp_event(cpu, se->avg.hmp_load_avg, big_nr_running,
+				"Big runqueue needs more cores");
+		return true;
+	}
+
+	/* A heavy LITTLE task can also require the remaining big cores. */
 	if (!hmp_cpu_is_slowest(cpu))
 		return false;
-
-	big_nr_running = hmp_domain_sum_nr_running(hmp_faster_domain(0));
 
 	if (se->avg.hmp_load_avg > hmp_up_threshold && big_nr_running > 0) {
 		trace_sched_hp_event(cpu, se->avg.hmp_load_avg, big_nr_running,

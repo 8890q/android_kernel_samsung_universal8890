@@ -127,7 +127,7 @@ static void exynos_hpgov_big_mode_update(int big_mode)
 	if (big_mode == BIG_NORMAL_MODE)
 		exynos_hpgov.data.req_cpu_min = 8;
 	else
-		exynos_hpgov.data.req_cpu_min = 5;
+		exynos_hpgov.data.req_cpu_min = 6;
 	spin_unlock_irqrestore(&hpgov_lock, flags);
 
 	irq_work_queue(&exynos_hpgov.update_irq_work);
@@ -356,7 +356,8 @@ static int exynos_hpgov_set_enabled(int enable)
 
 int hpgov_default_level(void)
 {
-	return 1;
+	/* Exynos8890 boosts with two big cores, as in its original governor. */
+	return 2;
 }
 
 static int exynos_hpgov_set_dual_change_ms(int val)
