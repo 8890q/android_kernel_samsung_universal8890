@@ -939,11 +939,8 @@ static int soc_bind_dai_link(struct snd_soc_card *card, int num)
 	for (i = 0; i < rtd->num_codecs; i++) {
 		codec_dais[i] = snd_soc_find_dai(&codecs[i]);
 		if (!codec_dais[i]) {
-			dev_err(card->dev,
-				"ASoC: CODEC DAI %s not registered (name %s, node %s)\n",
-				codecs[i].dai_name, codecs[i].name ?: "none",
-				codecs[i].of_node ?
-				codecs[i].of_node->full_name : "none");
+			dev_err(card->dev, "ASoC: CODEC DAI %s not registered\n",
+				codecs[i].dai_name);
 			return -EPROBE_DEFER;
 		}
 	}
