@@ -724,10 +724,6 @@ static ssize_t selinux_transaction_write(struct file *file, const char __user *b
 	if (IS_ERR(data))
 		return PTR_ERR(data);
 
-#if defined(CONFIG_KSU) && !defined(CONFIG_KPROBES)
-	ksu_sel_write_context(&file, &data, &size);
-#endif
-
 	rv = write_op[ino](file, data, size);
 	if (rv > 0) {
 		simple_transaction_set(file, rv);
