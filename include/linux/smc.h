@@ -87,6 +87,7 @@
 #define FMP_SMU_OFF			(0x0)
 #define FMP_SMU_ON			(0x1)
 #define UFS_FMP				(0x155A2000)
+#define EMMC2_FMP			(0x15741000)
 #else
 #define SMC_CMD_SMU			(0xC2001830)
 #endif

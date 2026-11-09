@@ -260,13 +260,24 @@ void dw_mci_exynos_cfg_smu(struct dw_mci *host)
 #else
 		ret = exynos_smc(SMC_CMD_FMP_SECURITY, 0, ID_FMP_UFS_MMC, FMP_DESCTYPE_0);
 #endif
-		if (ret)
-			dev_err(host->dev, "Fail to smc call for FMP SECURITY\n");
-
-		mci_writel(host, MPSBEGIN0, 0);
-		mci_writel(host, MPSEND0, SDMMC_BLOCK_NUM);
-		mci_writel(host, MPSCTRL0, SDMMC_MPSCTRL_BYPASS);
+#ifdef CONFIG_SOC_EXYNOS8890
+	} else if (id == 2 &&
+		   (host->pdata->quirks & DW_MCI_QUIRK_BYPASS_SMU)) {
+		/* The S7 SD slot uses MMC2 and the original secure-monitor ABI. */
+		ret = exynos_smc(SMC_CMD_FMP, FMP_SECURITY, EMMC2_FMP,
+				 FMP_DESC_OFF);
+#endif
+	} else {
+		return;
 	}
+	if (ret) {
+		dev_err(host->dev, "Fail to smc call for FMP SECURITY: %d\n", ret);
+		return;
+	}
+
+	mci_writel(host, MPSBEGIN0, 0);
+	mci_writel(host, MPSEND0, SDMMC_BLOCK_NUM);
+	mci_writel(host, MPSCTRL0, SDMMC_MPSCTRL_BYPASS);
 }
 
 static void dw_mci_exynos_set_clksel_timing(struct dw_mci *host, u32 timing)
