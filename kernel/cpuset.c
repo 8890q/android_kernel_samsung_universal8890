@@ -2162,11 +2162,11 @@ void cpuset_fork(struct task_struct *task)
 	task->mems_allowed = current->mems_allowed;
 }
 
-static int cpuset_allow_attach(struct cgroup_taskset *tset)
+static int cpuset_allow_attach(struct cgroup_subsys_state *css,
+			       struct cgroup_taskset *tset)
 {
 	const struct cred *cred = current_cred(), *tcred;
 	struct task_struct *task;
-	struct cgroup_subsys_state *css;
 
 	cgroup_taskset_for_each(task, css, tset) {
 		tcred = __task_cred(task);
