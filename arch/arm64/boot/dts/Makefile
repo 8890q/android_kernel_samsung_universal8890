@@ -8,9 +8,9 @@ dts-dirs += exynos
 
 subdir-y          := $(dts-dirs)
 
-always            := $(DTB_LIST)
+always            := $(dtb-y)
 
 targets += dtbs
-dtbs: $(addprefix $(obj)/, $(DTB_LIST))
+dtbs: $(addprefix $(obj)/, $(dtb-y))
 
 clean-files       := exynos/*.dtb *.dtb*
