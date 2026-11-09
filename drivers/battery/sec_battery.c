@@ -501,6 +501,9 @@ static int sec_bat_set_charging_current(struct sec_battery_info *battery)
 				battery->pdata->swelling_high_temp_current : charging_current;
 			topoff_current = (topoff_current > battery->pdata->swelling_high_temp_topoff) ?
 				battery->pdata->swelling_high_temp_topoff : topoff_current;
+		} else if (battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP) {
+			charging_current = min(charging_current,
+				battery->pdata->swelling_low_temp_current);
 		}
 	}
 
@@ -1436,33 +1439,48 @@ static bool sec_bat_temperature(
 static void sec_bat_swelling_check(struct sec_battery_info *battery, int temperature)
 {
 	union power_supply_propval val;
-	int swelling_rechg_voltage;
+	int swelling_rechg_voltage = battery->pdata->swelling_high_rechg_voltage;
 
 	psy_do_property(battery->pdata->charger_name, get,
 			POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
-
-	pr_info("%s: status(%d), swell_mode(%d:%d), cv(0x%02x), temp(%d)\n",
+	pr_info("%s: status(%d), swell_mode(%d:%d:%d), cv(0x%02x), temp(%d)\n",
 		__func__, battery->status, battery->swelling_mode,
-		battery->charging_block, val.intval, temperature);
+		battery->charging_block, (battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP),
+		val.intval, temperature);
 
-	/* swelling_mode
-		under voltage over voltage, battery missing */
+	/* swelling_mode under voltage over voltage, battery missing */
 	if ((battery->status == POWER_SUPPLY_STATUS_DISCHARGING) ||\
-		(battery->status == POWER_SUPPLY_STATUS_NOT_CHARGING)) {
+	    (battery->status == POWER_SUPPLY_STATUS_NOT_CHARGING)) {
 		pr_debug("%s: DISCHARGING or NOT-CHARGING. stop swelling mode\n", __func__);
 		battery->swelling_mode = false;
-		goto skip_swelling_chek;
+		battery->current_event &= ~(SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING |
+			SEC_BAT_CURRENT_EVENT_LOW_TEMP | SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING);
+		goto skip_swelling_check;
 	}
 
 	if (!battery->swelling_mode) {
 		if (((temperature >= battery->pdata->swelling_high_temp_block) ||
-			(temperature <= battery->pdata->swelling_low_temp_block)) &&
+			(temperature <= battery->pdata->swelling_low_temp_block_2nd)) &&
 			battery->pdata->temp_check_type) {
-
 			pr_info("%s: swelling mode start. stop charging\n", __func__);
 			battery->swelling_mode = true;
 			battery->swelling_full_check_cnt = 0;
 			sec_bat_set_charge(battery, SEC_BAT_CHG_MODE_CHARGING_OFF);
+
+			if (temperature >= battery->pdata->swelling_high_temp_block)
+				battery->current_event |= SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING;
+			else if (temperature <= battery->pdata->swelling_low_temp_block_2nd)
+				battery->current_event |= SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
+		} else if ((temperature <= battery->pdata->swelling_low_temp_block_1st) &&
+			!(battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP)) {
+			pr_info("%s: low temperature reduce current\n", __func__);
+			battery->current_event |= SEC_BAT_CURRENT_EVENT_LOW_TEMP;
+			sec_bat_set_charging_current(battery);
+		} else if ((temperature >= battery->pdata->swelling_low_temp_recov_1st) &&
+			(battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP)) {
+			pr_info("%s: normal temperature recover current\n", __func__);
+			battery->current_event &= ~SEC_BAT_CURRENT_EVENT_LOW_TEMP;
+			sec_bat_set_charging_current(battery);
 		}
 	}
 
@@ -1470,50 +1488,58 @@ static void sec_bat_swelling_check(struct sec_battery_info *battery, int tempera
 		return;
 
 	if (battery->swelling_mode) {
-		if (temperature <= battery->pdata->swelling_low_temp_recov)
+		if (temperature <= battery->pdata->swelling_low_temp_recov_2nd) {
 			swelling_rechg_voltage = battery->pdata->swelling_low_rechg_voltage;
-		else
-			swelling_rechg_voltage = battery->pdata->swelling_high_rechg_voltage;
+		}
 
 		if ((temperature <= battery->pdata->swelling_high_temp_recov) &&
-		    (temperature >= battery->pdata->swelling_low_temp_recov)) {
+		    (temperature >= battery->pdata->swelling_low_temp_recov_2nd)) {
 			pr_info("%s: swelling mode end. restart charging\n", __func__);
 			battery->swelling_mode = false;
 			battery->charging_mode = SEC_BATTERY_CHARGING_1ST;
-			battery->current_event &=
-				~(SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING | SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING);
+			/* check low temp flag */
+			if ((temperature <= battery->pdata->swelling_low_temp_block_1st) ||
+				((temperature < battery->pdata->swelling_low_temp_recov_1st) &&
+				(battery->current_event & SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING))) {
+				battery->current_event &= ~SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
+				battery->current_event |= SEC_BAT_CURRENT_EVENT_LOW_TEMP;
+			} else {
+				battery->current_event &= ~(SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING |
+					SEC_BAT_CURRENT_EVENT_LOW_TEMP | SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING);
+			}
 			sec_bat_set_charge(battery, SEC_BAT_CHG_MODE_CHARGING);
-			/* restore 4.4V float voltage */
+			/* Restore the board's normal float voltage. */
 			val.intval = battery->pdata->swelling_normal_float_voltage;
 			psy_do_property(battery->pdata->charger_name, set,
 					POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
-			/* restore charging current */
 			sec_bat_set_charging_current(battery);
 		} else if (battery->voltage_now < swelling_rechg_voltage &&
-			   battery->charging_block) {
+				battery->charging_block) {
 			pr_info("%s: swelling mode recharging start. Vbatt(%d)\n",
 				__func__, battery->voltage_now);
 			battery->charging_mode = SEC_BATTERY_CHARGING_1ST;
-			/* change 4.20V float voltage */
+
+			/* set swelling drop float voltage */
 			val.intval = battery->pdata->swelling_drop_float_voltage;
 			psy_do_property(battery->pdata->charger_name, set,
-					POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
+				POWER_SUPPLY_PROP_VOLTAGE_MAX, val);
+
 			/* set charging enable */
 			sec_bat_set_charge(battery, SEC_BAT_CHG_MODE_CHARGING);
-			if (temperature <= battery->pdata->swelling_low_temp_block) {
+			if (temperature <= battery->pdata->swelling_low_temp_recov_2nd) {
 				pr_info("%s: swelling mode reduce charging current(LOW-temp:%d)\n",
 					__func__, temperature);
 				battery->current_event |= SEC_BAT_CURRENT_EVENT_LOW_TEMP_SWELLING;
-				sec_bat_set_charging_current(battery);
-			} else if (temperature >= battery->pdata->swelling_high_temp_block) {
+			} else if (temperature >= battery->pdata->swelling_high_temp_recov) {
 				pr_info("%s: swelling mode reduce charging current(HIGH-temp:%d)\n",
 					__func__, temperature);
 				battery->current_event |= SEC_BAT_CURRENT_EVENT_HIGH_TEMP_SWELLING;
-				sec_bat_set_charging_current(battery);
 			}
+			sec_bat_set_charging_current(battery);
 		}
 	}
-skip_swelling_chek:
+
+skip_swelling_check:
 	dev_dbg(battery->dev, "%s end\n", __func__);
 }
 #endif
@@ -1800,7 +1826,7 @@ static bool sec_bat_temperature_check(
 						POWER_SUPPLY_STATUS_CHARGING);
 #if defined(CONFIG_BATTERY_SWELLING)
 			if ((temp_value >= battery->pdata->swelling_high_temp_block) ||
-				(temp_value <= battery->pdata->swelling_low_temp_block)) {
+				(temp_value <= battery->pdata->swelling_low_temp_block_2nd)) {
 				pr_info("%s: swelling mode start. stop charging\n", __func__);
 				battery->swelling_mode = true;
 				battery->swelling_full_check_cnt = 0;
@@ -6597,6 +6623,22 @@ static int vbus_handle_notification(struct notifier_block *nb,
 #endif
 
 #ifdef CONFIG_OF
+#if defined(CONFIG_BATTERY_SWELLING)
+static int sec_bat_read_swelling_temp(struct device_node *np, const char *name,
+		const char *legacy_name, int default_temp)
+{
+	u32 temp;
+
+	if (!of_property_read_u32(np, name, &temp))
+		return (int)temp;
+	if (legacy_name && !of_property_read_u32(np, legacy_name, &temp))
+		return (int)temp;
+
+	pr_info("%s: %s is missing, using %d\n", __func__, name, default_temp);
+	return default_temp;
+}
+#endif
+
 static int sec_bat_parse_dt(struct device *dev,
 		struct sec_battery_info *battery)
 {
@@ -7416,30 +7458,21 @@ static int sec_bat_parse_dt(struct device *dev,
 	if (ret)
 		pr_info("%s: chg_float_voltage is Empty\n", __func__);
 
-	ret = of_property_read_u32(np, "battery,swelling_high_temp_block",
-				   &temp);
-	pdata->swelling_high_temp_block = (int)temp;
-	if (ret)
-		pr_info("%s: swelling high temp block is Empty\n", __func__);
-
-	ret = of_property_read_u32(np, "battery,swelling_high_temp_recov",
-				   &temp);
-	pdata->swelling_high_temp_recov = (int)temp;
-	if (ret)
-		pr_info("%s: swelling high temp recovery is Empty\n", __func__);
-
-	ret = of_property_read_u32(np, "battery,swelling_low_temp_block",
-				   &temp);
-	pdata->swelling_low_temp_block = (int)temp;
-	if (ret)
-		pr_info("%s: swelling low temp block is Empty\n", __func__);
-
-	ret = of_property_read_u32(np, "battery,swelling_low_temp_recov",
-				   &temp);
-	pdata->swelling_low_temp_recov = (int)temp;
-	if (ret)
-		pr_info("%s: swelling low temp recovery is Empty\n", __func__);
-
+	/* Herolte uses current limiting first, then reduced-voltage charging. */
+	pdata->swelling_high_temp_block = sec_bat_read_swelling_temp(np,
+		"battery,swelling_high_temp_block", NULL, DEFAULT_SWELLING_HIGH_TEMP_BLOCK);
+	pdata->swelling_high_temp_recov = sec_bat_read_swelling_temp(np,
+		"battery,swelling_high_temp_recov", NULL, DEFAULT_SWELLING_HIGH_TEMP_RECOV);
+	pdata->swelling_low_temp_block_1st = sec_bat_read_swelling_temp(np,
+		"battery,swelling_low_temp_block_1st", NULL, DEFAULT_SWELLING_LOW_TEMP_BLOCK_1ST);
+	pdata->swelling_low_temp_recov_1st = sec_bat_read_swelling_temp(np,
+		"battery,swelling_low_temp_recov_1st", NULL, DEFAULT_SWELLING_LOW_TEMP_RECOV_1ST);
+	pdata->swelling_low_temp_block_2nd = sec_bat_read_swelling_temp(np,
+		"battery,swelling_low_temp_block_2nd", "battery,swelling_low_temp_block",
+		DEFAULT_SWELLING_LOW_TEMP_BLOCK_2ND);
+	pdata->swelling_low_temp_recov_2nd = sec_bat_read_swelling_temp(np,
+		"battery,swelling_low_temp_recov_2nd", "battery,swelling_low_temp_recov",
+		DEFAULT_SWELLING_LOW_TEMP_RECOV_2ND);
 
 	ret = of_property_read_u32(np, "battery,swelling_low_temp_current", 
 					&pdata->swelling_low_temp_current);
@@ -7491,10 +7524,12 @@ static int sec_bat_parse_dt(struct device *dev,
 	}
 
 	pr_info("%s : SWELLING_HIGH_TEMP(%d) SWELLING_HIGH_TEMP_RECOVERY(%d)\n"
-		"SWELLING_LOW_TEMP(%d) SWELLING_LOW_TEMP_RECOVERY(%d) "
+		"SWELLING_LOW_TEMP_1st(%d) SWELLING_LOW_TEMP_RECOVERY_1st(%d) "
+		"SWELLING_LOW_TEMP_2nd(%d) SWELLING_LOW_TEMP_RECOVERY_2nd(%d) "
 		"SWELLING_LOW_CURRENT(%d, %d), SWELLING_HIGH_CURRENT(%d, %d)\n",
 		__func__, pdata->swelling_high_temp_block, pdata->swelling_high_temp_recov,
-		pdata->swelling_low_temp_block, pdata->swelling_low_temp_recov,
+		pdata->swelling_low_temp_block_1st, pdata->swelling_low_temp_recov_1st,
+		pdata->swelling_low_temp_block_2nd, pdata->swelling_low_temp_recov_2nd,
 		pdata->swelling_low_temp_current, pdata->swelling_low_temp_topoff,
 		pdata->swelling_high_temp_current, pdata->swelling_high_temp_topoff);
 #endif

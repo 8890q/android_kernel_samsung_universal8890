@@ -577,8 +577,10 @@ struct sec_battery_platform_data {
 	/* battery swelling */
 	int swelling_high_temp_block;
 	int swelling_high_temp_recov;
-	int swelling_low_temp_block;
-	int swelling_low_temp_recov;
+	int swelling_low_temp_block_1st;
+	int swelling_low_temp_recov_1st;
+	int swelling_low_temp_block_2nd;
+	int swelling_low_temp_recov_2nd;
 	unsigned int swelling_low_temp_current;
 	unsigned int swelling_low_temp_topoff;
 	unsigned int swelling_high_temp_current;
