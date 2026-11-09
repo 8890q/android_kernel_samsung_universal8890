@@ -3955,6 +3955,9 @@ static struct dw_mci_of_quirks {
 		.quirk	= "disable-wp",
 		.id	= DW_MCI_QUIRK_NO_WRITE_PROTECT,
 	}, {
+		.quirk	= "bypass-smu",
+		.id	= DW_MCI_QUIRK_BYPASS_SMU,
+	}, {
 		.quirk  = "fixed_voltage",
 		.id	= DW_MMC_QUIRK_FIXED_VOLTAGE,
 	}, {
