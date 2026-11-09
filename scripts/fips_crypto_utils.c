@@ -13,6 +13,13 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+int update_crypto_hmac(const char *vmlinux_path, const char *hmac_path,
+			unsigned long offset);
+int collect_crypto_bytes(const char *in_file, const char *section_name,
+			unsigned long offset, unsigned long size,
+			const char *out_file);
  
 int main (int argc, char **argv)
 {
@@ -28,8 +35,8 @@ int main (int argc, char **argv)
 	if (!strcmp ("-u", argv[1]))
 	{
 		unsigned long offset = 0;
-		unsigned char * vmlinux_file = NULL;
-		unsigned char * hmac_file    = NULL;
+		const char * vmlinux_file = NULL;
+		const char * hmac_file    = NULL;
 
 		if (argc != 5)
 		{

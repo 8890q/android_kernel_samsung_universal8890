@@ -30,8 +30,8 @@ int main(int argc, char **argv)
 
 	if (!strncmp("-u", argv[1], sizeof("-u"))) {
 		unsigned long offset = 0;
-		unsigned char *vmlinux_file = NULL;
-		unsigned char *hmac_file = NULL;
+		const char *vmlinux_file = NULL;
+		const char *hmac_file = NULL;
 
 		if (argc != 5) {
 			printf("\nUsage : \n");
