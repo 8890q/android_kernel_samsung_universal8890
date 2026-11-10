@@ -1451,6 +1451,14 @@ struct kbase_mmu_mode const *kbase_mmu_mode_get_aarch64(void);
  *                          Job Scheduler
  */
 struct kbase_device {
+#ifdef CONFIG_TRACE_GPU_MEM
+	/* GPU accounting trees; context lifetime uses kctx_list_lock. */
+	struct rb_root gpu_mem_processes;
+	struct rb_root gpu_mem_dma_bufs;
+	struct mutex gpu_mem_dma_buf_lock;
+	spinlock_t gpu_mem_usage_lock;
+	u64 gpu_mem_pages;
+#endif
 	u32 hw_quirks_sc;
 	u32 hw_quirks_tiler;
 	u32 hw_quirks_mmu;
@@ -2029,6 +2037,9 @@ struct kbase_sub_alloc {
  * @atoms_count:          Number of gpu atoms currently in use, per priority
  */
 struct kbase_context {
+#ifdef CONFIG_TRACE_GPU_MEM
+	struct kbase_gpu_mem_process *gpu_mem_process;
+#endif
 	struct file *filp;
 	struct kbase_device *kbdev;
 	struct kbase_mmu_table mmu;

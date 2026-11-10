@@ -37,6 +37,7 @@
 
 #include <mali_kbase_config.h>
 #include <mali_kbase.h>
+#include <mali_kbase_trace_gpu_mem.h>
 #include <mali_midg_regmap.h>
 #include <mali_kbase_cache_policy.h>
 #include <mali_kbase_hw.h>
@@ -1892,6 +1893,7 @@ no_new_partial:
 			(u64)new_page_count);
 
 	alloc->nents += nr_pages_requested;
+	kbase_gpu_mem_account(kctx->kbdev, kctx, nr_pages_requested);
 done:
 	return 0;
 
@@ -1907,6 +1909,7 @@ alloc_failed:
 		kbase_atomic_add_pages(nr_pages_to_free,
 			       &kctx->kbdev->memdev.used_pages);
 
+		kbase_gpu_mem_account(kctx->kbdev, kctx, nr_pages_to_free);
 		kbase_free_phy_pages_helper(alloc, nr_pages_to_free);
 	}
 
@@ -2065,6 +2068,7 @@ struct tagged_addr *kbase_alloc_phy_pages_helper_locked(
 			(u64)new_page_count);
 
 	alloc->nents += nr_pages_requested;
+	kbase_gpu_mem_account(kctx->kbdev, kctx, nr_pages_requested);
 done:
 	return new_pages;
 
@@ -2216,6 +2220,7 @@ int kbase_free_phy_pages_helper(
 							&kctx->used_pages);
 		kbase_atomic_sub_pages(freed,
 				       &kctx->kbdev->memdev.used_pages);
+		kbase_gpu_mem_account(kctx->kbdev, kctx, -(long)freed);
 
 		KBASE_TLSTREAM_AUX_PAGESALLOC(
 				kctx->id,
@@ -2336,6 +2341,7 @@ void kbase_free_phy_pages_helper_locked(struct kbase_mem_phy_alloc *alloc,
 							&kctx->used_pages);
 		kbase_atomic_sub_pages(freed,
 				       &kctx->kbdev->memdev.used_pages);
+		kbase_gpu_mem_account(kctx->kbdev, kctx, -(long)freed);
 
 		KBASE_TLSTREAM_AUX_PAGESALLOC(
 				kctx->id,
@@ -3620,6 +3626,7 @@ static int kbase_jd_umm_map(struct kbase_context *kctx,
 			goto err_teardown_orig_pages;
 	}
 
+	kbase_add_dma_buf_usage(kctx, alloc);
 	return 0;
 
 err_teardown_orig_pages:
@@ -3647,6 +3654,7 @@ static void kbase_jd_umm_unmap(struct kbase_context *kctx,
 	dma_buf_unmap_attachment(alloc->imported.umm.dma_attachment,
 	    alloc->imported.umm.sgt, DMA_BIDIRECTIONAL);
 	alloc->imported.umm.sgt = NULL;
+	kbase_remove_dma_buf_usage(kctx, alloc);
 	alloc->nents = 0;
 }
 #endif				/* CONFIG_DMA_SHARED_BUFFER */

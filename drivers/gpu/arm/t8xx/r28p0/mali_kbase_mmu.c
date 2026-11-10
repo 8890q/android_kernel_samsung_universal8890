@@ -31,6 +31,7 @@
 #include <linux/kernel.h>
 #include <linux/dma-mapping.h>
 #include <mali_kbase.h>
+#include <mali_kbase_trace_gpu_mem.h>
 #include <mali_midg_regmap.h>
 #if defined(CONFIG_MALI_GATOR_SUPPORT)
 #include <mali_kbase_gator.h>
@@ -901,6 +902,7 @@ static phys_addr_t kbase_mmu_alloc_pgd(struct kbase_device *kbdev,
 	}
 
 	kbase_atomic_add_pages(1, &kbdev->memdev.used_pages);
+	kbase_gpu_mem_account(kbdev, mmut->kctx, 1);
 
 	for (i = 0; i < KBASE_MMU_PAGE_ENTRIES; i++)
 		kbdev->mmu_mode->entry_invalidate(&page[i]);
@@ -1219,6 +1221,7 @@ static inline void cleanup_empty_pte(struct kbase_device *kbdev,
 		kbase_atomic_sub_pages(1, &mmut->kctx->used_pages);
 	}
 	kbase_atomic_sub_pages(1, &kbdev->memdev.used_pages);
+	kbase_gpu_mem_account(kbdev, mmut->kctx, -1);
 }
 
 int kbase_mmu_insert_pages_no_flush(struct kbase_device *kbdev,
@@ -1857,6 +1860,7 @@ static void mmu_teardown_level(struct kbase_device *kbdev,
 	p = pfn_to_page(PFN_DOWN(pgd));
 	kbase_mem_pool_free(&kbdev->mem_pool, p, true);
 	kbase_atomic_sub_pages(1, &kbdev->memdev.used_pages);
+	kbase_gpu_mem_account(kbdev, mmut->kctx, -1);
 
 	/* If MMU tables belong to a context then pages will have been accounted
 	 * against it, so we must decrement the usage counts here.

@@ -80,6 +80,13 @@ config EVENT_TRACING
 config GPU_TRACEPOINTS
 	bool
 
+config TRACE_GPU_MEM
+	bool "GPU memory accounting tracepoint"
+	depends on TRACING
+	help
+	  Export global and per-process GPU memory updates for Android
+	  GPU memory accounting and tracing.
+
 config CONTEXT_SWITCH_TRACER
 	bool
 
@@ -448,7 +455,7 @@ config UPROBE_EVENT
 
 config BPF_EVENTS
 	depends on BPF_SYSCALL
-	depends on (KPROBE_EVENT || UPROBE_EVENT) && PERF_EVENTS
+	depends on (KPROBE_EVENT || UPROBE_EVENT || TRACEPOINTS) && PERF_EVENTS
 	bool
 	default y
 	help
