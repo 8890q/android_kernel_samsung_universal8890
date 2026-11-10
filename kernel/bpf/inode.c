@@ -328,7 +328,10 @@ static int bpf_mkobj(struct inode *dir, struct dentry *dentry, umode_t mode,
 	case BPF_TYPE_PROG:
 		return bpf_mkobj_ops(dir, dentry, mode, &bpf_prog_iops, &bpffs_obj_fops);
 	case BPF_TYPE_MAP:
-		return bpf_mkobj_ops(dir, dentry, mode, &bpf_map_iops, &bpffs_map_fops);
+		return bpf_mkobj_ops(dir, dentry, mode, &bpf_map_iops,
+				     ((struct bpf_map *)dentry->d_fsdata)->btf &&
+				     bpf_map_support_seq_show(dentry->d_fsdata) ?
+				     &bpffs_map_fops : &bpffs_obj_fops);
 	default:
 		return -EPERM;
 	}
