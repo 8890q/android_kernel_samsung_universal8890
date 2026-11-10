@@ -739,9 +739,22 @@ __enable_mmu:
 	ubfx	x2, x1, #ID_AA64MMFR0_TGRAN_SHIFT, 4
 	cmp	x2, #ID_AA64MMFR0_TGRAN_SUPPORTED
 	b.ne	__no_granule_support
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Preserve the Exynos M1 TTBR ordering used by the 3.18 kernel. */
+	tlbi	vaae1, xzr
+	dsb	nsh
+	tlbi	vaae1, xzr
+#endif
 	msr	ttbr0_el1, x25			// load TTBR0
 	msr	ttbr1_el1, x26			// load TTBR1
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vaae1, xzr
+#endif
 	isb
+#ifdef CONFIG_SOC_EXYNOS8890
+	tlbi	vaae1, xzr
+	dsb	nsh
+#endif
 	msr	sctlr_el1, x0
 	isb
 	/*

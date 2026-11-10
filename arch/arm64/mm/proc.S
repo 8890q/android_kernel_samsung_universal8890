@@ -124,6 +124,10 @@ ENTRY(cpu_do_resume)
 	msr	oslar_el1, x11
 	reset_pmuserenr_el0 x0			// Disable PMU access from EL0
 	mov	x0, x12
+#ifdef CONFIG_SOC_EXYNOS8890
+	/* Complete the Exynos M1 translation-context restore. */
+	tlbi	vmalle1
+#endif
 	dsb	nsh		// Make sure local tlb invalidation completed
 	isb
 	ret
