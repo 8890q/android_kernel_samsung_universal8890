@@ -137,7 +137,6 @@ obj-$(CONFIG_MALI_MIDGARD) += mali_kbase.o
 
 # Tell the Linux build system to enable building of our .c files
 mali_kbase-y := $(SRC:.c=.o)
-mali_kbase-$(CONFIG_TRACE_GPU_MEM) += mali_kbase_trace_gpu_mem.o
 
 # Kconfig passes in the name with quotes for in-tree builds - remove them.
 platform_name := $(shell echo $(CONFIG_MALI_PLATFORM_NAME))

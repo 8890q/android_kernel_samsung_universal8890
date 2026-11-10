@@ -144,9 +144,6 @@ struct kbase_mem_phy_alloc {
 			struct dma_buf_attachment *dma_attachment;
 			unsigned int current_mapping_usage_count;
 			struct sg_table *sgt;
-#ifdef CONFIG_TRACE_GPU_MEM
-			bool gpu_mem_accounted;
-#endif
 		} umm;
 #endif /* defined(CONFIG_DMA_SHARED_BUFFER) */
 		struct {

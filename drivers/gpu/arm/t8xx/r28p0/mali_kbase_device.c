@@ -34,7 +34,6 @@
 #include <linux/of_platform.h>
 
 #include <mali_kbase.h>
-#include <mali_kbase_trace_gpu_mem.h>
 #include <mali_kbase_defs.h>
 #include <mali_kbase_hwaccess_instr.h>
 #include <mali_kbase_hw.h>
@@ -66,11 +65,7 @@ static void kbasep_trace_hook_wrapper(void *param);
 
 struct kbase_device *kbase_device_alloc(void)
 {
-	struct kbase_device *kbdev = kzalloc(sizeof(*kbdev), GFP_KERNEL);
-
-	if (kbdev)
-		kbase_gpu_mem_init(kbdev);
-	return kbdev;
+	return kzalloc(sizeof(struct kbase_device), GFP_KERNEL);
 }
 
 static int kbase_device_as_init(struct kbase_device *kbdev, int i)

@@ -27,7 +27,6 @@
  */
 
 #include <mali_kbase.h>
-#include <mali_kbase_trace_gpu_mem.h>
 #include <mali_midg_regmap.h>
 #include <mali_kbase_mem_linux.h>
 #include <mali_kbase_dma_fence.h>
@@ -69,10 +68,6 @@ kbase_create_context(struct kbase_device *kbdev, bool is_compat)
 	kctx->slots_pullable = 0;
 	kctx->tgid = current->tgid;
 	kctx->pid = current->pid;
-
-	err = kbase_gpu_mem_context_init(kctx);
-	if (err)
-		goto free_kctx;
 
 	err = kbase_mem_pool_init(&kctx->mem_pool,
 				  kbdev->mem_pool_max_size_default,
@@ -194,7 +189,6 @@ free_both_pools:
 free_mem_pool:
 	kbase_mem_pool_term(&kctx->mem_pool);
 free_kctx:
-	kbase_gpu_mem_context_term(kctx);
 	vfree(kctx);
 out:
 	return NULL;
@@ -339,7 +333,6 @@ void kbase_destroy_context(struct kbase_context *kctx)
 		kctx->ctx_need_qos = false;
 	}
 
-	kbase_gpu_mem_context_term(kctx);
 	vfree(kctx);
 	/* MALI_SEC_INTEGRATION */
 	kctx = NULL;
