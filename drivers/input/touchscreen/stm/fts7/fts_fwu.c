@@ -839,6 +839,21 @@ int fts_fw_update_on_probe(struct fts_ts_info *info)
 	} else if (strncmp(info->board->project_name, "PS-LTE", 6) == 0) {
 		tsp_debug_err(true, info->dev,"%s:FTS7: PS-LTE\n", __func__);
 		info->firmware_name = info->board->firmware_name;
+	} else if((lcdtype & LCD_ID2_MODEL_MASK) == MODEL_HEROPLUS){
+		tsp_debug_err(true, info->dev,"%s:FTS7AD56 - HEROPLUS\n", __func__);
+		tspid2 = gpio_get_value(info->board->tspid2);
+		if (tspid2)
+			info->firmware_name = FW_IMAGE_NAME_HERO2ALPS;
+		else
+			info->firmware_name = FW_IMAGE_NAME_HERO2ALPS;
+
+		if (info->board->firmware_name){
+			tsp_debug_err(true, info->dev,"%s:firmware name exgist in dts\n", __func__);
+			info->firmware_name = info->board->firmware_name;
+		}
+	} else if((lcdtype & LCD_ID2_MODEL_MASK) == MODEL_HEROEDGE){
+		tsp_debug_err(true, info->dev,"%s:FTS7AD56 - HEROEDGE\n", __func__);
+		info->firmware_name = FW_IMAGE_NAME_HEROEDGE;
 	} else {
 		tsp_debug_err(true, info->dev,"%s:FTS4 - ZERO\n", __func__);
 		goto exit_fwload;

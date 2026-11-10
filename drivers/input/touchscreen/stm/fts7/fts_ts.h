@@ -4,6 +4,9 @@
 #include <linux/device.h>
 #include <linux/hrtimer.h>
 #include <linux/i2c/fts.h>
+#ifdef CONFIG_FB
+#include <linux/notifier.h>
+#endif
 #ifdef CONFIG_HAS_EARLYSUSPEND
 #include <linux/earlysuspend.h>
 #endif
@@ -566,6 +569,10 @@ struct fts_ts_info {
 #ifdef FTS_SUPPORT_STRINGLIB
 	int (*fts_read_from_string)(struct fts_ts_info *info, unsigned short *reg, unsigned char *data, int length);
 	int (*fts_write_to_string)(struct fts_ts_info *info, unsigned short *reg, unsigned char *data, int length);
+#endif
+
+#ifdef CONFIG_FB
+	struct notifier_block fb_notif;
 #endif
 };
 

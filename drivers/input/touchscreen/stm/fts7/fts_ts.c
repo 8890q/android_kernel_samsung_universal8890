@@ -70,6 +70,9 @@
 #include <linux/earlysuspend.h>
 #endif
 #include <linux/input/mt.h>
+#ifdef CONFIG_FB
+#include <linux/fb.h>
+#endif
 #include "fts_ts.h"
 
 static struct i2c_driver fts_i2c_driver;
@@ -1933,7 +1936,6 @@ static int fts_parse_dt(struct i2c_client *client)
 	struct fts_i2c_platform_data *pdata = dev->platform_data;
 	struct device_node *np = dev->of_node;
 	u32 coords[2], lines[2];
-	int lcdtype = 0;
 	int retval = 0;
 
 	pdata->tspid = of_get_named_gpio(np, "stm,tspid_gpio", 0);
@@ -2032,7 +2034,17 @@ static int fts_parse_dt(struct i2c_client *client)
 		pdata->stm_ver = STM_VER7;
 		tsp_debug_err(true, dev,"%s:FTS7AD56 - VALLEY STM_VER(0x%2X)\n", __func__, pdata->stm_ver);
 		tsp_debug_err(true, dev, "max_coords[%d,%d]\n", pdata->max_x, pdata->max_y);
-	} else {
+	}else if(((lcdtype & LCD_ID2_MODEL_MASK) == MODEL_HEROPLUS) ||
+		(((lcdtype & LCD_ID2_MODEL_MASK) == MODEL_HEROEDGE)) ||
+		(strncmp(pdata->project_name, "PS-LTE", 6) == 0)) {
+		pdata->stm_ver = STM_VER7;
+		tsp_debug_err(true, dev,"%s:FTS7AD56 - STM_VER(0x%2X)\n", __func__, pdata->stm_ver);
+		pdata->max_x = 1439;
+		pdata->max_y = 2559;
+		pdata->grip_area = 0;
+		tsp_debug_err(true, dev, "max_coords changed[%d,%d]\n", pdata->max_x, pdata->max_y);
+	}
+	else{
 		pdata->stm_ver = STM_VER5;
 		tsp_debug_err(true, dev,"%s:FTS7AD56 - NOBLE/ZERO STM_VER(0x%2X)\n", __func__, pdata->stm_ver);
 	}
@@ -2186,6 +2198,11 @@ static int fts_setup_drv_data(struct i2c_client *client)
 }
 #ifdef CONFIG_BATTERY_SAMSUNG
 extern unsigned int lpcharge;
+#endif
+
+#ifdef CONFIG_FB
+static int fb_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data);
 #endif
 
 static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
@@ -2457,6 +2474,12 @@ static int fts_probe(struct i2c_client *client, const struct i2c_device_id *idp)
 #endif
 #endif
 
+#ifdef CONFIG_FB
+	info->fb_notif.notifier_call = fb_notifier_callback;
+	if (fb_register_client(&info->fb_notif))
+		dev_err(&client->dev, "could not register fb notifier\n");
+#endif
+
 	device_init_wakeup(&client->dev, true);
 	schedule_delayed_work(&info->work_read_nv, msecs_to_jiffies(100));
 
@@ -2492,6 +2515,10 @@ err_setup_drv_data:
 static int fts_remove(struct i2c_client *client)
 {
 	struct fts_ts_info *info = i2c_get_clientdata(client);
+
+#ifdef CONFIG_FB
+	fb_unregister_client(&info->fb_notif);
+#endif
 
 	tsp_debug_info(true, &info->client->dev, "FTS removed \n");
 
@@ -3151,6 +3178,35 @@ static void fts_shutdown(struct i2c_client *client)
 		 info->board->led_power(info, false);
 #endif
 }
+
+#ifdef CONFIG_FB
+static int fb_notifier_callback(struct notifier_block *self,
+				unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	struct fts_ts_info *tc_data = container_of(self, struct fts_ts_info, fb_notif);
+
+	if (evdata && evdata->data && event == FB_EVENT_BLANK) {
+		int *blank = evdata->data;
+		switch (*blank) {
+		case FB_BLANK_UNBLANK:
+		case FB_BLANK_NORMAL:
+		case FB_BLANK_VSYNC_SUSPEND:
+		case FB_BLANK_HSYNC_SUSPEND:
+		        fts_input_open(tc_data->input_dev);
+			break;
+		case FB_BLANK_POWERDOWN:
+		        fts_input_close(tc_data->input_dev);
+			break;
+		default:
+			/* Don't handle what we don't understand */
+			break;
+		}
+	}
+
+	return 0;
+}
+#endif
 
 void fts_recovery_cx(struct fts_ts_info *info)
 {
