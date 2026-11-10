@@ -173,6 +173,11 @@ fw-shipped-$(CONFIG_KEYBOARD_ABOV_TOUCH_A96TA316) += abov/a96ta316aun_vlte.fw
 fw-shipped-$(CONFIG_MACH_EXYNOS8890_HEROLTE_EUR_OPEN) += \
 	tsp_sec/hero.bin abov/abov_hero.fw \
 	cypress/cy8cmbr3145_hero.fw
+fw-shipped-$(CONFIG_MACH_EXYNOS8890_HERO2LTE_EUR_OPEN) += \
+	tsp_sec/hero2la.bin abov/abov_hero2.fw \
+	tsp_stm/hero2a.fw tsp_stm/hero2i.fw tsp_stm/hero_e.fw \
+	cypress/cy8cmbr3145_hero.fw
+
 fw-shipped-all := $(fw-shipped-y) $(fw-shipped-m) $(fw-shipped-)
 
 quiet_cmd_ihex  = IHEX    $@

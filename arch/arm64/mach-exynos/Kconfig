@@ -54,6 +54,12 @@ config MACH_EXYNOS8890_HEROLTE_EUR_OPEN
 	select EXYNOS_DTBTOOL
 	select PWRCAL
 
+config MACH_EXYNOS8890_HERO2LTE_EUR_OPEN
+	bool "Galaxy S7 edge (SM-G935F, Exynos 8890)"
+	depends on SOC_EXYNOS8890
+	select EXYNOS_DTBTOOL
+	select PWRCAL
+
 endchoice
 
 endmenu
