@@ -5690,14 +5690,16 @@ retry:
 			"%s: Failed getting max supported power mode\n",
 			__func__);
 	} else {
-		if ((pwr_info->lane_rx != pwr_info->peer_available_lane_rx)
-			|| (pwr_info->lane_tx != pwr_info->peer_available_lane_tx)) {
-			dev_err(hba->dev,
-				"%s: peer availabele lanes are not equal to connected lanes\n",
-				__func__);
-			ret = -EINVAL;
-			goto out;
-		}
+		/*
+		 * Available lanes describe the peer's capabilities, not the
+		 * link width. A device may have lanes that are not connected
+		 * on this board. Configure power using the connected lanes.
+		 */
+		dev_info(hba->dev,
+			 "UFS lanes: connected rx=%u tx=%u, peer available rx=%u tx=%u\n",
+			 pwr_info->lane_rx, pwr_info->lane_tx,
+			 pwr_info->peer_available_lane_rx,
+			 pwr_info->peer_available_lane_tx);
 		ret = ufshcd_config_pwr_mode(hba, &hba->max_pwr_info.info);
 		if (ret) {
 			dev_err(hba->dev, "%s: Failed setting power mode, err = %d\n",
