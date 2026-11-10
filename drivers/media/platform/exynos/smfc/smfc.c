@@ -161,12 +161,20 @@ static void smfc_timedout_handler(unsigned long arg)
 
 	pm_runtime_put(smfc->dev);
 
+	/* Release HWFC waiters before job_finish can start another job. */
+	atomic_set(&smfc_hwfc_state, SMFC_HWFC_STANDBY);
+	wake_up(&smfc_hwfc_sync_wq);
+
 	ctx = v4l2_m2m_get_curr_priv(smfc->m2mdev);
 	if (ctx) {
-		v4l2_m2m_buf_done(v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx),
-							VB2_BUF_STATE_ERROR);
-		v4l2_m2m_buf_done(v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx),
-							VB2_BUF_STATE_ERROR);
+		struct vb2_v4l2_buffer *vb;
+
+		vb = v4l2_m2m_src_buf_remove(ctx->fh.m2m_ctx);
+		if (vb)
+			v4l2_m2m_buf_done(vb, VB2_BUF_STATE_ERROR);
+		vb = v4l2_m2m_dst_buf_remove(ctx->fh.m2m_ctx);
+		if (vb)
+			v4l2_m2m_buf_done(vb, VB2_BUF_STATE_ERROR);
 		if (!suspending) {
 			v4l2_m2m_job_finish(smfc->m2mdev, ctx->fh.m2m_ctx);
 		} else {
