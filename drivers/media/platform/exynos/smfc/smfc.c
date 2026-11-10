@@ -20,6 +20,7 @@
 #include <linux/mutex.h>
 #include <linux/wait.h>
 #include <linux/exynos_iovmm.h>
+#include <linux/smc.h>
 
 #include <media/videobuf2-core.h>
 #include <media/videobuf2-ion.h>
@@ -1014,6 +1015,16 @@ static int smfc_resume(struct device *dev)
 #ifdef CONFIG_PM
 static int smfc_runtime_resume(struct device *dev)
 {
+#ifdef CONFIG_EXYNOS_CONTENT_PATH_PROTECTION
+	if (of_device_is_compatible(dev->of_node, "samsung,exynos8890-jpeg")) {
+		int ret;
+
+		ret = exynos_smc(MC_FC_SET_CFW_PROT,
+				MC_FC_DRM_SET_CFW_PROT, PROT_JPEG, 0);
+		if (ret != SMC_TZPC_OK)
+			dev_err(dev, "fail to set cfw protection (%d)\n", ret);
+	}
+#endif
 	return 0;
 }
 
