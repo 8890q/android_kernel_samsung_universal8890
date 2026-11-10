@@ -228,6 +228,18 @@ static void change_battery_pdata(
 	}
 }
 
+static int sec_battery_read(struct file *fp, void *buf, size_t count)
+{
+	int ret;
+
+	/* kernel_read() handles read_iter but takes the offset by value. */
+	ret = kernel_read(fp, fp->f_pos, buf, count);
+	if (ret > 0)
+		fp->f_pos += ret;
+
+	return ret;
+}
+
 static int sec_battery_check_info(struct file *fp,
 						struct battery_data_info *batt_info)
 {
@@ -236,11 +248,11 @@ static int sec_battery_check_info(struct file *fp,
 	int dt_version, hw_rev, hw_rev_end;
 	int ret = 0, read_size;
 
-	read_size = fp->f_op->read(fp, (char*)&batt_data, sizeof(struct battery_data), &fp->f_pos);
+	read_size = sec_battery_read(fp, &batt_data, sizeof(batt_data));
 	CHECK_ERROR_DATA((read_size <= 0), ret, (-ENODATA), goto finish_check_info);
 	CHECK_ERROR_DATA((batt_data.type != BATTERY_DATA_TYPE_INFO), ret, (-EINVAL), goto finish_check_info);
 
-	read_size = fp->f_op->read(fp, (char*)batt_info, sizeof(struct battery_data_info), &fp->f_pos);
+	read_size = sec_battery_read(fp, batt_info, sizeof(*batt_info));
 	CHECK_ERROR_DATA((read_size <= 0 || read_size != batt_data.length), ret, (-ENODATA), goto finish_check_info);
 	CHECK_ERROR_DATA(
 		(batt_info->version < 0 || batt_info->hw_rev < 0 || batt_info->prop_count <= 0) ||
@@ -284,7 +296,7 @@ static int sec_battery_check_none(struct file *fp)
 	struct battery_data batt_data;
 	int ret = 0, read_size;
 
-	read_size = fp->f_op->read(fp, (char*)&batt_data, sizeof(struct battery_data), &fp->f_pos);
+	read_size = sec_battery_read(fp, &batt_data, sizeof(batt_data));
 	CHECK_ERROR_DATA((read_size <= 0), ret, (-ENODATA), goto finish_check_none);
 
 	if (batt_data.type != BATTERY_DATA_TYPE_NONE) {
@@ -312,7 +324,7 @@ static char *sec_battery_check_value(struct file *fp,
 
 	temp_buf = kzalloc(batt_data->length, GFP_KERNEL);
 	if (temp_buf) {
-		read_size = fp->f_op->read(fp, temp_buf, batt_data->length, &fp->f_pos);
+		read_size = sec_battery_read(fp, temp_buf, batt_data->length);
 		if (read_size <= 0) {
 			pr_info("%s: failed to read value\n", __func__);
 			kfree(temp_buf);
@@ -343,7 +355,7 @@ int sec_battery_update_data(const char* file_path)
 	CHECK_ERROR_DATA((ret), ret, (-EINVAL), goto skip_check_data);
 
 	while (batt_info.prop_count-- > 0) {
-		read_size = fp->f_op->read(fp, (char*)&batt_data, sizeof(struct battery_data), &fp->f_pos);
+		read_size = sec_battery_read(fp, &batt_data, sizeof(batt_data));
 		CHECK_ERROR_DATA((read_size <= 0), ret, (-ENODATA), goto finish_update_data);
 		pr_debug("%s: read batt_data(type=%d, flag=%d, node_name=%s, property=%s, length=%d)\n",
 			__func__, batt_data.type, batt_data.flag, batt_data.node_name, batt_data.property, batt_data.length);
