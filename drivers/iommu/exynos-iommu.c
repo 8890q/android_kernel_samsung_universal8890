@@ -697,6 +697,8 @@ static int __init sysmmu_parse_dt(struct device *sysmmu,
 		qos = DEFAULT_QOS_VALUE;
 	}
 	drvdata->qos = qos;
+	drvdata->block_when_stop = of_property_read_bool(sysmmu->of_node,
+						"sysmmu,block-when-stop");
 
 	/* Secure IRQ */
 	if (of_find_property(sysmmu->of_node, "sysmmu,secure-irq", NULL)) {
@@ -898,7 +900,17 @@ static void __sysmmu_disable_nocount(struct sysmmu_drvdata *drvdata)
 {
 
 	writel_relaxed(0, drvdata->sfrbase + REG_MMU_CFG);
-	sysmmu_control(drvdata->sfrbase, false);
+	if (IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
+	    MMU_MAJ_VER(drvdata->version) == 6) {
+		u32 ctrl = drvdata->block_when_stop ?
+				CTRL_BLOCK_DISABLE : CTRL_DISABLE;
+
+		/* Exynos8890 v6 uses the original direct-disable handshake. */
+		writel_relaxed(ctrl, drvdata->sfrbase + REG_MMU_CTRL);
+		BUG_ON(readl_relaxed(drvdata->sfrbase + REG_MMU_CTRL) != ctrl);
+	} else {
+		sysmmu_control(drvdata->sfrbase, false);
+	}
 
 	clk_disable(drvdata->clk);
 

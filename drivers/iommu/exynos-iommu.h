@@ -284,6 +284,7 @@ struct sysmmu_drvdata {
 	struct atomic_notifier_head fault_notifiers;
 	struct tlb_props tlb_props;
 	bool is_suspended;
+	bool block_when_stop;
 	struct exynos_iommu_event_log log;
 };
 
