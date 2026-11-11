@@ -223,8 +223,11 @@ static int m2m1shot2_g2d_prepare_format(
 static int m2m1shot2_g2d_prepare_source(struct m2m1shot2_context *ctx,
 			unsigned int index, struct m2m1shot2_source_image *img)
 {
+	u16 rotation = M2M1SHOT2_IMGTRFORM_ROTVAL(img->ext.transform);
+
 	if (index >= G2D_MAX_SOURCES ||
-	    img->ext.composit_mode >= MAX_G2D_BLIT_OP)
+	    img->ext.composit_mode >= MAX_G2D_BLIT_OP ||
+	    (rotation && rotation != M2M1SHOT2_IMGTRFORM_ROT180))
 		return -EINVAL;
 
 	return 0;

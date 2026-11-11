@@ -366,10 +366,15 @@ void g2d_hw_set_source_rotate(struct g2d1shot_dev *g2d_dev, int n,
 {
 	u32 cfg = 0;
 
+	/* 8J has per-axis reversal, but no 90/270-degree rotator. */
+	if (M2M1SHOT2_IMGTRFORM_ROTVAL(ext->transform) ==
+	    M2M1SHOT2_IMGTRFORM_ROT180)
+		cfg = G2D_LAYER_X_DIR_NEGATIVE | G2D_LAYER_Y_DIR_NEGATIVE;
+
 	if (ext->transform & M2M1SHOT2_IMGTRFORM_XFLIP)
-		cfg |= G2D_LAYER_X_DIR_NEGATIVE;
+		cfg ^= G2D_LAYER_X_DIR_NEGATIVE;
 	if (ext->transform & M2M1SHOT2_IMGTRFORM_YFLIP)
-		cfg |= G2D_LAYER_Y_DIR_NEGATIVE;
+		cfg ^= G2D_LAYER_Y_DIR_NEGATIVE;
 
 	__raw_writel(cfg, g2d_dev->reg + G2D_LAYERn_DIRECT_REG(n));
 }
