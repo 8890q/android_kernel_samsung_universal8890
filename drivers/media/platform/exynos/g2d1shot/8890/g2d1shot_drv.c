@@ -192,6 +192,8 @@ static int m2m1shot2_g2d_prepare_format(
 	}
 
 	if (fmt->crop.left < 0 || fmt->crop.top < 0 ||
+			fmt->crop.width <= 0 || fmt->crop.height <= 0 ||
+			fmt->window.width <= 0 || fmt->window.height <= 0 ||
 			(fmt->crop.left + fmt->crop.width > fmt->width) ||
 			(fmt->crop.top + fmt->crop.height > fmt->height)) {
 		pr_err("Invalid range of crop ltwh(%d, %d, %d, %d)\n",
@@ -546,7 +548,7 @@ static int g2d_get_hw_version(struct device *dev, struct g2d1shot_dev *g2d_dev)
 
 	pm_runtime_put(dev);
 
-	return 0;
+	return ret;
 }
 
 static int exynos_g2d_probe(struct platform_device *pdev)
