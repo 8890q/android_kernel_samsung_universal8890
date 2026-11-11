@@ -225,6 +225,24 @@ static int m2m1shot2_g2d_prepare_source(struct m2m1shot2_context *ctx,
 	return 0;
 }
 
+static int m2m1shot2_g2d_prepare_target(struct m2m1shot2_context *ctx,
+                                     struct m2m1shot2_context_image *img)
+{
+	unsigned int i;
+
+	for (i = 0; i < ctx->num_sources; i++) {
+		const struct v4l2_rect *window = &ctx->source[i].img.fmt.fmt.window;
+
+		if (window->left < 0 || window->top < 0 ||
+		    window->width > img->fmt.fmt.width ||
+		    window->height > img->fmt.fmt.height ||
+		    window->left > img->fmt.fmt.width - window->width ||
+		    window->top > img->fmt.fmt.height - window->height)
+			return -EINVAL;
+	}
+	return 0;
+}
+
 static int enable_g2d(struct g2d1shot_dev *g2d_dev)
 {
 	int ret;
@@ -396,6 +414,7 @@ static const struct m2m1shot2_devops m2m1shot2_g2d_ops = {
 	.free_context = m2m1shot2_g2d_free_context,
 	.prepare_format = m2m1shot2_g2d_prepare_format,
 	.prepare_source = m2m1shot2_g2d_prepare_source,
+	.prepare_target = m2m1shot2_g2d_prepare_target,
 	.prepare_perf = m2m1shot2_g2d_prepare_perf,
 	.device_run = m2m1shot2_g2d_device_run,
 };
