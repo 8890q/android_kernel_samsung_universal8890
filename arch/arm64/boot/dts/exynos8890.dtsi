@@ -2649,7 +2649,7 @@
 	};
 
 	iommu-domain_g2d {
-		compatible = "samsung,exynos-iommu-bus";
+		compatible = "samsung,exynos-iommu-bus", "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <1>;
 		ranges;
