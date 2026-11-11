@@ -194,8 +194,12 @@ static int m2m1shot2_g2d_prepare_format(
 	if (fmt->crop.left < 0 || fmt->crop.top < 0 ||
 			fmt->crop.width <= 0 || fmt->crop.height <= 0 ||
 			fmt->window.width <= 0 || fmt->window.height <= 0 ||
-			(fmt->crop.left + fmt->crop.width > fmt->width) ||
-			(fmt->crop.top + fmt->crop.height > fmt->height)) {
+			fmt->window.width > G2D_MAX_NORMAL_SIZE ||
+			fmt->window.height > G2D_MAX_NORMAL_SIZE ||
+			fmt->crop.width > fmt->width ||
+			fmt->crop.height > fmt->height ||
+			fmt->crop.left > fmt->width - fmt->crop.width ||
+			fmt->crop.top > fmt->height - fmt->crop.height) {
 		pr_err("Invalid range of crop ltwh(%d, %d, %d, %d)\n",
 				fmt->crop.left, fmt->crop.top,
 				fmt->crop.width, fmt->crop.height);
@@ -205,7 +209,8 @@ static int m2m1shot2_g2d_prepare_format(
 
 	*num_planes = g2d_fmt->num_planes;
 	for (i = 0; i < g2d_fmt->num_planes; i++) {
-		payload[i] = fmt->width * fmt->height * g2d_fmt->bpp[i];
+		payload[i] = (size_t)fmt->width * fmt->height *
+			     g2d_fmt->bpp[i];
 		payload[i] /= 8;
 	}
 	ctx_fmt->priv = (void *)g2d_fmt;
@@ -226,12 +231,13 @@ static int m2m1shot2_g2d_prepare_source(struct m2m1shot2_context *ctx,
 }
 
 static int m2m1shot2_g2d_prepare_target(struct m2m1shot2_context *ctx,
-                                     struct m2m1shot2_context_image *img)
+				     struct m2m1shot2_context_image *img)
 {
 	unsigned int i;
 
 	for (i = 0; i < ctx->num_sources; i++) {
-		const struct v4l2_rect *window = &ctx->source[i].img.fmt.fmt.window;
+		const struct v4l2_rect *window =
+			&ctx->source[i].img.fmt.fmt.window;
 
 		if (window->left < 0 || window->top < 0 ||
 		    window->width > img->fmt.fmt.width ||
@@ -554,6 +560,7 @@ static int g2d_get_hw_version(struct device *dev, struct g2d1shot_dev *g2d_dev)
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0) {
 		dev_err(dev, "Failed to enable power (%d)\n", ret);
+		pm_runtime_put_noidle(dev);
 		return ret;
 	}
 
@@ -608,17 +615,12 @@ static int exynos_g2d_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	g2d_dev->oneshot2_dev = m2m1shot2_create_device(&pdev->dev,
-		&m2m1shot2_g2d_ops, NODE_NAME, -1, M2M1SHOT2_DEVATTR_COHERENT);
-	if (IS_ERR(g2d_dev->oneshot2_dev))
-		return PTR_ERR(g2d_dev->oneshot2_dev);
-
 #if defined(G2D_SHARABILITY_CONTROL)
 	g2d_dev->syscon_reg = devm_ioremap(&pdev->dev, SYSREG_BLK_MSCL, SZ_4K);
 	if (!g2d_dev->syscon_reg) {
 		dev_err(&pdev->dev, "Failed to map BLK_MSCL for sharability\n");
 		ret = -ENOMEM;
-		goto err_hwver;
+		return ret;
 	}
 	g2d_dev->wlu_disable = true;
 #else
@@ -633,7 +635,7 @@ static int exynos_g2d_probe(struct platform_device *pdev)
 	ret = g2d_get_hw_version(&pdev->dev, g2d_dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to get H/W version\n");
-		goto err_hwver;
+		goto err_pm;
 	}
 
 	iovmm_set_fault_handler(&pdev->dev, g2d_iommu_fault_handler, g2d_dev);
@@ -641,19 +643,26 @@ static int exynos_g2d_probe(struct platform_device *pdev)
 	ret = iovmm_activate(&pdev->dev);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Failed to activate iommu\n");
-		goto err_hwver;
+		goto err_pm;
 	}
 
 	setup_timer(&g2d_dev->timer, g2d_timeout_handler,
 						(unsigned long)g2d_dev);
-	spin_lock_init(&g2d_dev->state_lock);
-	init_waitqueue_head(&g2d_dev->suspend_wait);
+	/* Publish the node only after drvdata, PM, IOVMM and timer are ready. */
+	g2d_dev->oneshot2_dev = m2m1shot2_create_device(&pdev->dev,
+		&m2m1shot2_g2d_ops, NODE_NAME, -1, M2M1SHOT2_DEVATTR_COHERENT);
+	if (IS_ERR(g2d_dev->oneshot2_dev)) {
+		ret = PTR_ERR(g2d_dev->oneshot2_dev);
+		goto err_iovmm;
+	}
 
 	dev_info(&pdev->dev, "G2D with m2m1shot2 is probed successfully.\n");
 
 	return 0;
-err_hwver:
-	m2m1shot2_destroy_device(g2d_dev->oneshot2_dev);
+err_iovmm:
+	iovmm_deactivate(&pdev->dev);
+err_pm:
+	pm_runtime_disable(&pdev->dev);
 
 	dev_err(&pdev->dev, "G2D m2m1shot2 probe is failed.\n");
 
@@ -665,6 +674,9 @@ static int exynos_g2d_remove(struct platform_device *pdev)
 	struct g2d1shot_dev *g2d_dev = platform_get_drvdata(pdev);
 
 	m2m1shot2_destroy_device(g2d_dev->oneshot2_dev);
+	del_timer_sync(&g2d_dev->timer);
+	iovmm_deactivate(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }
