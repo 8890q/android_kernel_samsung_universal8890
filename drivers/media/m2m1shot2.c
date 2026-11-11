@@ -949,7 +949,9 @@ static int m2m1shot2_get_dmabuf(struct m2m1shot2_device *m21dev,
 	if ((dmabuf == plane->dmabuf.dmabuf) &&
 			(dmabuf->size == plane->dmabuf.dmabuf->size) &&
 				(dmabuf->file == plane->dmabuf.dmabuf->file)) {
-		/* do not attach dmabuf again for the same buffer */
+		/* Reuse the mapping, but honor this image's buffer offset. */
+		plane->dma_addr = plane->dma_addr - plane->dmabuf.offset + off;
+		plane->dmabuf.offset = off;
 		dma_buf_put(dmabuf);
 		return 0;
 	}
@@ -978,6 +980,7 @@ static int m2m1shot2_get_dmabuf(struct m2m1shot2_device *m21dev,
 		goto err_map;
 
 	plane->dmabuf.dmabuf = dmabuf;
+	plane->dmabuf.offset = off;
 	plane->dma_addr += off;
 
 	return 0;
