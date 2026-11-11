@@ -263,6 +263,18 @@ struct tlb_props {
 	struct tlb_priv_addr *priv_addr_cfg;
 };
 
+#define SYSMMU_MAX_PBUFS 6
+
+struct sysmmu_pb {
+	struct list_head node;
+	u32 master_phandle;
+	unsigned int group;
+	unsigned int nr_read;
+	unsigned int nr_write;
+	u16 read_id[SYSMMU_MAX_PBUFS];
+	u16 write_id[SYSMMU_MAX_PBUFS];
+};
+
 /*
  * This structure hold all data of a single SYSMMU controller, this includes
  * hw resources like registers and clocks, pointers and list nodes to connect
@@ -283,6 +295,7 @@ struct sysmmu_drvdata {
 	int securebase;
 	struct atomic_notifier_head fault_notifiers;
 	struct tlb_props tlb_props;
+	struct list_head pb_groups;
 	bool is_suspended;
 	bool block_when_stop;
 	struct exynos_iommu_event_log log;

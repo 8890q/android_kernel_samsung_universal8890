@@ -31,6 +31,7 @@
 #include <asm/pgtable.h>
 
 #include <dt-bindings/sysmmu/sysmmu.h>
+#include <dt-bindings/soc/exynos8890-legacy.h>
 
 #include "exynos-iommu.h"
 
@@ -160,12 +161,162 @@ static void __sysmmu_set_tlb_line_size(void __iomem *sfrbase)
 	writel_relaxed(cfg, sfrbase + REG_L2TLB_CFG);
 }
 
-static void __exynos_sysmmu_set_prefbuf_axi_id(struct sysmmu_drvdata *drvdata)
+/* SysMMU v5/v6 prefetch registers and LMM presets from the 8890 driver. */
+#define REG_PB_LMM	0x300
+#define REG_PB_INDICATE	0x308
+#define REG_PB_CFG	0x310
+#define REG_PB_AXI_ID	0x330
+#define REG_PB_INFO	0x350
+
+static bool sysmmu_has_8890_pb(struct sysmmu_drvdata *data)
 {
-	if (!has_sysmmu_capable_pbuf(drvdata->sfrbase))
+	return IS_ENABLED(CONFIG_SOC_EXYNOS8890) &&
+		MMU_MAJ_VER(data->version) == 6 &&
+		has_sysmmu_capable_pbuf(data->sfrbase);
+}
+
+static int sysmmu_pb_lmm(unsigned int nr_hw, unsigned int nr_ids)
+{
+	static const s8 presets[4][6] = {
+		{ 1, 1, 0, -1, -1, -1 }, /* three buffers */
+		{ 3, 2, 1, 0, -1, -1 }, /* four buffers */
+		{ -1, -1, -1, -1, -1, -1 },
+		{ 5, 5, 4, 2, 1, 0 },   /* six buffers */
+	};
+
+	if (nr_hw < 3 || nr_hw > 6 || !nr_ids || nr_ids > 6)
+		return -EINVAL;
+	return presets[nr_hw - 3][nr_ids - 1];
+}
+
+static void sysmmu_program_pb(struct sysmmu_drvdata *data,
+			     const struct sysmmu_pb *pb)
+{
+	void __iomem *base = data->sfrbase;
+	unsigned int i, nr_ids = pb->nr_read + pb->nr_write;
+	unsigned int nr_hw, nr_slots;
+	int lmm;
+
+	if (!nr_ids)
+		return;
+	if (pb->group >= ((readl_relaxed(base + REG_MMU_CAPA) >> 20) & 0xf))
 		return;
 
-	/* TODO: implement later */
+	writel_relaxed(pb->group << 8, base + REG_PB_INDICATE);
+	nr_hw = readl_relaxed(base + REG_PB_INFO) & 0xff;
+	lmm = sysmmu_pb_lmm(nr_hw, nr_ids);
+	if (lmm < 0) {
+		dev_warn_once(data->sysmmu, "Invalid prefetch layout: %u/%u\n",
+			      nr_ids, nr_hw);
+		return;
+	}
+
+	/* The LMM combines physical buffers into this many logical slots. */
+	if (nr_hw == 3)
+		nr_slots = lmm ? 2 : 3;
+	else if (nr_hw == 4)
+		nr_slots = 4 - lmm;
+	else {
+		static const u8 slots[] = { 6, 5, 4, 3, 3, 2 };
+
+		nr_slots = slots[lmm];
+	}
+	/* Disable unused slots too: a group may be shared by several masters. */
+	writel_relaxed(lmm, base + REG_PB_LMM);
+	for (i = 0; i < nr_slots; i++) {
+		u32 config, id;
+
+		writel_relaxed((pb->group << 8) | i, base + REG_PB_INDICATE);
+		writel_relaxed(0, base + REG_PB_CFG);
+		if (i >= nr_ids)
+			continue;
+		if (i < pb->nr_read) {
+			id = pb->read_id[i];
+			config = SYSMMU_PBUFCFG_DEFAULT_INPUT;
+		} else {
+			id = pb->write_id[i - pb->nr_read];
+			config = SYSMMU_PBUFCFG_DEFAULT_OUTPUT;
+		}
+		writel_relaxed(0xffff0000 | id, base + REG_PB_AXI_ID);
+		writel_relaxed(config | 0x100001, base + REG_PB_CFG);
+	}
+}
+
+static void __exynos_sysmmu_set_prefbuf_axi_id(struct sysmmu_drvdata *data)
+{
+	struct sysmmu_pb *pb;
+
+	if (!sysmmu_has_8890_pb(data))
+		return;
+	list_for_each_entry(pb, &data->pb_groups, node)
+		sysmmu_program_pb(data, pb);
+}
+
+static int sysmmu_parse_pb(struct sysmmu_drvdata *data)
+{
+	struct device_node *info, *group;
+	unsigned int group_id = 0;
+	int ret = 0;
+
+	INIT_LIST_HEAD(&data->pb_groups);
+	if (!IS_ENABLED(CONFIG_SOC_EXYNOS8890) ||
+	    MMU_MAJ_VER(data->version) != 6)
+		return 0;
+	info = of_get_child_by_name(data->sysmmu->of_node, "pb-info");
+	if (!info)
+		return 0;
+
+	for_each_child_of_node(info, group) {
+		int i, count = of_count_phandle_with_args(group,
+				"master_axi_id_list", "#pb-id-cells");
+
+		if (count < 0) {
+			ret = count;
+			goto out_group;
+		}
+		for (i = 0; i < count; i++) {
+			struct of_phandle_args args;
+			struct sysmmu_pb *pb;
+			unsigned int j;
+
+			ret = of_parse_phandle_with_args(group, "master_axi_id_list",
+					"#pb-id-cells", i, &args);
+			if (ret)
+				goto out_group;
+			pb = devm_kzalloc(data->sysmmu, sizeof(*pb), GFP_KERNEL);
+			if (!pb) {
+				of_node_put(args.np);
+				ret = -ENOMEM;
+				goto out_group;
+			}
+			pb->master_phandle = args.np->phandle;
+			pb->group = group_id;
+			of_node_put(args.np);
+			for (j = 0; j < args.args_count; j++) {
+				u32 id = args.args[j];
+
+				if (!is_axi_id(id))
+					continue;
+				if (id > 0xffff || pb->nr_read + pb->nr_write == SYSMMU_MAX_PBUFS) {
+					ret = -EINVAL;
+					goto out_group;
+				}
+				if (is_ar_axi_id(id))
+					pb->read_id[pb->nr_read++] = id;
+				else
+					pb->write_id[pb->nr_write++] = id & AXIID_MASK;
+			}
+			list_add_tail(&pb->node, &data->pb_groups);
+		}
+		group_id++;
+	}
+	of_node_put(info);
+	return 0;
+
+out_group:
+	of_node_put(group);
+	of_node_put(info);
+	return ret;
 }
 
 static void __sysmmu_tlb_invalidate_all(void __iomem *sfrbase)
@@ -874,6 +1025,10 @@ static int __init exynos_sysmmu_probe(struct platform_device *pdev)
 		return ret;
 
 	data->version = get_hw_version(dev, data->sfrbase);
+
+	ret = sysmmu_parse_pb(data);
+	if (ret)
+		return ret;
 
 	ret = sysmmu_parse_dt(data->sysmmu, data);
 	if (ret) {
@@ -1768,9 +1923,53 @@ int sysmmu_set_prefetch_buffer_property(struct device *dev,
 			unsigned int inplanes, unsigned int onplanes,
 			unsigned int ipoption[], unsigned int opoption[])
 {
-	/* DUMMY */
-	dev_info(dev, "Called prefetch buffer property\n");
+	struct exynos_iommu_owner *owner = dev->archdata.iommu;
+	struct sysmmu_list_data *list;
+	unsigned long flags;
 
+	if (!owner || !dev->of_node)
+		return -EINVAL;
+	if (inplanes > SYSMMU_MAX_PBUFS || onplanes > SYSMMU_MAX_PBUFS)
+		return -EINVAL;
+
+	spin_lock_irqsave(&owner->lock, flags);
+	list_for_each_entry(list, &owner->sysmmu_list, node) {
+		struct sysmmu_drvdata *data = dev_get_drvdata(list->sysmmu);
+		struct sysmmu_pb *pb;
+
+		spin_lock(&data->lock);
+		if (!is_sysmmu_active(data) || !is_sysmmu_runtime_active(data) ||
+		    !sysmmu_has_8890_pb(data))
+			goto unlock;
+		list_for_each_entry(pb, &data->pb_groups, node) {
+			unsigned int i;
+
+			if (pb->master_phandle != dev->of_node->phandle)
+				continue;
+			/* Keep the LMM/AXI-ID layout installed at enable time. */
+			for (i = 0; i < min(inplanes, pb->nr_read); i++) {
+				u32 config = ipoption ? ipoption[i] :
+						SYSMMU_PBUFCFG_DEFAULT_INPUT;
+
+				writel_relaxed((pb->group << 8) | i,
+					       data->sfrbase + REG_PB_INDICATE);
+				writel_relaxed(config | 0x100001,
+					       data->sfrbase + REG_PB_CFG);
+			}
+			for (i = 0; i < min(onplanes, pb->nr_write); i++) {
+				u32 config = opoption ? opoption[i] :
+						SYSMMU_PBUFCFG_DEFAULT_OUTPUT;
+
+				writel_relaxed((pb->group << 8) | (pb->nr_read + i),
+					       data->sfrbase + REG_PB_INDICATE);
+				writel_relaxed(config | 0x100001,
+					       data->sfrbase + REG_PB_CFG);
+			}
+		}
+unlock:
+		spin_unlock(&data->lock);
+	}
+	spin_unlock_irqrestore(&owner->lock, flags);
 	return 0;
 }
 
