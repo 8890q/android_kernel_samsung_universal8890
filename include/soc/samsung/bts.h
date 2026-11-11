@@ -155,12 +155,14 @@ enum bts_media_type {
 	TYPE_CAM,
 	TYPE_MFC,
 	TYPE_G3D,
+	TYPE_G2D,
 };
 
 enum bts_ip_type {
 	IP_VPP = 0,
 	IP_CAM,
 	IP_MFC,
+	IP_G2D,
 	IP_NUM,
 };
 

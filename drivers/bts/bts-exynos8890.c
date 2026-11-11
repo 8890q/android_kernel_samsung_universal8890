@@ -914,7 +914,8 @@ unsigned int ip_peak_bw[IP_NUM];
 void exynos_update_bw(enum bts_media_type ip_type,
 		unsigned int sum_bw, unsigned int peak_bw)
 {
-	unsigned int ip_sum, ip_peak;
+	u64 ip_sum;
+	unsigned int ip_peak;
 	unsigned int int_freq;
 	unsigned int mif_freq;
 	int i;
@@ -942,6 +943,10 @@ void exynos_update_bw(enum bts_media_type ip_type,
 		ip_sum_bw[IP_MFC] = sum_bw;
 		ip_peak_bw[IP_MFC] = peak_bw;
 		break;
+	case TYPE_G2D:
+		ip_sum_bw[IP_G2D] = sum_bw;
+		ip_peak_bw[IP_G2D] = peak_bw;
+		break;
 	default:
 		pr_err("BTS : unsupported ip type - %u", ip_type);
 		break;
@@ -954,10 +959,12 @@ void exynos_update_bw(enum bts_media_type ip_type,
 		if (ip_peak < ip_peak_bw[i])
 			ip_peak = ip_peak_bw[i];
 	}
-	BTS_DBG("[BTS BW]: TOTAL SUM: %u, PEAK: %u\n", ip_sum, ip_peak);
+	BTS_DBG("[BTS BW]: TOTAL SUM: %llu, PEAK: %u\n", ip_sum, ip_peak);
 
-	mif_freq = (ip_sum * 100000) / (MIF_UTIL * BUS_WIDTH);
-	int_freq = (ip_peak * 100000) / (INT_UTIL * BUS_WIDTH);
+	mif_freq = min_t(u64, div_u64(ip_sum * 100000,
+				      MIF_UTIL * BUS_WIDTH), INT_MAX);
+	int_freq = min_t(u64, div_u64((u64)ip_peak * 100000,
+				      INT_UTIL * BUS_WIDTH), INT_MAX / 4);
 
 	if (mif_freq < 4 * int_freq)
 		mif_freq = 4 * int_freq;
