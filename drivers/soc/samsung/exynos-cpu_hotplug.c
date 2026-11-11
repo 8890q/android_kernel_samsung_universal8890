@@ -298,7 +298,14 @@ static int cpu_hotplug_qos_handler(struct notifier_block *b,
 	if (p && *p == FAST_HP)
 		return do_cpu_hotplug(true);
 
-	return do_cpu_hotplug(false);
+	/*
+	 * Thermal QoS callers can hold boost_lock.  CPU hotplug calls the
+	 * thermal boost notifier again, so it must not run in that context.
+	 * The worker also avoids recursive cpu_hotplug.lock acquisition when
+	 * boost switching updates the thermal QoS request during hotplug.
+	 */
+	mod_delayed_work(cpu_hotplug.workqueue, &cpu_hotplug.delayed_work, 0);
+	return NOTIFY_OK;
 }
 
 static struct notifier_block cpu_hotplug_qos_notifier = {
