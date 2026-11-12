@@ -39,6 +39,8 @@
 #include <linux/vmalloc.h>
 
 #include <bcmutils.h>
+#include <bcmdevs.h>
+#include <asm/unaligned.h>
 #include <bcmwifi_channels.h>
 #include <bcmendian.h>
 #include <ethernet.h>
@@ -5618,12 +5620,66 @@ static int wl_cfgvendor_lstats_get_bcn_mbss(char *buf, uint32 *rxbeaconmbss)
 	return BCME_OK;
 }
 
+/* pwrstats lengths include the TLV header; records are padded to 4 bytes. */
+static int wl_cfgvendor_lstats_awake_time(const char *buf, uint buflen,
+					uint32 *on_time)
+{
+	const uint8 *pos = (const uint8 *)buf;
+	uint length, offset, size;
+	uint32 awake = 0;
+	bool found = false;
+
+	if (buflen < WL_PWR_STATS_HDRLEN)
+		return BCME_BADLEN;
+	if (get_unaligned_le16(pos) != WL_PWRSTATS_VERSION)
+		return BCME_VERSION;
+	length = get_unaligned_le16(pos + sizeof(uint16));
+	if (length < WL_PWR_STATS_HDRLEN || length > buflen)
+		return BCME_BADLEN;
+
+	for (offset = WL_PWR_STATS_HDRLEN; offset < length; offset += size) {
+		uint type, tlv_len;
+		const uint8 *tlv = pos + offset;
+
+		if (length - offset < 2 * sizeof(uint16))
+			return BCME_BADLEN;
+		type = get_unaligned_le16(tlv);
+		tlv_len = get_unaligned_le16(tlv + sizeof(uint16)) & 0xfff;
+		size = ALIGN(tlv_len, sizeof(uint32));
+		if (tlv_len < 2 * sizeof(uint16) || size > length - offset)
+			return BCME_BADLEN;
+		if (type != WL_PWRSTATS_TYPE_PM_AWAKE2)
+			continue;
+		/* Only consume the stable prefix, not variable wake history. */
+		if (found || tlv_len < 2 * sizeof(uint16) +
+		    OFFSETOF(pm_awake_data_v2_t, last_drift))
+			return BCME_BADLEN;
+		tlv += 2 * sizeof(uint16);
+		/* All counters share the firmware epoch. Subtract modulo 2^32
+		 * so their individual wraps cancel. A firmware restart resets
+		 * the cumulative awake counter too. PM and MPC measure the
+		 * two mutually exclusive sleep states.
+		 */
+		awake = get_unaligned_le32(tlv +
+			OFFSETOF(pm_awake_data_v2_t, curr_time));
+		awake -= get_unaligned_le32(tlv +
+			OFFSETOF(pm_awake_data_v2_t, pm_dur));
+		awake -= get_unaligned_le32(tlv +
+			OFFSETOF(pm_awake_data_v2_t, mpc_dur));
+		found = true;
+	}
+	if (!found)
+		return BCME_NOTFOUND;
+	*on_time = awake;
+	return BCME_OK;
+}
+
 static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	struct wireless_dev *wdev, const void  *data, int len)
 {
-	static char iovar_buf[WLC_IOCTL_MAXLEN];
+	char *iovar_buf = NULL;
 	struct bcm_cfg80211 *cfg = wiphy_priv(wiphy);
-	int err = 0, i;
+	int err = 0, i, num_rates;
 	wifi_radio_stat *radio;
 	wifi_radio_stat_h radio_h;
 	wl_wme_cnt_t *wl_wme_cnt;
@@ -5659,29 +5715,58 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 		return -ENOMEM;
 	}
 
+	iovar_buf = (char *)MALLOCZ(cfg->osh, WLC_IOCTL_MAXLEN);
+	if (!iovar_buf) {
+		err = -ENOMEM;
+		goto exit;
+	}
+
+	memset(&iface, 0, sizeof(iface));
+#ifdef CONFIG_COMPAT
+	memset(&compat_iface, 0, sizeof(compat_iface));
+#endif
 	memset(&scbval, 0, sizeof(scb_val_t));
 	memset(outdata, 0, WLC_IOCTL_MAXLEN);
 	output = outdata;
 
 	err = wldev_iovar_getbuf(bcmcfg_to_prmry_ndev(cfg), "radiostat", NULL, 0,
 		iovar_buf, WLC_IOCTL_MAXLEN, NULL);
-	if (err != BCME_OK && err != BCME_UNSUPPORTED) {
+	if (err != BCME_OK) {
 		WL_ERR(("error (%d) - size = %zu\n", err, sizeof(wifi_radio_stat)));
 		goto exit;
 	}
 	radio = (wifi_radio_stat *)iovar_buf;
 
 	memset(&radio_h, 0, sizeof(wifi_radio_stat_h));
-	radio_h.on_time = radio->on_time;
-	radio_h.tx_time = radio->tx_time;
-	radio_h.rx_time = radio->rx_time;
-	radio_h.on_time_scan = radio->on_time_scan;
-	radio_h.on_time_nbd = radio->on_time_nbd;
-	radio_h.on_time_gscan = radio->on_time_gscan;
-	radio_h.on_time_roam_scan = radio->on_time_roam_scan;
-	radio_h.on_time_pno_scan = radio->on_time_pno_scan;
-	radio_h.on_time_hs20 = radio->on_time_hs20;
+	radio_h.on_time = dtoh32(radio->on_time);
+	radio_h.tx_time = dtoh32(radio->tx_time);
+	radio_h.rx_time = dtoh32(radio->rx_time);
+	radio_h.on_time_scan = dtoh32(radio->on_time_scan);
+	radio_h.on_time_nbd = dtoh32(radio->on_time_nbd);
+	radio_h.on_time_gscan = dtoh32(radio->on_time_gscan);
+	radio_h.on_time_roam_scan = dtoh32(radio->on_time_roam_scan);
+	radio_h.on_time_pno_scan = dtoh32(radio->on_time_pno_scan);
+	radio_h.on_time_hs20 = dtoh32(radio->on_time_hs20);
 	radio_h.num_channels = NUM_CHAN;
+
+	/* BCM4359 radiostat.on_time includes PM/MPC sleep. */
+	if (dtoh32(revinfo.chipnum) == BCM4359_CHIP_ID ||
+	    dtoh32(revinfo.chipnum) == BCM43596_CHIP_ID) {
+		err = wldev_iovar_getbuf(bcmcfg_to_prmry_ndev(cfg),
+					"pwrstats", NULL, 0, iovar_buf,
+					WLC_IOCTL_MAXLEN, NULL);
+		if (err != BCME_OK)
+			goto exit;
+		err = wl_cfgvendor_lstats_awake_time(iovar_buf,
+				WLC_IOCTL_MAXLEN, &radio_h.on_time);
+		if (err != BCME_OK)
+			goto exit;
+		if ((uint64)radio_h.tx_time + radio_h.rx_time >
+		    radio_h.on_time) {
+			err = BCME_BADARG;
+			goto exit;
+		}
+	}
 
 	memcpy(output, &radio_h, sizeof(wifi_radio_stat_h));
 
@@ -5759,7 +5844,16 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 	COMPAT_ASSIGN_VALUE(iface, beacon_rx, rxbeaconmbss);
 	COMPAT_ASSIGN_VALUE(iface, rssi_mgmt, scbval.val);
 	COMPAT_ASSIGN_VALUE(iface, num_peers, NUM_PEER);
-	COMPAT_ASSIGN_VALUE(iface, peer_info->num_rate, NUM_RATE);
+
+	err = wldev_iovar_getbuf(bcmcfg_to_prmry_ndev(cfg), "ratestat", NULL, 0,
+				 iovar_buf, WLC_IOCTL_MAXLEN, NULL);
+	if (err != BCME_OK && err != BCME_UNSUPPORTED) {
+		WL_ERR(("error (%d) - size = %zu\n",
+			err, NUM_RATE * sizeof(wifi_rate_stat)));
+		goto exit;
+	}
+	num_rates = err == BCME_OK ? NUM_RATE : 0;
+	COMPAT_ASSIGN_VALUE(iface, peer_info->num_rate, num_rates);
 
 #ifdef CONFIG_COMPAT
 	if (compat_task_state) {
@@ -5772,13 +5866,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 		output += (sizeof(iface) - sizeof(wifi_rate_stat));
 	}
 
-	err = wldev_iovar_getbuf(bcmcfg_to_prmry_ndev(cfg), "ratestat", NULL, 0,
-		iovar_buf, WLC_IOCTL_MAXLEN, NULL);
-	if (err != BCME_OK && err != BCME_UNSUPPORTED) {
-		WL_ERR(("error (%d) - size = %zu\n", err, NUM_RATE*sizeof(wifi_rate_stat)));
-		goto exit;
-	}
-	for (i = 0; i < NUM_RATE; i++) {
+	for (i = 0; i < num_rates; i++) {
 		p_wifi_rate_stat =
 			(wifi_rate_stat *)(iovar_buf + i*sizeof(wifi_rate_stat));
 		p_wifi_rate_stat_v1 = (wifi_rate_stat_v1 *)output;
@@ -5812,7 +5900,7 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 
 	total_len = total_len - sizeof(wifi_peer_info) +
 		NUM_PEER * (sizeof(wifi_peer_info) - sizeof(wifi_rate_stat_v1) +
-			NUM_RATE * sizeof(wifi_rate_stat_v1));
+			num_rates * sizeof(wifi_rate_stat_v1));
 
 	if (total_len > WLC_IOCTL_MAXLEN) {
 		WL_ERR(("Error! total_len:%d is unexpected value\n", total_len));
@@ -5825,6 +5913,8 @@ static int wl_cfgvendor_lstats_get_info(struct wiphy *wiphy,
 		WL_ERR(("Vendor Command reply failed ret:%d \n", err));
 
 exit:
+	if (iovar_buf)
+		MFREE(cfg->osh, iovar_buf, WLC_IOCTL_MAXLEN);
 	if (outdata) {
 		MFREE(cfg->osh, outdata, WLC_IOCTL_MAXLEN);
 	}
