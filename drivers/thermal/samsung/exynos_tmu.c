@@ -25,6 +25,7 @@
 #include <linux/isp_cooling.h>
 #include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/iopoll.h>
 #include <linux/interrupt.h>
 #include <linux/ipa.h>
 #include <linux/module.h>
@@ -183,27 +184,35 @@ static void exynos_tmu_wait_ready(struct exynos_tmu_data *data,
 				  const char *where)
 {
 	const struct exynos_tmu_registers *reg = data->pdata->registers;
-	u32 control, status = 0;
+	u32 control, status = 0, valid_mask;
 	int count;
 
 	if (!TMU_SUPPORTS(data->pdata, READY_STATUS))
 		return;
 
 	control = readl(data->base + reg->tmu_ctrl);
-	/*
-	 * On 8890, CORE_EN is cleared during suspend and low-power entry.
-	 * The disabled sensor need not assert ready. Check it after enabling,
-	 * not while restoring its calibration and thresholds before CORE_EN.
-	 */
-	if (data->soc == SOC_ARCH_EXYNOS8890 &&
-	    !(control & BIT(EXYNOS_TMU_CORE_EN_SHIFT)))
-		return;
-
-	for (count = 0; count < 10; count++) {
-		status = readl(data->base + reg->tmu_status);
-		if (status & BIT(0))
+	if (data->soc == SOC_ARCH_EXYNOS8890) {
+		/* Restore calibration and thresholds before CORE_EN. */
+		if (!(control & BIT(EXYNOS_TMU_CORE_EN_SHIFT)))
 			return;
-		udelay(5);
+
+		/*
+		 * 8890 reports valid temperature data in VALID_P0, not bit 0.
+		 * Only initialize/control reach this enabled-core path, under
+		 * the mutex; low-power core_control skips it when enabling.
+		 * Allow the first conversion to finish without busy-waiting.
+		 */
+		valid_mask = reg->valid_mask << reg->valid_p0_shift;
+		if (!readl_poll_timeout(data->base + reg->tmu_status, status,
+				status & valid_mask, 100, 30000))
+			return;
+	} else {
+		for (count = 0; count < 10; count++) {
+			status = readl(data->base + reg->tmu_status);
+			if (status & BIT(0))
+				return;
+			udelay(5);
+		}
 	}
 
 	pr_err("TMU%d is busy in %s: control=%#x status=%#x\n",
