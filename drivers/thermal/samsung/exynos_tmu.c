@@ -178,6 +178,38 @@ static void exynos_tmu_clear_irqs(struct exynos_tmu_data *data)
 	writel(val_irq, data->base + reg->tmu_intclear);
 }
 
+/* Caller must keep the TMU registers accessible. */
+static void exynos_tmu_wait_ready(struct exynos_tmu_data *data,
+				  const char *where)
+{
+	const struct exynos_tmu_registers *reg = data->pdata->registers;
+	u32 control, status = 0;
+	int count;
+
+	if (!TMU_SUPPORTS(data->pdata, READY_STATUS))
+		return;
+
+	control = readl(data->base + reg->tmu_ctrl);
+	/*
+	 * On 8890, CORE_EN is cleared during suspend and low-power entry.
+	 * The disabled sensor need not assert ready. Check it after enabling,
+	 * not while restoring its calibration and thresholds before CORE_EN.
+	 */
+	if (data->soc == SOC_ARCH_EXYNOS8890 &&
+	    !(control & BIT(EXYNOS_TMU_CORE_EN_SHIFT)))
+		return;
+
+	for (count = 0; count < 10; count++) {
+		status = readl(data->base + reg->tmu_status);
+		if (status & BIT(0))
+			return;
+		udelay(5);
+	}
+
+	pr_err("TMU%d is busy in %s: control=%#x status=%#x\n",
+	       data->id, where, control, status);
+}
+
 static int exynos_tmu_initialize(struct platform_device *pdev)
 {
 	struct exynos_tmu_data *data = platform_get_drvdata(pdev);
@@ -191,7 +223,7 @@ static int exynos_tmu_initialize(struct platform_device *pdev)
 	unsigned int falling_threshold0 = 0, falling_threshold1 = 0;
 	unsigned int falling_threshold2 = 0, falling_threshold3 = 0;
 	int ret = 0, threshold_code, i;
-	int timeout, shift;
+	int shift;
 	unsigned int temp_mask = TYPE_8BIT_MASK;
 
 	mutex_lock(&data->lock);
@@ -217,21 +249,7 @@ static int exynos_tmu_initialize(struct platform_device *pdev)
 		dev_info(&pdev->dev, "cal type : %d \n", pdata->cal_type);
 	}
 
-	if (TMU_SUPPORTS(pdata, READY_STATUS)) {
-		timeout = 10;
-		while (1) {
-			status = readl(data->base + reg->tmu_status);
-			if (status & 0x1)
-				break;
-
-			timeout--;
-			if (!timeout) {
-				pr_err("TMU is busy.\n");
-				break;
-			}
-			udelay(5);
-		}
-	}
+	exynos_tmu_wait_ready(data, __func__);
 
 	if (TMU_SUPPORTS(pdata, TRIM_RELOAD)) {
 		for (i = 0; i < reg->triminfo_ctrl_count; i++) {
@@ -429,19 +447,7 @@ static int exynos_tmu_initialize(struct platform_device *pdev)
 			con |= (1 << reg->therm_trip_en_shift);
 			writel(con, data->base + reg->tmu_ctrl);
 
-			timeout = 10;
-			while (1) {
-				status = readl(data->base + reg->tmu_status);
-				if (status & 0x1)
-					break;
-
-				timeout--;
-				if (!timeout) {
-					pr_err("TMU is busy.\n");
-					break;
-				}
-				udelay(5);
-			}
+			exynos_tmu_wait_ready(data, __func__);
 
 		}
 	}
@@ -461,7 +467,6 @@ static int exynos_tmu_control(struct platform_device *pdev, bool on)
 	struct exynos_tmu_platform_data *pdata = data->pdata;
 	const struct exynos_tmu_registers *reg = pdata->registers;
 	unsigned int con, interrupt_en, otp_fuse;
-	int timeout, status;
 
 	if (pdata->sensor_type == VIRTUAL_SENSOR)
 		return 0;
@@ -535,19 +540,7 @@ static int exynos_tmu_control(struct platform_device *pdev, bool on)
 	writel(interrupt_en, data->base + reg->tmu_inten);
 	writel(con, data->base + reg->tmu_ctrl);
 
-	timeout = 10;
-	while (1) {
-		status = readl(data->base + reg->tmu_status);
-		if (status & 0x1)
-			break;
-
-		timeout--;
-		if (!timeout) {
-			pr_err("TMU is busy.\n");
-			break;
-		}
-		udelay(5);
-	}
+	exynos_tmu_wait_ready(data, __func__);
 
 	if (reg->tmu_ctrl1 && reg->lpi0_mode_en_shift) {
 		con = readl(data->base + reg->tmu_ctrl1);
@@ -674,8 +667,7 @@ static int exynos_tmu_set_emulation(void *drv_data,	unsigned long temp)
 
 void exynos_tmu_core_control(bool on, int id)
 {
-	int count;
-	unsigned int con, status;
+	unsigned int con;
 
 	struct exynos_tmu_data *devnode;
 
@@ -690,16 +682,7 @@ void exynos_tmu_core_control(bool on, int id)
 			if (on)
 				continue;
 
-			for (count = 0; count < 10; count++) {
-				status = readl(devnode->base + devnode->pdata->registers->tmu_status);
-				if (status & 0x1)
-					break;
-
-				udelay(5);
-			}
-
-			if (count == 10)
-				pr_err("TMU is busy.\n");
+			exynos_tmu_wait_ready(devnode, __func__);
 		}
 
 	}
