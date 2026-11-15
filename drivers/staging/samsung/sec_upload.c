@@ -12,6 +12,7 @@
 #include <linux/kernel.h>
 #include <linux/input.h>
 #include <linux/gpio_keys.h>
+#include <linux/sec_debug.h>
 
 #ifndef ARRAYSIZE
 #define ARRAYSIZE(a)		(sizeof(a) / sizeof(a[0]))
