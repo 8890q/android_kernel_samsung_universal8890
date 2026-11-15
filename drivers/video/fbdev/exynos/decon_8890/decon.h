@@ -510,6 +510,27 @@ struct decon_bts2 {
 	void (*bts_deinit)(struct decon_device *decon);
 };
 
+typedef enum disp_esd_irq {
+	irq_no_esd = 0,
+	irq_pcd_det,
+	irq_err_fg,
+	irq_disp_det
+} disp_esd_irq_t;
+
+struct esd_protect {
+	u32 pcd_irq;
+	u32 err_irq;
+	u32 disp_det_irq;
+	u32 pcd_gpio;
+	u32 disp_det_gpio;
+	struct workqueue_struct *esd_wq;
+	struct work_struct esd_work;
+	u32	queuework_pending;
+	int irq_disable;
+	disp_esd_irq_t irq_type;
+	ktime_t when_irq_enable;
+};
+
 #ifdef CONFIG_DECON_EVENT_LOG
 /**
  * Display Subsystem event management status.
@@ -607,26 +628,6 @@ struct disp_log_vpp {
 	u32 height;
 };
 
-typedef enum disp_esd_irq {
-	irq_no_esd = 0,
-	irq_pcd_det,
-	irq_err_fg,
-	irq_disp_det
-} disp_esd_irq_t;
-
-struct esd_protect {
-	u32 pcd_irq;
-	u32 err_irq;
-	u32 disp_det_irq;
-	u32 pcd_gpio;
-	u32 disp_det_gpio;
-	struct workqueue_struct *esd_wq;
-	struct work_struct esd_work;
-	u32	queuework_pending;
-	int irq_disable;
-	disp_esd_irq_t irq_type;
-	ktime_t when_irq_enable;
-};
 
 /**
  * struct disp_ss_log - Display Subsystem Log
@@ -669,6 +670,7 @@ void DISP_SS_EVENT_SIZE_ERR_LOG(struct v4l2_subdev *sd, struct disp_ss_size_info
 #define DISP_SS_EVENT_START(...) do { } while(0)
 #define DISP_SS_EVENT_LOG(...) do { } while(0)
 #define DISP_SS_EVENT_LOG_WINCON(...) do { } while(0)
+#define DISP_SS_EVENT_LOG_WINCON2(...) do { } while(0)
 #define DISP_SS_EVENT_LOG_CMD(...) do { } while(0)
 #define DISP_SS_EVENT_SHOW(...) do { } while(0)
 #define DISP_SS_EVENT_SIZE_ERR_LOG(...) do { } while(0)
