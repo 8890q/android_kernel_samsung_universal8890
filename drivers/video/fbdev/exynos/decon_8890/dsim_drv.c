@@ -216,6 +216,7 @@ int dsim_write_data(struct dsim_device *dsim, unsigned int data_id,
 	int ret = 0;
 	struct decon_device *decon = (struct decon_device *)dsim->decon;
 	bool must_wait = true;
+	bool async_idle = false;
 
 #ifdef CONFIG_FB_DSU
 	if( decon!=NULL && decon->need_DSU_update ) {
@@ -294,8 +295,22 @@ int dsim_write_data(struct dsim_device *dsim, unsigned int data_id,
 	case MIPI_DSI_COLOR_MODE_ON:
 	case MIPI_DSI_SHUTDOWN_PERIPHERAL:
 	case MIPI_DSI_TURN_ON_PERIPHERAL:
+#ifdef CONFIG_LCD_ESD_IDLE_MODE
+		/*
+		 * WIN_CONFIG sends EXIT_IDLE_MODE once per frame.  With PKTGO
+		 * this packet can stay queued until the next TE, so waiting
+		 * for it here stalls the HWC present call for most of a frame.
+		 * A lone housekeeping packet needs no synchronous response;
+		 * keep the normal FIFO wait when earlier commands are queued.
+		 * The command timer still detects a failure to drain the FIFO.
+		 */
+		async_idle = data_id == MIPI_DSI_DCS_SHORT_WRITE &&
+			data0 == MIPI_DCS_EXIT_IDLE_MODE &&
+			dsim_reg_header_fifo_is_empty(dsim->id);
+#endif
 		dsim_reg_wr_tx_header(dsim->id, data_id, data0, data1);
-		must_wait = dsim_fifo_empty_needed(dsim, data_id, data0);
+		must_wait = !async_idle &&
+			dsim_fifo_empty_needed(dsim, data_id, data0);
 		break;
 
 	/* long packet types of packet types for command. */

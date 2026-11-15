@@ -5753,7 +5753,7 @@ static int decon_probe(struct platform_device *pdev)
 
 decon_init_done:
 		decon->ignore_vsync = false;
-	#ifdef CONFIG_DECON_EVENT_LOG
+#ifdef CONFIG_DECON_EVENT_LOG
 	decon->disp_ss_log_level = DISP_EVENT_LEVEL_HIGH;
 #endif
 		if ((decon->id == 0)  && (decon->pdata->psr_mode == DECON_MIPI_COMMAND_MODE)) {
