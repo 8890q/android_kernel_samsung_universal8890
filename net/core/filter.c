@@ -2800,6 +2800,8 @@ static const struct bpf_func_proto *
 sk_filter_func_proto(enum bpf_func_id func_id)
 {
 	switch (func_id) {
+	case BPF_FUNC_skb_load_bytes:
+		return &bpf_skb_load_bytes_proto;
 	case BPF_FUNC_skb_load_bytes_relative:
 		return &bpf_skb_load_bytes_relative_proto;
 	case BPF_FUNC_map_lookup_elem:
